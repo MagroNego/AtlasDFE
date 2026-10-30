@@ -44,6 +44,18 @@ def setup(tmp_path):
     return path, source
 
 
+def test_duplicate_reuses_validated_metadata_without_expanding_items(tmp_path, monkeypatch):
+    path, source = setup(tmp_path)
+    assert store.import_batch(path, CNPJ_PADRAO, [(source, 'a.xml')])['importadas'] == 1
+    def unexpected_items(*args, **kwargs):
+        raise AssertionError('Uma duplicata não precisa expandir os itens novamente')
+    monkeypatch.setattr(store, 'parse_nfe_xml', unexpected_items)
+    result = store.import_batch(path, CNPJ_PADRAO, [(source, 'a.xml')])
+    assert result['duplicadas'] == 1
+    assert result['erros'] == 0
+    assert store.query_report(path, CNPJ_PADRAO)['total'] == 1
+
+
 def zip_bytes(entries):
     out = BytesIO()
     with ZipFile(out, 'w') as archive:

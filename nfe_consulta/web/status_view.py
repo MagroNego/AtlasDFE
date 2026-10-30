@@ -158,12 +158,14 @@ def read_web_status(
             leitor = object.__new__(BancoManifestacoes)
             leitor.conexao = conexao
             recovery_pending = leitor.proximo_nsu_faltante(cnpj) is not None
+            incompletos = []
             for local, remoto, retomado in gaps:
                 recebidos = conexao.execute("SELECT COUNT(*) FROM documentos_nsu WHERE cnpj=? AND nsu>? AND nsu<=?", (cnpj,local,remoto)).fetchone()[0]
-                recovery_intervals.append((str(int(local)+1).zfill(15), remoto, recebidos, int(remoto)-int(local)))
-            gaps = [g for g in gaps if conexao.execute(
-                "SELECT COUNT(*) FROM documentos_nsu WHERE cnpj=? AND CAST(nsu AS INTEGER)>? AND CAST(nsu AS INTEGER)<=?",
-                (cnpj, int(g[0]), int(g[1]))).fetchone()[0] < int(g[1])-int(g[0])]
+                total = int(remoto)-int(local)
+                recovery_intervals.append((str(int(local)+1).zfill(15), remoto, recebidos, total))
+                if recebidos < total:
+                    incompletos.append((local, remoto, retomado))
+            gaps = incompletos
             recovery_pending = recovery_pending or bool(conexao.execute(
                 "SELECT 1 FROM consultas_nsu WHERE cnpj=? AND resultado='pendente' LIMIT 1", (cnpj,)).fetchone())
         except Exception as exc:

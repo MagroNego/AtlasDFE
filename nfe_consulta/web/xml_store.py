@@ -81,10 +81,11 @@ def _child(parent, tag):
     return next((el for el in parent if el.tag.rsplit("}", 1)[-1] == tag), None)
 
 
-def read_document(data: bytes, cnpj: str):
+def read_document(data: bytes, cnpj: str, *, root=None, include_items=True):
     if len(data) > MAX_XML:
         raise ValueError("XML excede 8 MiB.")
-    root = ET.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
+    if root is None:
+        root = ET.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
     if root.tag.rsplit("}", 1)[-1] not in ("NFe", "nfeProc"):
         raise ValueError("Envie NF-e completa; resumos e eventos não são XMLs da nota.")
     nfe = root if root.tag.rsplit("}", 1)[-1] == "NFe" else _child(root, "NFe")
@@ -102,8 +103,11 @@ def read_document(data: bytes, cnpj: str):
         raise ValueError("Número ou série diverge da chave da NF-e.")
     emissao = (_text(ide, "dhEmi") or _text(ide, "dEmi"))[:10]
     datetime.strptime(emissao, "%Y-%m-%d")
-    rows, retained = parse_nfe_xml(BytesIO(data))
-    if not rows or len(rows) > 990:
+    count = sum(el.tag.rsplit('}', 1)[-1] == 'det' for el in inf)
+    if not 1 <= count <= 990:
+        raise ValueError("NF-e sem itens ou acima do limite de 990 itens.")
+    rows, retained = parse_nfe_xml(None, root=root) if include_items else ([], None)
+    if include_items and (not rows or len(rows) > 990):
         raise ValueError("NF-e sem itens ou acima do limite de 990 itens.")
     valor = _text(_child(_child(inf, "total"), "ICMSTot"), "vNF")
     decimal_value(valor)
@@ -203,7 +207,10 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
                     cancellation = read_cancellation(root, cnpj)
                     event_only = cancellation is not None and root.tag.rsplit('}', 1)[-1] != 'nfeProc'
                     if not event_only:
-                        meta, rows, retained = read_document(data, cnpj)
+                        inf = next((el for el in root.iter() if el.tag.rsplit('}', 1)[-1] == 'infNFe'), None)
+                        candidate = inf.attrib.get('Id', '').removeprefix('NFe') if inf is not None else ''
+                        duplicate = conn.execute('SELECT 1 FROM xml_documentos WHERE cnpj=? AND chave=?', (cnpj, candidate)).fetchone() is not None
+                        meta, rows, retained = read_document(data, cnpj, root=root, include_items=not duplicate)
                 except Exception:
                     summary["erros"] += 1
                     summary["registros"].append(dict(arquivo=name, status="Erro", mensagem="XML inválido, incompleto ou de outro emitente."))
@@ -219,7 +226,7 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
                     summary['cancelamentos'] += save_cancellation(conn, cnpj, cancellation, data)
                 conn.execute('''INSERT INTO informacoes_nfe(cnpj,chave,emitente) VALUES (?,?,?)
                     ON CONFLICT(cnpj,chave) DO UPDATE SET emitente=CASE WHEN informacoes_nfe.emitente='' THEN excluded.emitente ELSE informacoes_nfe.emitente END''', (cnpj, chave, meta['emitente']))
-                if conn.execute("SELECT 1 FROM xml_documentos WHERE cnpj=? AND chave=?", (cnpj, chave)).fetchone():
+                if duplicate:
                     summary["duplicadas"] += 1
                     summary["registros"].append(dict(arquivo=name, status="Duplicada", mensagem="Chave já importada; dados anteriores preservados."))
                     continue
@@ -311,14 +318,14 @@ def query_report(database_path, cnpj, *, password=None, kind="notas", query="", 
         suffix = " ORDER BY d.emissao DESC,d.chave" + (",r.linha" if kind != "notas" else "")
         if not export:
             suffix += " LIMIT 100 OFFSET ?"
-        lines = conn.execute(f"SELECT {select} FROM {source} WHERE {where}" + suffix, params if export else [*params, (page - 1) * 100]).fetchall()
+        lines = conn.execute(f"SELECT {select} FROM {source} WHERE {where}" + suffix, params if export else [*params, (page - 1) * 100])
         rows = [dict(zip(FIELDS_NOTAS, row)) for row in cancellable_rows(lines)] if kind == "notas" else [json.loads(row[0]) for row in cancellable_rows(lines)]
         ctes = linked_ctes(conn, cnpj, [row.get("Chave Acesso", "") for row in rows])
         cancelled = cancelled_keys(conn, cnpj, [row.get('Chave Acesso', '') for row in rows])
         for row in cancellable_rows(rows):
             row['Situação'] = status_label(row.get('Chave Acesso', '') in cancelled)
             row["CT-e vinculado"] = export_label(ctes.get(row.get("Chave Acesso", ""), ()))
-        return dict(rows=rows, columns=columns, total=total, page=page, pages=pages, notas=conn.execute("SELECT COUNT(*) FROM xml_documentos WHERE cnpj=?", (cnpj,)).fetchone()[0])
+        return dict(rows=rows, ctes=ctes if not export else {}, columns=columns, total=total, page=page, pages=pages, notas=conn.execute("SELECT COUNT(*) FROM xml_documentos WHERE cnpj=?", (cnpj,)).fetchone()[0])
     finally:
         conn.close()
 

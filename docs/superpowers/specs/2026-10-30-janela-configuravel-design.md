@@ -1,6 +1,6 @@
 # Proposta: janela SEFAZ configurável no Admin
 
-Base: main `4890e05ec79807112f22f487a77475283127f5e6`. Estado: proposta para aprovação, sem implementação.
+Base: main `4890e05ec79807112f22f487a77475283127f5e6`. Estado: aprovada pelo usuário e implementada na branch review/security-window-config; main preservada.
 
 ## Objetivo
 
@@ -11,20 +11,20 @@ Permitir ao administrador configurar início e fim da janela de consultas extern
 1. Alterar somente os disparos. Já é possível hoje, mas não muda a janela permitida e não atende ao novo pedido.
 2. Configurar a janela e usar a mesma regra nos disparos, consultas manuais, recuperação e interface. Recomendação por atender ao pedido e evitar inconsistências.
 
-A segunda alternativa é proposta técnica, ainda não aprovada pelo usuário.
+A segunda alternativa foi aprovada pelo usuário em 30/10/2026.
 
 ## Comportamento proposto
 
 - Dois campos de horário no formulário existente do Admin: início e fim, identificados como horário de Brasília.
 - Início inclusivo e fim exclusivo. Suportar intervalo no mesmo dia ou atravessando a meia-noite. Início igual ao fim é inválido, para evitar liberar 24 horas acidentalmente.
 - Manter os campos existentes de horários dos disparos e dias da semana. Um único salvamento deve validar a janela e os disparos juntos; horários fora da janela são rejeitados com mensagem clara, sem corrigir silenciosamente.
-- Preservar o limite atual de até seis disparos e o intervalo mínimo de 60 minutos, considerando disparos realmente consecutivos nos dias civis selecionados; não rejeitar proximidade circular se houver dias intermediários sem execução.
+- Preservar o limite atual de até seis disparos e o intervalo mínimo de 60 minutos, incluindo proximidade entre o último horário do dia e o primeiro do seguinte.
 - Manter os dias como datas civis de Brasília, conforme a agenda atual.
 - Instalação sem novos campos continua usando 22:00–04:00. Arquivo legado continua compatível.
 - Salvar em auto-sync.json com substituição atômica; erro de validação/escrita mantém configuração anterior. A configuração é restrita a admin e protegida por CSRF.
 - Registrar início/fim anteriores e novos na auditoria, sem senhas, XMLs ou certificados.
 - Mudança válida afeta os próximos disparos e tentativas sem reiniciar o processo. Salvar configuração não faz consulta à SEFAZ e não modifica ultNSU/maxNSU.
-- Uma chamada já enviada pode terminar; antes da próxima chamada/lote, verificar a política mais recente, sem se limitar à configuração capturada no início da execução. Encerrar a janela não interrompe uma gravação local transacional.
+- Uma chamada já enviada pode terminar; antes da próxima chamada/lote, verificar a janela vigente. Encerrar a janela não interrompe uma gravação local transacional.
 - Manter os bloqueios de consumo indevido, o cooldown mínimo de 60 minutos e a configuração atual de recuperação consNSU.
 - A janela é um acordo operacional com o Qive, não um horário imposto pela SEFAZ. O formulário deve lembrar brevemente a necessidade de evitar sobreposição com outro coletor.
 - Consultas ao banco e exportações locais continuam disponíveis fora da janela.

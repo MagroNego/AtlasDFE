@@ -1,6 +1,7 @@
 """Metadados de erros de sincronização, sem mensagens brutas ou conteúdo fiscal."""
 from datetime import datetime
 import re
+from nfe_consulta.janela_consulta import janela_atual
 import subprocess
 
 from nfe_consulta.janela_consulta import BRASILIA
@@ -98,7 +99,7 @@ def mensagem_erro(exc):
     motivo = type(exc).__name__
     mensagens = {
         "NfeConsumoIndevidoErro": "A SEFAZ rejeitou a consulta por consumo indevido (656). Aguarde o fim da pausa; não altere o NSU para contornar o bloqueio.",
-        "NfeJanelaConsultaErro": "A janela de consultas terminou ou ainda não abriu. As consultas são permitidas das 22h às 04h de Brasília.",
+        "NfeJanelaConsultaErro": f"A janela de consultas terminou ou ainda não abriu. As consultas são permitidas das {janela_atual().rotulo} de Brasília.",
         "NfeLimiteConsultaErro": "O intervalo entre consultas ou a pausa da SEFAZ ainda está ativo. Aguarde a próxima tentativa permitida.",
         "NfeErroCertificado": "Não foi possível usar o certificado. Confira a validade, a senha e o acesso ao certificado no computador que executa o app.",
         "FileNotFoundError": "Banco, certificado ou componente necessário não encontrado. Confira os arquivos configurados no servidor.",

@@ -156,7 +156,7 @@ def registrar_execucao_agendada(settings, dia_local: date) -> None:
         conexao.close()
 
 
-async def executar_sincronizacao_automatica(
+async def _executar_sincronizacao_automatica(
     app,
     *,
     dia_agendado: date | None = None,
@@ -213,7 +213,7 @@ async def executar_sincronizacao_automatica(
                 reason=type(exc).__name__,
                 **detalhes_erro(exc),
             )
-            return proxima_abertura(janelas_diarias(agora_brasilia(), times=getattr(settings, "auto_sync_times", None), weekdays=getattr(settings, "auto_sync_weekdays", tuple(range(7))))[1])
+            return proximo_disparo_configurado(app)
 
         try:
             if resumo.completo:
@@ -225,7 +225,7 @@ async def executar_sincronizacao_automatica(
             audit_result("erro",
                 reason=f"schedule_state_{type(exc).__name__}",
             )
-            return proxima_abertura(janelas_diarias(agora_brasilia(), times=getattr(settings, "auto_sync_times", None), weekdays=getattr(settings, "auto_sync_weekdays", tuple(range(7))))[1])
+            return proximo_disparo_configurado(app)
 
         audit_result(
             "ok",
@@ -263,7 +263,7 @@ async def executar_sincronizacao_unica(app, dia: date) -> None:
     await executar_sincronizacao_automatica(app, dia_agendado=dia)
 
 
-async def loop_sincronizacao_automatica(app) -> None:
+async def _loop_sincronizacao_automatica(app) -> None:
     """Executa uma data única ou mantém a rotina diária opcional."""
     settings = getattr(app.state, "scheduler_settings", app.state.settings)
     if settings.auto_sync_once_date is not None:
@@ -300,9 +300,8 @@ async def loop_sincronizacao_automatica(app) -> None:
         recuperacao = await asyncio.to_thread(proxima_recuperacao_nsu, settings)
         adiada = None
         app.state.auto_sync_next_at = proxima
-        inicio = agora.replace(hour=22, minute=0, second=0, microsecond=0)
-        if agora.hour < 4:
-            inicio -= timedelta(days=1)
+        from nfe_consulta.janela_consulta import inicio_janela
+        inicio = inicio_janela(agora)
         elegivel = janela >= inicio and agora.weekday() in settings.auto_sync_weekdays
         if elegivel:
             try:
@@ -388,7 +387,10 @@ async def _wait_schedule(app, seconds):
 def janelas_diarias(agora: datetime, *, times=None, weekdays=tuple(range(7))) -> tuple[datetime, datetime]:
     """Último disparo e próximo disparo nos dias civis de Brasília selecionados."""
     from nfe_consulta.web.auto_sync_config import DEFAULT_TIMES, validate_schedule
-    values = validate_schedule(True, times or DEFAULT_TIMES, weekdays)
+    from nfe_consulta.janela_consulta import janela_atual
+    window = janela_atual()
+    values = validate_schedule(True, times or DEFAULT_TIMES, weekdays,
+        window_start=window.inicio, window_end=window.fim)
     if agora.tzinfo is None:
         raise ValueError("O instante deve ter fuso horário.")
     agora = agora.astimezone(timezone(timedelta(hours=-3)))
@@ -457,3 +459,26 @@ def registrar_janela_concluida(settings, janela: datetime) -> None:
             )
     finally:
         conexao.close()
+
+
+async def executar_sincronizacao_automatica(app, *, dia_agendado=None, janela_agendada=None):
+    from nfe_consulta.janela_consulta import usar_janela
+    with usar_janela(lambda: getattr(app.state, 'scheduler_settings', app.state.settings)):
+        return await _executar_sincronizacao_automatica(app, dia_agendado=dia_agendado, janela_agendada=janela_agendada)
+
+
+async def loop_sincronizacao_automatica(app):
+    from nfe_consulta.janela_consulta import usar_janela
+    with usar_janela(lambda: getattr(app.state, 'scheduler_settings', app.state.settings)):
+        return await _loop_sincronizacao_automatica(app)
+
+
+def proximo_disparo_configurado(app):
+    """Calcula a retentativa com horários e janela da mesma revisão da configuração."""
+    from nfe_consulta.janela_consulta import usar_janela
+    current = getattr(app.state, 'scheduler_settings', app.state.settings)
+    with usar_janela(lambda: current):
+        _, next_run = janelas_diarias(agora_brasilia(),
+            times=getattr(current, 'auto_sync_times', None),
+            weekdays=getattr(current, 'auto_sync_weekdays', tuple(range(7))))
+        return proxima_abertura(next_run)

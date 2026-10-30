@@ -112,6 +112,8 @@ class WebSettings:
     database_password_file: Path | None = None
     auto_sync_config_path: Path | None = None
     auto_sync_times: tuple[str, ...] = ('22:00', '23:00', '00:00', '01:00', '02:00', '03:00')
+    sync_window_start: str = '22:00'
+    sync_window_end: str = '04:00'
     auto_sync_enabled: bool = False
     recovery_enabled: bool = False
     auto_sync_interval_hours: int = 8

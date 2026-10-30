@@ -34,7 +34,10 @@ def test_manifestations_detail_is_scoped_and_back_keeps_emission_filters(tmp_pat
         assert 'voltar=' in cleared
         exported = client.get('/consulta/exportar', params={'chave': key})
         wb = load_workbook(BytesIO(exported.content))
-        assert wb['Manifestacoes'].max_row == 5
+        sheet = wb['Manifestacoes']
+        assert sheet.max_row == 2  # Uma linha de cabeçalho e o evento da nota selecionada.
+        values = [cell.value for cell in sheet[2]]
+        assert key in values and other not in values
         assert client.get('/xml/manifestacoes/invalid').status_code == 400
         assert client.get('/xml/manifestacoes/' + '0' * 44).status_code == 404
         assert client.get('/xml/manifestacoes/' + key + '?voltar=https://evil.example').text.count('href="/xml" data-items-back') == 1

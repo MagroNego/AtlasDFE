@@ -52,9 +52,9 @@ def zfill_cst(v, width=2):
 #  PARSER NF-e  — retorna (lista_itens, dict_retido)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def parse_nfe_xml(xml_file_path):
-    tree = ET.parse(xml_file_path)
-    root = tree.getroot()
+def parse_nfe_xml(xml_file_path, *, root=None):
+    if root is None:
+        root = ET.parse(xml_file_path).getroot()
 
     ns_match = re.match(r'\{(.+)\}', root.tag)
     ns     = {'n': ns_match.group(1)} if ns_match else {}

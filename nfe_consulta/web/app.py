@@ -110,6 +110,7 @@ def _context(
         "request": request,
         "user": user,
         "version": __version__,
+        "sync_window": janela_consulta.janela_de(request.app.state.scheduler_settings),
         "csrf": csrf_token(user, settings) if user else "",
     }
     contexto.update(extra)
@@ -338,6 +339,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
+        with janela_consulta.usar_janela(lambda: app.state.scheduler_settings):
+            return await security_headers_inner(request, call_next)
+
+    async def security_headers_inner(request: Request, call_next):
         path = request.url.path
         if not settings.local_auth_enabled and (
             path in {"/login", "/cadastro", "/admin/login", "/admin/logout", "/admin/contas"}
@@ -708,12 +713,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         request: Request, user: Annotated[WebUser, Depends(require_admin)],
         csrf: str = Form(...), enabled: bool = Form(False),
         times: str = Form(""), weekdays: list[int] = Form([]),
+        window_start: str | None = Form(None), window_end: str | None = Form(None),
     ):
         validate_csrf(csrf, user, settings)
         async with app.state.schedule_config_lock:
+            previous = app.state.scheduler_settings
             try:
-                updated = await run_in_threadpool(save_schedule, app.state.scheduler_settings,
-                    enabled=enabled, times=[value.strip() for value in times.split(',')], weekdays=weekdays)
+                updated = await run_in_threadpool(save_schedule, previous,
+                    enabled=enabled, times=[value.strip() for value in times.split(',')], weekdays=weekdays,
+                    window_start=window_start, window_end=window_end)
             except ValueError as exc:
                 raise HTTPException(400, str(exc))
             except OSError:
@@ -722,7 +730,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             app.state.auto_sync_next_at = None
             app.state.auto_sync_wake.set()
         app.state.audit.write(request, user, "auto_sync_config", "ok", enabled=enabled,
-                              times=list(updated.auto_sync_times), weekdays=list(updated.auto_sync_weekdays))
+                              times=list(updated.auto_sync_times), weekdays=list(updated.auto_sync_weekdays),
+                              window_start=updated.sync_window_start, window_end=updated.sync_window_end,
+                              previous_window_start=previous.sync_window_start,
+                              previous_window_end=previous.sync_window_end)
         return RedirectResponse(str(request.url_for("atualizar_page")) + "?schedule_saved=1", status_code=303)
 
     @app.get("/admin/contas", response_class=HTMLResponse, name="admin_accounts_page")
@@ -1641,7 +1652,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             lock.release()
 
     register_xml_routes(app, settings, _render, _database_path)
-    app.add_middleware(XmlUploadLimit)
+    app.add_middleware(XmlUploadLimit, max_upload_bytes=settings.max_upload_bytes)
     return app
 
 

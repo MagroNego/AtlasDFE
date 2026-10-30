@@ -98,14 +98,8 @@ def register_xml_routes(app, settings, render, database_path):
             result = await run_in_threadpool(store.query_report, database_path(settings), CNPJ_PADRAO,
                 password=settings.current_database_password(), kind=tipo, query=q,
                 inicio=selected.data_inicial, fim=selected.data_final, page=pagina, situacao=situacao, item_query=item)
-            def read_ctes():
-                conn = abrir_banco(database_path(settings), settings.current_database_password(), somente_leitura=True)
-                try:
-                    return linked_ctes(conn, CNPJ_PADRAO, [row.get("Chave Acesso", "") for row in result["rows"]])
-                finally:
-                    conn.close()
-            if tipo == "notas" and result["rows"]:
-                ctes = await run_in_threadpool(read_ctes)
+            if tipo == 'notas':
+                ctes = result.get('ctes', {})
             if user.is_admin:
                 history, batch = await run_in_threadpool(store.import_history, database_path(settings),
                     password=settings.current_database_password(), batch_id=lote)
@@ -205,18 +199,24 @@ def register_xml_routes(app, settings, render, database_path):
             selected = filters(data_inicial, data_final)
             kwargs = dict(password=settings.current_database_password(), query=q,
                           inicio=selected.data_inicial, fim=selected.data_final, export=True, situacao=situacao, item_query=item, note_key=chave)
+            document_keys, emission_dates = set(), set()
+            def remember(report):
+                for row in store.cancellable_rows(report['rows']):
+                    document_keys.add(row['Chave Acesso'])
+                    emission_dates.add(row.get('Data Emissao'))
+                return report
             if formato == "csv":
-                report = store.query_report(database_path(settings), CNPJ_PADRAO, kind=tipo, **kwargs)
+                report = remember(store.query_report(database_path(settings), CNPJ_PADRAO, kind=tipo, **kwargs))
                 data = store.export_csv(report)
-                metadata_rows = report["rows"]
             else:
-                reports = [(title, store.query_report(database_path(settings), CNPJ_PADRAO, kind=kind, **kwargs))
-                    for title, kind in ((("Itens", "itens"),) if chave else (("Notas", "notas"), ("Itens", "itens"), ("Retencoes", "retencoes")))]
-                metadata_rows = [row for _, report in reports for row in report["rows"]]
-                data = store.export_excel(reports)
-            return data, len({row["Chave Acesso"] for row in metadata_rows}), period_label(
-                (row.get("Data Emissao") for row in metadata_rows),
-                start=selected.data_inicial, end=selected.data_final)
+                def reports():
+                    sections = (("Itens", "itens"),) if chave else (("Notas", "notas"), ("Itens", "itens"), ("Retencoes", "retencoes"))
+                    for title, kind in sections:
+                        yield title, remember(store.query_report(database_path(settings), CNPJ_PADRAO, kind=kind, **kwargs))
+                data = store.export_excel(reports())
+            return data, len(document_keys), period_label(
+                emission_dates, start=selected.data_inicial, end=selected.data_final)
+
         try:
             data, documents, period = await run_in_threadpool(generate)
         except ValueError as exc:

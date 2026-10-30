@@ -62,7 +62,8 @@ def test_login_admin_importa_e_logout_revoga_sessao(tmp_path):
     with TestClient(app) as client:
         token = helpers['login'](client, cfg)
         cookie = client.cookies[cfg.admin_cookie_name]
-        assert 'name="files"' in client.get('/atualizar').text
+        assert 'name="files"' in client.get('/xml/importar').text
+        assert 'href="http://testserver/xml/importar"' in client.get('/xml').text or 'href="/xml/importar"' in client.get('/xml').text
         assert 'name="files"' not in client.get('/xml').text
         assert client.post('/xml/importar', data={'csrf': 'invalido'}, files={'files': ('a.xml', helpers['xml']())}).status_code == 403
         response = client.post('/xml/importar', data={'csrf': token}, files={'files': ('a.xml', helpers['xml']())}, follow_redirects=False)

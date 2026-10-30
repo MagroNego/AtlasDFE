@@ -13,8 +13,8 @@ from nfe_consulta.web.log_retention import SYNC_RETENTION_DAYS, log_instant
 
 
 _REASONS = {
-    "fora_janela": "Fora da janela de consultas: 22h às 04h (Brasília)",
-    "NfeJanelaConsultaErro": "Fora da janela de consultas: 22h às 04h (Brasília)",
+    "fora_janela": "Fora da janela de consultas configurada (Brasília)",
+    "NfeJanelaConsultaErro": "Fora da janela de consultas configurada (Brasília)",
     "consumo_indevido_656": "SEFAZ: consumo indevido (656)",
     "NfeConsumoIndevidoErro": "SEFAZ: consumo indevido (656)",
     "NfeLimiteConsultaErro": "Intervalo entre consultas ou pausa da SEFAZ ainda ativo",

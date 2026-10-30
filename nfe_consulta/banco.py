@@ -200,8 +200,8 @@ class BancoManifestacoes:
             ) SELECT MIN(n) FROM candidatos
             WHERE EXISTS (SELECT 1 FROM recuperacoes_nsu g WHERE g.cnpj=?
                 AND n>CAST(g.nsu_local AS INTEGER) AND n<=CAST(g.nsu_sefaz AS INTEGER))
-            AND NOT EXISTS (SELECT 1 FROM documentos_nsu d WHERE d.cnpj=? AND CAST(d.nsu AS INTEGER)=n)
-            AND NOT EXISTS (SELECT 1 FROM consultas_nsu a WHERE a.cnpj=? AND CAST(a.nsu AS INTEGER)=n AND a.resultado IN ('pendente','recebido','indisponivel'))
+            AND NOT EXISTS (SELECT 1 FROM documentos_nsu d WHERE d.cnpj=? AND d.nsu=printf('%015d', n))
+            AND NOT EXISTS (SELECT 1 FROM consultas_nsu a WHERE a.cnpj=? AND a.nsu=printf('%015d', n) AND a.resultado IN ('pendente','recebido','indisponivel'))
             """, (cnpj,)*6).fetchone()
         return str(linha[0]).zfill(15) if linha[0] is not None else None
 

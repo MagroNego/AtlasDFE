@@ -86,3 +86,17 @@ python scripts/package_release.py
 A CI testa Windows e Linux com dados sintéticos, sem chamadas reais à SEFAZ nem envio real de e-mail. O pacote contém código, recursos, lançadores e documentação; não contém dados operacionais.
 
 A versão declarada permanece `2.6.0`. A branch `main` pode conter correções posteriores ao ZIP dessa release. O workflow não substitui uma release existente: um pacote novo exige atualização de versão e nova publicação.
+
+### Janela de consultas configurável
+
+No **Admin → Disparos automáticos**, informe o início e o fim da janela em
+horário de Brasília e os horários dos disparos. O início é incluído e o fim
+é excluído; por exemplo, 22:00–04:00 permite consultar antes das 04:00.
+O padrão continua 22:00–04:00. Evite sobreposição com a janela combinada com
+outros coletores, como o Qive.
+
+Salve a janela e os disparos juntos. Os disparos precisam estar dentro da
+janela e respeitar 60 minutos entre execuções nos dias selecionados.
+A configuração vale sem reiniciar e permanece após reinício. Salvar não
+consulta a SEFAZ nem altera o NSU. Cooldown e bloqueios continuam valendo.
+Consultas e exportações locais permanecem disponíveis fora da janela.

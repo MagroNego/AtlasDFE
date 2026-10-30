@@ -34,7 +34,7 @@
       {% call guide('Sincronização SEFAZ') %}<p>Consulta o serviço NFeDistribuicaoDFe e grava os documentos no banco.</p><p>Consultas manuais e automáticas respeitam a janela de Brasília, pausas, trava de execução e intervalo de 60 minutos. O limite de lotes controla o trabalho desta execução.</p>{% if not request.app.state.settings.recovery_enabled %}<p>A recuperação consNSU está pausada; as pendências continuam salvas.</p>{% endif %}{% endcall %}
     </div>
 
-    <p class="admin-window">Janela SEFAZ · <strong>22h–04h</strong> · Brasília</p>
+    <p class="admin-window">Janela SEFAZ · <strong>{{ sync_window.inicio }}–{{ sync_window.fim }}</strong> · Brasília</p>
     {% if status_web.can_sync %}
     <form action="{{ url_for('atualizar_sincronizar') }}" method="post" data-processing-form data-sync-confirm>
       <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -116,12 +116,17 @@
 
 <section class="card accounts-section schedule-section">
   <div class="card-title"><h2>Disparos automáticos</h2>
-  {% call guide('Disparos automáticos') %}<ol><li>Ative a rotina e informe até seis horários separados por vírgulas, como <strong>22:00, 00:00, 02:00</strong>.</li><li>Use horários entre 22:00 e antes de 04:00, com pelo menos 60 minutos entre eles.</li><li>Selecione os dias e salve. A alteração vale sem reiniciar.</li></ol><p>Os dias seguem a data civil de Brasília: 01h de terça pertence à terça-feira.</p><p>Desativar impede novos disparos e retentativas automáticas; a execução em andamento termina. Consultas manuais continuam sujeitas à janela e às pausas. O computador e o processo devem permanecer ativos.</p>{% endcall %}</div>
+  {% call guide('Disparos automáticos') %}<ol><li>Ative a rotina e informe até seis horários separados por vírgulas, como <strong>22:00, 00:00, 02:00</strong>.</li><li>Use horários dentro da janela configurada, com pelo menos 60 minutos entre eles.</li><li>Selecione os dias e salve. A alteração vale sem reiniciar.</li></ol><p>Os dias seguem a data civil de Brasília: 01h de terça pertence à terça-feira.</p><p>Desativar impede novos disparos e retentativas automáticas; a execução em andamento termina. Consultas manuais continuam sujeitas à janela e às pausas. O computador e o processo devem permanecer ativos.</p>{% endcall %}</div>
   {% if request.query_params.get('schedule_saved') == '1' %}<div class="alert success" role="status">Agendamento salvo. A alteração já vale para os próximos disparos.</div>{% endif %}
-  <p class="admin-window">Janela SEFAZ · <strong>22h–04h</strong> · Brasília</p>
+  <p class="admin-window">Janela SEFAZ · <strong>{{ sync_window.inicio }}–{{ sync_window.fim }}</strong> · Brasília</p>
   <form action="{{ url_for('admin_schedule_update') }}" method="post" class="schedule-form">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label class="schedule-enabled"><input type="checkbox" name="enabled" value="true" {% if request.app.state.scheduler_settings.auto_sync_enabled %}checked{% endif %}><span>Ativar disparos automáticos</span></label>
+    <div class="admin-grid">
+      <label class="field"><span>Início da janela (Brasília)</span><input type="time" name="window_start" value="{{ sync_window.inicio }}" required></label>
+      <label class="field"><span>Fim da janela (Brasília)</span><input type="time" name="window_end" value="{{ sync_window.fim }}" required></label>
+    </div>
+    <p class="account-help">O horário final fica fora da janela. Evite sobreposição com o horário combinado com o Qive.</p>
     <label class="field"><span>Horários dos disparos (Brasília)</span><input name="times" value="{{ request.app.state.scheduler_settings.auto_sync_times|join(', ') }}" required maxlength="64" aria-describedby="schedule-times-help"></label>
     <p id="schedule-times-help" class="account-help">Até 6 horários, separados por vírgula. Intervalo mínimo: 60 min.</p>
     <fieldset class="schedule-days"><legend>Dias da semana</legend>

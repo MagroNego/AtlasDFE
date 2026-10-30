@@ -66,7 +66,7 @@ def test_admin_config_requires_auth_csrf_and_preserves_manual_settings(tmp_path,
         assert app.state.scheduler_settings.auto_sync_enabled
         assert app.state.settings == cfg  # Janela e controles manuais não são modificados.
         page = client.get('/atualizar').text
-        assert 'Janela de consultas à SEFAZ: das 22h às 04h' in page
+        assert '22:00–04:00' in page
         assert '22:30, 00:30, 02:30' in page
         assert client.post('/admin/agendamento',data={k:v for k,v in {**data,'csrf':csrf}.items() if k!='enabled'},follow_redirects=False).status_code == 303
         assert not app.state.scheduler_settings.auto_sync_enabled

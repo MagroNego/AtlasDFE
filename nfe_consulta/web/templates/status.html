@@ -50,7 +50,7 @@
   </div>
 
   <div class="status-footer">
-    <span>Próxima sincronização permitida · janela das 22h às 04h (Brasília)</span>
+    <span>Próxima sincronização permitida · janela das {{ sync_window.rotulo }} (Brasília)</span>
     <strong>
       {% if status_web.can_sync %}
         Disponível
@@ -71,7 +71,7 @@
     {% if retomado %}A consulta foi retomada.{% else %}O NSU informado na rejeição foi registrado para conferência; a distribuição mantém o último NSU gravado com sucesso.{% endif %}
     {% if status_web.recovery_pending %}
     {% if request.app.state.settings.recovery_enabled %}
-    Há NSUs na fila de recuperação. Consultas das 22h às 04h: até 20 NSUs por execução, descontando as consultas pontuais da última hora, respeitando o bloqueio e os limites de consulta.
+    Há NSUs na fila de recuperação. Consultas das {{ sync_window.rotulo }}: até 20 NSUs por execução, descontando as consultas pontuais da última hora, respeitando o bloqueio e os limites de consulta.
     {% else %}A recuperação está desativada; os intervalos pendentes permanecem registrados.{% endif %}
     {% else %}
     Há documentos que não puderam ser recuperados. O intervalo continua pendente de conferência.

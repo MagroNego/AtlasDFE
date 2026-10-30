@@ -31,6 +31,13 @@ def caminho_banco_configurado(settings: WebSettings):
 
 
 def sincronizar_configurado(settings: WebSettings, *, max_lotes: int = 50, audit=None):
+    from nfe_consulta.janela_consulta import usar_janela
+    from nfe_consulta.web.auto_sync_config import load_schedule
+    with usar_janela(lambda: load_schedule(settings) if hasattr(settings, 'auto_sync_config_path') else settings):
+        return _executar_com_janela(settings, max_lotes=max_lotes, audit=audit)
+
+
+def _executar_com_janela(settings: WebSettings, *, max_lotes: int = 50, audit=None):
     """Correlaciona erros, consultas e gravações da mesma tentativa."""
     inicio = monotonic()
     contexto = {"execucao": uuid4().hex, "etapa": "janela",
