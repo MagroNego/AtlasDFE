@@ -124,6 +124,7 @@ A CC-e fica vinculada pela chave, mesmo se a nota for importada depois.
 Reimportações não duplicam o evento. Em **Consulta**, filtre por **Carta de
 Correção** e clique no ícone de documento com lápis na coluna **Ações** da nota
 para consultar data, hora, texto, sequência e protocolo de todas as cartas da nota.
+O mesmo ícone fica disponível nas **Ações** das notas na aba **Emissão**.
 A CC-e não cria uma linha extra na consulta; o filtro de Carta de Correção
 localiza as notas com esse evento. A exportação de eventos mantém o histórico
 completo, incluindo sequência e texto das cartas.

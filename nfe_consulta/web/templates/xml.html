@@ -1,3 +1,4 @@
+{% from "cce_actions.html" import cce_action %}
 {% from "cte_links.html" import cte_links %}
 {% extends "base.html" %}
 {% block title %}{{ 'ITENS | NF ' ~ (detail['Numero Nota']|int) if detail else 'Emissão' }} · AtlasDFE{% endblock %}
@@ -71,6 +72,7 @@
         <a class="xml-icon-action" data-items-open href="{{ url_for('xml_manifestations', chave=row['Chave Acesso']).include_query_params(voltar=request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) }}" title="Manifestações" aria-label="Ver manifestações da nota {{ row['Numero Nota'] }}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3M9 2h6v4H9zM8 13l3 3 5-6"/></svg>
         </a>
+        {{ cce_action(row['Numero Nota'], row['Serie'], row['Chave Acesso'], cartas_correcao.get(row['Chave Acesso'], ())) }}
       </div></td>
       <td>{{ row['Numero Nota'] }}</td>
       <td>{{ row['Data Emissao']|date_br }}</td>
@@ -88,4 +90,5 @@
   </nav>{% endif %}
   {% else %}<p class="muted">{{ 'Nenhum item corresponde ao filtro.' if detail else 'Nenhuma nota corresponde aos filtros. Ajuste a busca ou confira os dados importados.' }}</p>{% endif %}
 </section>
+{% if tipo == 'notas' %}{% include 'cce_dialog.html' %}{% endif %}
 {% endblock %}

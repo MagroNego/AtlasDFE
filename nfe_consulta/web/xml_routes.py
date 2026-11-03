@@ -1,6 +1,8 @@
 """Rotas do leitor XML integradas às sessões e ao banco da aplicação."""
 from __future__ import annotations
 
+from nfe_consulta.web.consulta_local import consultar_cartas
+
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -93,6 +95,7 @@ def register_xml_routes(app, settings, render, database_path):
         history, batch = [], None
         selected = None
         ctes = {}
+        cartas_correcao = {}
         try:
             selected = filters(data_inicial, data_final)
             result = await run_in_threadpool(store.query_report, database_path(settings), CNPJ_PADRAO,
@@ -100,6 +103,8 @@ def register_xml_routes(app, settings, render, database_path):
                 inicio=selected.data_inicial, fim=selected.data_final, page=pagina, situacao=situacao, item_query=item)
             if tipo == 'notas':
                 ctes = result.get('ctes', {})
+                cartas_correcao = await run_in_threadpool(consultar_cartas, database_path(settings), CNPJ_PADRAO,
+                    [row['Chave Acesso'] for row in result['rows']], password=settings.current_database_password())
             if user.is_admin:
                 history, batch = await run_in_threadpool(store.import_history, database_path(settings),
                     password=settings.current_database_password(), batch_id=lote)
@@ -110,7 +115,7 @@ def register_xml_routes(app, settings, render, database_path):
         return render(request, "xml.html", user, result=result, tipo=tipo, q=q,
             inicio=selected.data_inicial_br if selected else data_inicial,
             fim=selected.data_final_br if selected else data_final,
-            history=history, batch=batch, error=error, ctes=ctes, situacao=situacao, item=item)
+            history=history, batch=batch, error=error, ctes=ctes, cartas_correcao=cartas_correcao, situacao=situacao, item=item)
 
     @app.get("/xml/importar")
     async def xml_import_page(request: Request, user: Annotated[WebUser, Depends(require_admin)],

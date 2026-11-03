@@ -195,3 +195,21 @@ def test_only_cce_still_shows_note_and_icon_in_html(tmp_path):
     assert '<strong>Carta de Correção</strong>' not in page.text
     assert page.text.count('class="cce-text"') == 2
     assert '07/10/2026 09:01:00' in page.text and CORRECAO in page.text
+
+
+def test_emission_actions_show_cce_details_without_extra_note_rows(tmp_path):
+    from conftest import authenticated_user
+    from fastapi.testclient import TestClient
+    from nfe_consulta.web.app import create_app
+    cfg = web['settings_web'](tmp_path)
+    web['criar_banco'](cfg.database_path)
+    batch(cfg, tmp_path, [h['helpers']['xml'](), cce(), cce(2)])
+    with TestClient(create_app(cfg)) as client:
+        authenticated_user(client)
+        page = client.get('/xml')
+    assert page.status_code == 200
+    assert page.text.count('data-cce-open') == 1
+    assert page.text.count('class="cce-text"') == 2
+    assert '07/10/2026 09:01:00' in page.text and CORRECAO in page.text
+    assert 'id="cce-dialog"' in page.text
+    assert '1 registro(s)' in page.text

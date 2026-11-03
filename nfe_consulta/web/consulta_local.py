@@ -297,6 +297,19 @@ def _cartas_por_nota(conexao, cnpj, chaves):
     return {key: tuple(events) for key, events in found.items()}
 
 
+def consultar_cartas(database_path, cnpj, chaves, *, password=None):
+    """Carrega as cartas das notas visíveis em uma única consulta por lote."""
+    if not chaves:
+        return {}
+    conexao = abrir_banco(database_path, password, somente_leitura=True)
+    try:
+        if not conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manifestacoes'").fetchone():
+            return {}
+        return _cartas_por_nota(conexao, cnpj, chaves)
+    finally:
+        conexao.close()
+
+
 def _linhas_primarias(conexao, cnpj, chaves):
     # Uma nota encontrada pelo filtro de CC-e conserva sua manifestação na linha.
     found = {}
