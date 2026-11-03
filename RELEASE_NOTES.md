@@ -2,20 +2,20 @@
 
 ## Escopo desta revisão
 
-Documentação da base da main em 19/10/2026, com preparação de login corporativo em 20/10/2026. A versão declarada permanece 2.6.0, mas o ZIP publicado em 16/10/2026 não contém todas as alterações posteriores. Identifique a instalação pelo commit. O workflow não substitui uma release existente.
+Documentação revisada em 03/11/2026, incluindo login exclusivo do Admin, janela configurável, CC-e e resumo da exportação. A versão declarada permanece 2.6.0, mas o ZIP publicado em 16/10/2026 não contém todas as alterações posteriores. Identifique a instalação pelo commit. O workflow não substitui uma release existente.
 
 ## Comportamento atual
 
-- Acesso sem login local; todos os acessos têm permissão administrativa. O TI controla o acesso pela infraestrutura. Contas antigas permanecem preservadas no modo legado opcional.
-- Sincronização dentro da janela **22h–04h, Brasília**. Agenda padrão às 22h, 23h, 00h, 01h, 02h e 03h; ativação, dias e horários configuráveis no Admin. Cooldown, pausas e trava continuam obrigatórios.
+- Consultas e relatórios sem login; Admin, importações e cancelamento manual exigem senha configurada em `CONFIGURAR_ADMIN.cmd`. Contas antigas permanecem preservadas no modo legado opcional.
+- Sincronização dentro da janela configurável, com padrão **22h–04h, Brasília**. Agenda padrão às 22h, 23h, 00h, 01h, 02h e 03h; ativação, janela, dias e horários configuráveis no Admin. Cooldown, pausas e trava continuam obrigatórios.
 - Recuperação `consNSU` desabilitada por padrão; pendências preservadas. O cursor de distribuição avança somente após processamento confirmado.
 - Alertas de Operação não Realizada (`210240`), remetente SMTP configurável e botão de envio de teste.
 - Importação de XMLs/ZIPs com subpastas, consultas por chaves ou NOTAS.TXT e relatórios Excel/CSV.
-- Cancelamento cooperativo de exportações. No modo padrão, a identidade administrativa compartilhada permite cancelar qualquer solicitação. A serialização final do Excel pode concluir antes da limpeza.
+- Cancelamento cooperativo de exportações. No modo padrão, os acessos comuns podem cancelar solicitações da identidade compartilhada; o Admin pode cancelar outras. A serialização final do Excel pode concluir antes da limpeza.
 - Relatórios temporários por 24 horas. Logs de sincronização descartados após 30 dias, sujeitos também à rotação por tamanho; dados fiscais permanecem no banco.
 - Novos XMLs não são arquivados permanentemente. Respostas pendentes são preservadas até processamento; XMLs legados não são apagados automaticamente.
 
-O modo corporativo opcional está preparado para um gateway autenticado do TI, com autorização por grupos; permanece desativado até homologação. Veja o [contrato de integração](SERVIDOR_WEB.md#preparação-para-login-corporativo).
+O modo corporativo opcional usa gateway autenticado e autorização por grupos; fica desativado por padrão. Veja o [contrato de integração](SERVIDOR_WEB.md#preparação-para-login-corporativo).
 
 ## Validação e limites
 

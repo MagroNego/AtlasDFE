@@ -1,6 +1,6 @@
 # Distribuição DF-e e convivência com Qive
 
-Revisão: 19/10/2026. Escopo: configuração do AtlasDFE, atendimento Qive transcrito pelo operador e resultados apresentados no Status. O AtlasDFE não acessa a configuração interna do Qive.
+Revisão: 03/11/2026. Escopo: configuração do AtlasDFE, atendimento Qive transcrito pelo operador e resultados apresentados no Status. O AtlasDFE não acessa a configuração interna do Qive.
 
 ## Janelas operacionais
 
@@ -8,13 +8,13 @@ Todos os horários desta seção são de Brasília (UTC−3).
 
 | Sistema | Janela | Situação |
 | --- | --- | --- |
-| AtlasDFE | **22:00 inclusive até 04:00 exclusiva** | Implementada no backend |
-| Qive | **08:00 às 18:00**, incluindo novas tentativas | Solicitada; suporte confirmou que consegue configurar e que avisaria após o ajuste |
+| AtlasDFE | **22:00 inclusive até 04:00 exclusiva** | Padrão; configurável no Admin e aplicado no backend |
+| Qive | **08:00 às 18:00**, incluindo novas tentativas | Janela solicitada ao suporte; configuração externa ao AtlasDFE |
 | Margem entre sistemas | 04:00–08:00 e 18:00–22:00 | Quatro horas de separação em cada transição, se o Qive aplicar a janela solicitada |
 
-O último retorno transcrito sobre o ajuste 08h–18h é uma confirmação de encaminhamento à equipe. Não equivale a evidência de configuração concluída. Arquive a confirmação final do Qive junto ao registro operacional da instalação.
+A tabela registra a divisão de horários usada no projeto. O AtlasDFE aplica apenas sua própria janela; não lê nem altera a configuração do Qive.
 
-O AtlasDFE dispara às **22:00, 23:00, 00:00, 01:00, 02:00 e 03:00**, diariamente por padrão. O Admin pode ativar/desativar e selecionar outros horários/dias sem reiniciar; a janela continua fixa e o intervalo mínimo entre horários é de 60 minutos. Às 04:00 a janela fecha, sem novo disparo. A restrição alcança sincronização manual, automática, recuperação e novas tentativas, inclusive entre chamadas. Uma requisição já enviada pode terminar após 04:00; a próxima fica bloqueada. Consultas locais, importações e exportações não dependem dessa janela.
+O AtlasDFE dispara às **22:00, 23:00, 00:00, 01:00, 02:00 e 03:00**, diariamente por padrão. O Admin pode ativar/desativar e selecionar outros horários/dias sem reiniciar; início e fim da janela também são configuráveis e o intervalo mínimo entre horários é de 60 minutos. No padrão, às 04:00 a janela fecha, sem novo disparo. A restrição alcança sincronização manual, automática, recuperação e novas tentativas, inclusive entre chamadas. Uma requisição já enviada pode terminar após o fechamento; a próxima fica bloqueada. Consultas locais, importações e exportações não dependem dessa janela.
 
 ## Informações fornecidas pelo suporte Qive
 
@@ -85,4 +85,4 @@ Antes de integrar, obter do fornecedor: contratação/habilitação, endpoint co
 
 ## Análise de incidentes
 
-Em 656 ou divergência: preservar banco e logs, respeitar a próxima tentativa indicada e reunir horário/fuso, etapa, NSU inicial/enviado/informado/salvo, código/motivo, lotes gravados e referência da execução. Verificar se há outra instância do AtlasDFE e solicitar ao Qive confirmação da janela efetivamente ativa. Não apagar pendências, zerar cursor ou alternar bancos para contornar o bloqueio.
+Em 656 ou divergência: preservar banco e logs, respeitar a próxima tentativa indicada e reunir horário/fuso, etapa, NSU inicial/enviado/informado/salvo, código/motivo, lotes gravados e referência da execução. Verificar se há outra instância do AtlasDFE e comparar o horário da falha com os registros de captura do Qive. Não apagar pendências, zerar cursor ou alternar bancos para contornar o bloqueio.

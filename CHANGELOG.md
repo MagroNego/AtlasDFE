@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## Revisão de 03/11/2026 — após 2.6.0
+
+- Login apenas para Admin, importações e alteração manual da situação de notas; consultas e relatórios continuam livres.
+- Janela SEFAZ configurável junto com a agenda, aplicada também às chamadas manuais e retentativas.
+- Importação e visualização de CC-e; aba Resumo em Excel com hora de emissão e pesos, complementáveis por reimportação.
+- Animações breves na interface, com redução de movimento respeitada.
+- Manuais alinhados ao comportamento atual, com configuração administrativa, backup de contas e instruções operacionais diretas.
+
+As entradas abaixo registram versões anteriores; permissões e horários antigos não descrevem a configuração atual.
+
 ## Emissão — 2026-10-23
 
 - Botão Importar na Emissão reúne importação XML/ZIP e alteração manual da situação das notas, com resultado do lote e permissões administrativas preservados.
@@ -30,13 +40,13 @@
 
 - Integração opcional com gateway autenticado, grupos de Consulta/Administrador e identificação individual na auditoria.
 - Configuração incompleta bloqueia inicialização; credencial e grupos são validados no servidor. Login local permanece desativado.
-- Contrato de cabeçalhos e roteiro de homologação para o TI em SERVIDOR_WEB.md.
+- Contrato de cabeçalhos e roteiro de teste da integração em SERVIDOR_WEB.md.
 
 ## Main após a release 2.6.0 — revisão de 2026-10-19
 
 A versão declarada continua 2.6.0. As alterações abaixo pertencem à main e não atualizam o ZIP já publicado dessa release.
 
-- Acesso padrão sem login, cadastro ou senha administrativa; controle de acesso delegado ao TI. Contas antigas preservadas no modo legado opcional.
+- Acesso padrão sem login, cadastro ou senha administrativa; controle de acesso externo ao aplicativo. Contas antigas preservadas no modo legado opcional.
 - Agenda configurável no Admin: ativação, dias e até seis horários, persistidos sem reinício, dentro da janela 22h–04h e separados por pelo menos 60 minutos.
 - Sincronização manual bloqueada também no backend por janela, cooldown, CSRF e trava de execução.
 - Consulta por NOTAS.TXT, correspondências locais e aba de conferência dos números solicitados.

@@ -9,15 +9,15 @@
 5. Acesse `http://127.0.0.1:8080`, abra **Admin** e configure banco fiscal existente, senha SQLCipher e certificado A1.
 6. Confira **Status**, configure os alertas se necessários e habilite a agenda somente após validar a instalação.
 
-O acesso comum dispensa login. Admin, importações e cancelamento manual de notas exigem a senha administrativa. Não há senha padrão: configure-a com `CONFIGURAR_ADMIN.cmd`. Para acesso pela rede, utilize HTTPS e controle de rede pelo TI. O programa não instala proxy, autenticação corporativa ou serviço Windows.
+O acesso comum dispensa login. Admin, importações e cancelamento manual de notas exigem a senha administrativa. Não há senha padrão: configure-a com `CONFIGURAR_ADMIN.cmd`. Para acesso pela rede, publique o app por HTTPS e restrinja a porta do backend ao proxy. O programa não instala proxy, autenticação corporativa ou serviço Windows.
 
 Em instalação existente, `secrets/auto-sync.json` prevalece sobre a variável de ativação. Para manter a agenda parada durante manutenção, siga [Backup e restauração](SEGURANCA_BANCO.md).
 
 ## Operação
 
-- Janela AtlasDFE: **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)**.
-- Agenda padrão: **22h, 23h, 00h, 01h, 02h e 03h**. Horários e dias podem ser alterados no Admin dentro da janela.
-- Qive: janela solicitada **08h–18h**, incluindo retentativas. Confirme a aplicação do ajuste com o fornecedor.
+- Janela padrão do AtlasDFE: **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)**.
+- Agenda padrão: **22h, 23h, 00h, 01h, 02h e 03h**. Janela, horários e dias podem ser alterados no Admin.
+- Qive: janela solicitada **08h–18h**, incluindo retentativas. O AtlasDFE não altera a agenda do Qive.
 - `consNSU`: desativado por padrão; pendências preservadas.
 - Mantenha o computador sem suspensão/hibernação e o processo ativo. `Win+L` não encerra a sessão; fechar o terminal encerra o processo.
 - Consultas locais, importações e relatórios funcionam fora da janela SEFAZ.

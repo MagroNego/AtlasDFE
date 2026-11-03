@@ -2,7 +2,7 @@
 
 Aplicação Web interna para consulta de manifestações de NF-e, importação de dados de XML e geração de relatórios Excel/CSV. Desenvolvida em Python, FastAPI e SQLite/SQLCipher. A captura de eventos usa `NFeDistribuicaoDFe`; consultas e relatórios usam o banco local.
 
-Documentação revisada em **19/10/2026** para o código da `main`, versão declarada **2.6.0**. O ZIP da release `v2.6.0` foi publicado antes das últimas alterações e não é atualizado automaticamente. Identifique a instalação pelo commit, além do número da versão.
+Documentação revisada em **03/11/2026** para o código desta revisão, versão declarada **2.6.0**. O ZIP da release `v2.6.0` foi publicado antes das últimas alterações e não é atualizado automaticamente. Identifique a instalação pelo commit, além do número da versão.
 
 ## Operação
 
@@ -13,16 +13,16 @@ Documentação revisada em **19/10/2026** para o código da `main`, versão decl
 | Banco fiscal | SQLite ou SQLCipher; caminho selecionado em Admin |
 | Acesso | Consultas e relatórios sem login; Admin e cancelamento manual exigem senha |
 | Sincronização SEFAZ | Windows com PowerShell e certificado A1 |
-| Janela AtlasDFE | **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)** |
+| Janela padrão AtlasDFE | **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)** |
 | Disparos automáticos | **22:00, 23:00, 00:00, 01:00, 02:00 e 03:00** por padrão; configuráveis no Admin |
 | Janela solicitada ao Qive | **08:00–18:00**, incluindo novas tentativas |
 | Recuperação `consNSU` | Pausada por padrão: `NFE_RECOVERY_ENABLED=0` |
 | Alertas de e-mail | Somente Operação não Realizada (`210240`) |
 | Retenção | Downloads: 24 horas; histórico de sincronização: 30 dias |
 
-O login corporativo pode ser habilitado pelo TI por um gateway autenticado, com grupos de Consulta e Administrador. Permanece desativado até a configuração: [contrato de integração](SERVIDOR_WEB.md#preparação-para-login-corporativo).
+O login corporativo é uma opção de integração com gateway autenticado, com grupos de Consulta e Administrador. Permanece desativado até a configuração: [contrato de integração](SERVIDOR_WEB.md#preparação-para-login-corporativo).
 
-Em **Admin → Disparos automáticos**, ative/desative a agenda e escolha horários e dias sem reiniciar. São aceitos até seis horários dentro da janela, separados por pelo menos 60 minutos. A configuração salva prevalece sobre a ativação inicial do lançador.
+Em **Admin → Disparos automáticos**, ative/desative a agenda e escolha a janela, horários e dias sem reiniciar. São aceitos até seis horários dentro da janela, separados por pelo menos 60 minutos. A configuração salva prevalece sobre a ativação inicial do lançador.
 
 A interface e os testes locais também executam em Linux. O transporte SEFAZ e a leitura de certificados usam PowerShell; a implantação documentada para sincronização é Windows. A aprovação da CI Linux não valida comunicação real com a SEFAZ.
 
@@ -102,34 +102,10 @@ A configuração vale sem reiniciar e permanece após reinício. Salvar não
 consulta a SEFAZ nem altera o NSU. Cooldown e bloqueios continuam valendo.
 Consultas e exportações locais permanecem disponíveis fora da janela.
 
-### Aba Resumo na exportação de Emissão
+### Relatórios e CC-e
 
-A exportação geral em Excel inclui a aba **Resumo**, além de Notas, Itens e
-Retencoes. Ela contém número da nota, código do produto, quantidade, valor
-total do item, CFOP, data e hora de emissão, peso líquido, peso bruto e status.
-Os pesos somam os volumes informados na NF-e e se repetem por item; não são
-pesos individuais nem rateados. Campos ausentes ficam em branco, distintos de zero.
+A exportação de Emissão inclui **Resumo**, Notas, Itens e Retencoes. A aba Resumo traz dados por item, hora de emissão e pesos da nota. Reimportar XMLs antigos completa esses metadados ausentes.
 
-Para notas importadas antes dessa versão, reimporte os XMLs para completar
-hora e pesos que ainda não estavam armazenados. A reimportação complementa
-somente esses metadados ausentes, preservando os dados fiscais e os cancelamentos.
+CC-e processadas podem ser importadas e consultadas pelas ações da nota em Consulta e Emissão. O texto fica no histórico do evento; não altera automaticamente os dados da nota.
 
-### Carta de Correção (CC-e)
-
-Em **Emissão → Importar XML**, envie o XML processado da CC-e junto com os XMLs
-das notas, ou no mesmo ZIP. A ordem dos arquivos não importa. O evento precisa
-conter a solicitação e o retorno da SEFAZ (`procEventoNFe`, código `110110`,
-status `135`), do ambiente de produção e do CNPJ emitente configurado.
-
-A CC-e fica vinculada pela chave, mesmo se a nota for importada depois.
-Reimportações não duplicam o evento. Em **Consulta**, filtre por **Carta de
-Correção** e clique no ícone de documento com lápis na coluna **Ações** da nota
-para consultar data, hora, texto, sequência e protocolo de todas as cartas da nota.
-O mesmo ícone fica disponível nas **Ações** das notas na aba **Emissão**.
-A CC-e não cria uma linha extra na consulta; o filtro de Carta de Correção
-localiza as notas com esse evento. A exportação de eventos mantém o histórico
-completo, incluindo sequência e texto das cartas.
-
-O texto é mantido como evento: não modifica automaticamente itens, valores,
-pesos nem a situação de cancelamento da nota. A importação usa o banco local,
-sem consultar a SEFAZ ou avançar o NSU. O AtlasDFE não emite CC-e.
+Procedimentos completos: [Resumo](MANUAL_DE_USO.md#aba-resumo-na-exportação-de-emissão) e [Carta de Correção](MANUAL_DE_USO.md#carta-de-correção-cc-e).

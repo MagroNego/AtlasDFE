@@ -16,7 +16,7 @@ A instalação não fornece certificado, senha, banco fiscal preenchido ou crede
 
 ## Código e versão
 
-Esta documentação descreve a `main` revisada em 19/10/2026, ainda identificada como 2.6.0. O ZIP da release `v2.6.0` pode ter comportamento anterior, inclusive login obrigatório. Para obter as mudanças atuais, use Git. Um novo ZIP só é publicado pelo workflow quando existe uma versão ainda não lançada.
+Esta documentação acompanha o código desta revisão, de 03/11/2026, ainda identificado como 2.6.0. O ZIP da release `v2.6.0` pode ter comportamento anterior, inclusive login obrigatório. Para obter as mudanças atuais, use Git. Um novo ZIP só é publicado pelo workflow quando existe uma versão ainda não lançada.
 
 ## Windows: instalação por Git
 
@@ -43,7 +43,7 @@ $env:NFE_AUTO_SYNC_ENABLED = "0"
 .\INICIAR_WEB.cmd
 ```
 
-Se `secrets/auto-sync.json` já existir, seu campo `enabled` prevalece sobre a variável. Desative a agenda no Admin ou, com o processo parado, altere esse campo para `false`, preservando `times` e `weekdays`. Não remova o arquivo para pausar a agenda.
+Se `secrets/auto-sync.json` já existir, seu campo `enabled` prevalece sobre a variável. Desative a agenda no Admin ou, com o processo parado, altere esse campo para `false`, preservando `times`, `weekdays`, `window_start` e `window_end`. Não remova o arquivo para pausar a agenda.
 
 ## Configuração inicial
 
@@ -53,7 +53,7 @@ Se `secrets/auto-sync.json` já existir, seu campo `enabled` prevalece sobre a v
 4. Configure o certificado A1 por arquivo ou repositório Windows. O arquivo PFX/P12 permanece no caminho selecionado; não é copiado para o projeto.
 5. Confira banco, última gravação, `ultNSU` e `maxNSU` em **Status**.
 6. Se houver alertas, configure SMTP e destinatários e use **Enviar e-mail de teste**.
-7. Confirme a configuração ativa do Qive antes de habilitar a captura conjunta. Consulte [Distribuição e Qive](DISTRIBUICAO_DFE_QIVE.md).
+7. Ajuste a janela do AtlasDFE em **Admin → Disparos automáticos** para separar sua captura da do Qive. A referência usada no projeto é AtlasDFE 22h–04h e Qive 08h–18h. Consulte [Distribuição e Qive](DISTRIBUICAO_DFE_QIVE.md).
 
 Para ativar a rotina, use **Admin → Disparos automáticos** e salve a configuração. Em instalações sem configuração salva, também é possível definir a ativação inicial pelo ambiente e reiniciar:
 
@@ -69,13 +69,13 @@ As variáveis acima valem para esse PowerShell e os processos iniciados por ele.
 
 ## Janela e disponibilidade
 
-A janela é **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)**. Os disparos ocorrem às **22h, 23h, 00h, 01h, 02h e 03h**, todos os dias por padrão. Consultas manuais e retentativas também respeitam janela, trava e cooldown de 60 minutos. Não há disparo às 04h.
+A janela padrão é **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)**. Os disparos ocorrem às **22h, 23h, 00h, 01h, 02h e 03h**, todos os dias por padrão. Consultas manuais e retentativas também respeitam janela, trava e cooldown de 60 minutos. No padrão, não há disparo às 04h. Início e fim da janela são configuráveis no Admin, junto com os disparos.
 
 Mantenha o computador sem suspensão/hibernação e o app em execução. Fechar o terminal encerra a aplicação. O agendador não liga o computador nem inicia sozinho um processo encerrado. Use um serviço do sistema operacional para inicialização automática, conforme [Servidor Web](SERVIDOR_WEB.md).
 
 ## Rede interna
 
-O lançador padrão escuta somente em `127.0.0.1:8080`. Para produção na rede, configure o proxy/autenticação e a restrição de acesso com o TI antes de expor o serviço. `INICIAR_REDE.bat`, disponível no repositório, usa `0.0.0.0:8080` e não adiciona controle de acesso. O ZIP gerado pelo empacotador não inclui esse BAT. Veja [Servidor Web](SERVIDOR_WEB.md).
+O lançador padrão escuta somente em `127.0.0.1:8080`. Para produção na rede, publique por HTTPS em um proxy reverso, mantendo o backend acessível somente ao proxy. `INICIAR_REDE.bat`, disponível no repositório, usa `0.0.0.0:8080` e mantém a senha apenas nas funções administrativas; consultas ficam acessíveis a quem alcançar a porta. O ZIP gerado pelo empacotador não inclui esse BAT. Veja [Servidor Web](SERVIDOR_WEB.md).
 
 ## Linux: consultas locais e desenvolvimento
 
@@ -90,6 +90,7 @@ mkdir -p secrets dados logs
 chmod 700 secrets dados logs
 .venv/bin/python -c "from pathlib import Path; import secrets; p=Path('secrets/web-csrf-secret.txt'); p.exists() or p.write_text(secrets.token_urlsafe(48), encoding='utf-8')"
 chmod 600 secrets/*
+.venv/bin/python -m nfe_consulta.web.configure_admin
 env NFE_WEB_ENV=production NFE_AUTO_SYNC_ENABLED=0 NFE_RECOVERY_ENABLED=0 .venv/bin/python -m nfe_consulta.web.app
 ```
 
