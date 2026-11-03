@@ -154,3 +154,44 @@ def test_consultation_wrapper_imports_cancellation_and_correction(tmp_path):
     assert result['cartas_correcao'] == result['cancelamentos'] == result['importadas'] == 1
     assert result['erros'] == 0
     assert xml_store.query_report(cfg.database_path, CNPJ_PADRAO)['rows'][0]['Situação'] == 'Cancelada'
+
+
+def test_correction_attached_to_note_row_with_pagination_and_filters(tmp_path):
+    from nfe_consulta.modelos import Manifestacao
+    from nfe_consulta.web.consulta_local import consultar_eventos_exportacao
+    cfg = web['settings_web'](tmp_path)
+    web['criar_banco'](cfg.database_path)
+    batch(cfg, tmp_path, [cce(), cce(2)])
+    banco = BancoManifestacoes(str(cfg.database_path))
+    banco.salvar_manifestacoes(CNPJ_PADRAO, RetornoDistribuicao(138, 'ok', '1', '1', ((KEY,
+        Manifestacao('210200', 'Confirmação da Operação', '2026-10-19T15:30:55-03:00', '135260000000099')),)))
+    banco.fechar()
+    filtros = normalizar_filtros(chave=KEY)
+    result = consultar_eventos(cfg.database_path, CNPJ_PADRAO, filtros, agrupar_cartas=True, por_pagina=1)
+    assert result.total == 1 and result.paginas == 1
+    assert result.eventos[0].codigo == '210200'
+    assert [c.sequencia for c in result.eventos[0].cartas_correcao] == ['2', '1']
+    assert result.eventos[0].cartas_correcao[0].correcao == CORRECAO
+    assert len(consultar_eventos_exportacao(cfg.database_path, CNPJ_PADRAO, filtros)) == 3
+    # O filtro de CC-e ainda encontra a nota, sem uma linha chamada Carta de Correção.
+    filtered = consultar_eventos(cfg.database_path, CNPJ_PADRAO,
+        normalizar_filtros(chave=KEY, codigo='110110'), agrupar_cartas=True)
+    assert filtered.total == 1 and filtered.eventos[0].codigo != '110110'
+    assert len(filtered.eventos[0].cartas_correcao) == 2
+
+
+def test_only_cce_still_shows_note_and_icon_in_html(tmp_path):
+    from conftest import authenticated_user
+    from fastapi.testclient import TestClient
+    from nfe_consulta.web.app import create_app
+    cfg = web['settings_web'](tmp_path)
+    web['criar_banco'](cfg.database_path)
+    batch(cfg, tmp_path, [cce(), cce(2)])
+    with TestClient(create_app(cfg)) as client:
+        authenticated_user(client)
+        page = client.get('/consulta?chave=' + KEY)
+    assert page.status_code == 200
+    assert page.text.count('data-cce-open') == 1
+    assert '<strong>Carta de Correção</strong>' not in page.text
+    assert page.text.count('class="cce-text"') == 2
+    assert '07/10/2026 09:01:00' in page.text and CORRECAO in page.text

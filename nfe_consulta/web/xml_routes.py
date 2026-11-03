@@ -54,7 +54,7 @@ def register_xml_routes(app, settings, render, database_path):
                 if not has_events:
                     return ResultadoEventos((), 0, 1, 100)
                 return consultar_eventos(database_path(settings), CNPJ_PADRAO, selected,
-                    password=settings.current_database_password(), pagina=pagina)
+                    password=settings.current_database_password(), pagina=pagina, agrupar_cartas=True)
             result = await run_in_threadpool(read_events)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc

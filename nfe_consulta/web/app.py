@@ -867,6 +867,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                         password=settings.current_database_password(),
                         pagina=pagina,
                         por_pagina=100,
+                        agrupar_cartas=True,
                     )
                     xml_keys = await run_in_threadpool(existing_keys, banco, CNPJ_PADRAO,
                         [evento.chave for evento in resultado.eventos], password=settings.current_database_password())

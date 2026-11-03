@@ -1627,3 +1627,5 @@ html[data-theme="dark"] .brand-logo-dark {
 .cce-key p { overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 4px 0 0; }
 .cce-dialog-footer { display: flex; justify-content: flex-end; margin-top: 24px; }
 @media (max-width: 480px) { .cce-dialog { padding: 20px; } .cce-metadata { grid-template-columns: 1fr; gap: 14px; } }
+
+.cce-entry + .cce-entry { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }

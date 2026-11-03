@@ -73,6 +73,7 @@ class EventoNota:
     cancelada: bool = False
     correcao: str = ""
     sequencia: str = ""
+    cartas_correcao: tuple = ()
 
     @property
     def situacao(self):
@@ -281,6 +282,44 @@ def _campos_correcao(conexao):
         AND c.protocolo=manifestacoes.protocolo), '') AS sequencia"""
 
 
+def _cartas_por_nota(conexao, cnpj, chaves):
+    found = {}
+    keys = list(dict.fromkeys(chaves))
+    for index in range(0, len(keys), 500):
+        batch = keys[index:index + 500]
+        marks = ','.join('?' for _ in batch)
+        rows = conexao.execute(f"""SELECT chave,codigo,descricao,data_evento,protocolo,nsu,recebido_em,
+            '' AS emitente, {_campos_correcao(conexao)} FROM manifestacoes
+            WHERE cnpj=? AND codigo='110110' AND chave IN ({marks})
+            ORDER BY CAST(sequencia AS INTEGER) DESC,data_evento DESC,id DESC""", (cnpj, *batch))
+        for row in rows:
+            found.setdefault(row[0], []).append(_evento_da_linha(row))
+    return {key: tuple(events) for key, events in found.items()}
+
+
+def _linhas_primarias(conexao, cnpj, chaves):
+    # Uma nota encontrada pelo filtro de CC-e conserva sua manifestação na linha.
+    found = {}
+    keys = list(dict.fromkeys(chaves))
+    for index in range(0, len(keys), 500):
+        batch = keys[index:index + 500]
+        marks = ','.join('?' for _ in batch)
+        rows = conexao.execute(f"""SELECT chave,codigo,descricao,data_evento,protocolo,nsu,recebido_em,
+            '' AS emitente, '' AS correcao, '' AS sequencia FROM manifestacoes
+            WHERE cnpj=? AND codigo!='110110' AND chave IN ({marks})
+            ORDER BY data_evento DESC,CAST(nsu AS INTEGER) DESC,id DESC""", (cnpj, *batch))
+        for row in rows:
+            found.setdefault(row[0], row)
+    return found
+
+
+def _linha_visivel(linha, primarias):
+    event = _evento_da_linha(primarias.get(linha[0], linha) if linha[1] == '110110' else linha)
+    if event.codigo == '110110':
+        return replace(event, codigo='', descricao='Sem manifestação localizada', data='', protocolo='', nsu='', correcao='', sequencia='')
+    return event
+
+
 def consultar_eventos(
     database_path: Path,
     cnpj: str,
@@ -289,6 +328,7 @@ def consultar_eventos(
     password: str | None = None,
     pagina: int = 1,
     por_pagina: int = 100,
+    agrupar_cartas: bool = False,
 ) -> ResultadoEventos:
     """Consulta eventos com filtros e paginação sem acessar a SEFAZ."""
     if pagina < 1:
@@ -301,9 +341,19 @@ def consultar_eventos(
         tem_informacoes = _tem_informacoes_nfe(conexao)
         where, parametros = _where_eventos(cnpj, filtros, tem_informacoes, cancellation_condition(conexao, 'manifestacoes'))
         campos_nota = _campos_nota(tem_informacoes) + ", " + _campos_correcao(conexao)
+        prefixo = ""
+        fonte = "manifestacoes"
+        if agrupar_cartas:
+            # Filtrar e agrupar antes de contar/paginar evita linhas vazias e totais inflados.
+            prefixo = f"""WITH filtrados AS (SELECT * FROM manifestacoes WHERE {where}),
+                visiveis AS (SELECT * FROM filtrados WHERE codigo!='110110' OR
+                (codigo='110110' AND chave NOT IN (SELECT chave FROM filtrados WHERE codigo!='110110')
+                 AND id IN (SELECT MIN(id) FROM filtrados WHERE codigo='110110' GROUP BY chave))) """
+            fonte = "visiveis AS manifestacoes"
+        consulta_where = '1=1' if agrupar_cartas else where
         total = int(
             conexao.execute(
-                f"SELECT COUNT(*) FROM manifestacoes WHERE {where}",
+                prefixo + f"SELECT COUNT(*) FROM {fonte} WHERE {consulta_where}",
                 parametros,
             ).fetchone()[0]
         )
@@ -313,7 +363,7 @@ def consultar_eventos(
         offset = (pagina_efetiva - 1) * por_pagina
 
         linhas = conexao.execute(
-            f"""
+            prefixo + f"""
             SELECT
                 chave,
                 codigo,
@@ -323,13 +373,15 @@ def consultar_eventos(
                 nsu,
                 recebido_em,
                 {campos_nota}
-            FROM manifestacoes
-            WHERE {where}
+            FROM {fonte}
+            WHERE {consulta_where}
             ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC
             LIMIT ? OFFSET ?
             """,
             [*parametros, por_pagina, offset],
         ).fetchall()
+        cartas = _cartas_por_nota(conexao, cnpj, [line[0] for line in linhas]) if agrupar_cartas else {}
+        primarias = _linhas_primarias(conexao, cnpj, [line[0] for line in linhas if line[1] == '110110']) if agrupar_cartas else {}
         ctes = linked_ctes(conexao, cnpj, [line[0] for line in linhas])
         cancelled = cancelled_keys(conexao, cnpj, [line[0] for line in linhas])
         cancelled_notes = lookup_cancelled(conexao, cnpj, key=filtros.chave, number=filtros.numero, series=filtros.serie) if filtros.situacao != 'autorizada' else ()
@@ -337,7 +389,7 @@ def consultar_eventos(
         conexao.close()
 
     return ResultadoEventos(
-        eventos=tuple(replace(_evento_da_linha(linha), ctes=ctes.get(linha[0], ()), cancelada=linha[0] in cancelled) for linha in cancellable_rows(linhas)),
+        eventos=tuple(replace(_linha_visivel(linha, primarias) if agrupar_cartas else _evento_da_linha(linha), cartas_correcao=cartas.get(linha[0], ()), ctes=ctes.get(linha[0], ()), cancelada=linha[0] in cancelled) for linha in cancellable_rows(linhas)),
         total=total,
         pagina=pagina_efetiva,
         por_pagina=por_pagina,
