@@ -159,13 +159,30 @@
           <th>Chave NF-e</th>
           <th>NSU</th>
           <th>CT-e</th>
-          {% if not detail %}<th>Ações</th>{% endif %}
+          <th>Ações</th>
         </tr>
       </thead>
       <tbody>
         {% for evento in resultado.eventos %}
         <tr>
-          <td><span class="note-event-number">{{ evento.numero }}
+          <td>{{ evento.numero }}</td>
+          <td>{{ evento.serie }}</td>
+          <td><span class="note-status{% if evento.cancelada %} cancelled{% endif %}">{{ evento.situacao }}</span></td>
+          <td class="manifestation-cell">
+            <strong>{{ evento.descricao }}</strong>
+          </td>
+          <td class="event-date">{{ evento.data_label }}</td>
+          <td class="mono">{{ evento.protocolo or "—" }}</td>
+          <td class="mono access-key">{{ evento.chave }}</td>
+          <td class="mono">{{ evento.nsu }}</td>
+          <td>{{ cte_links(evento.ctes) }}</td>
+          <td>
+            <div class="xml-row-actions">
+              {% if not detail and evento.chave in xml_keys|default([]) %}
+              <a class="xml-icon-action" data-items-open href="{{ url_for('xml_items', chave=evento.chave).include_query_params(voltar=request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) }}" title="Itens" aria-label="Ver itens da nota {{ evento.numero }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
+              </a>
+              {% endif %}
             {% if evento.cartas_correcao %}
             <button type="button" class="xml-icon-action cce-open" data-cce-open aria-haspopup="dialog" aria-controls="cce-dialog" title="Consultar Carta de Correção" aria-label="Consultar Carta de Correção da nota {{ evento.numero }}">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M14 3v6h6M14 3l6 6M9 16l1-4 7-7 3 3-7 7-4 1Z"/></svg>
@@ -181,24 +198,9 @@
               <div class="cce-key"><span>Chave NF-e</span><p class="mono">{{ evento.chave }}</p></div>
             </template>
             {% endif %}
-          </span></td>
-          <td>{{ evento.serie }}</td>
-          <td><span class="note-status{% if evento.cancelada %} cancelled{% endif %}">{{ evento.situacao }}</span></td>
-          <td class="manifestation-cell">
-            <strong>{{ evento.descricao }}</strong>
-          </td>
-          <td class="event-date">{{ evento.data_label }}</td>
-          <td class="mono">{{ evento.protocolo or "—" }}</td>
-          <td class="mono access-key">{{ evento.chave }}</td>
-          <td class="mono">{{ evento.nsu }}</td>
-          <td>{{ cte_links(evento.ctes) }}</td>
-          {% if not detail %}<td>{% if evento.chave in xml_keys|default([]) %}
-            <div class="xml-row-actions">
-              <a class="xml-icon-action" data-items-open href="{{ url_for('xml_items', chave=evento.chave).include_query_params(voltar=request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) }}" title="Itens" aria-label="Ver itens da nota {{ evento.numero }}">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
-              </a>
+              {% if not evento.cartas_correcao and (detail or evento.chave not in xml_keys|default([])) %}<span class="muted">—</span>{% endif %}
             </div>
-          {% else %}<span class="muted">Não importado</span>{% endif %}</td>{% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
