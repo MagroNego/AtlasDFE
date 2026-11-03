@@ -110,6 +110,7 @@ def _context(
         "request": request,
         "user": user,
         "version": __version__,
+        "public_access": settings.admin_only_auth,
         "sync_window": janela_consulta.janela_de(request.app.state.scheduler_settings),
         "csrf": csrf_token(user, settings) if user else "",
     }
@@ -290,7 +291,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         settings.admin_accounts_path or settings.database_path.parent / "admin_accounts.db",
         bootstrap_username=settings.admin_username,
         bootstrap_password=settings.admin_password,
-    ) if settings.local_auth_enabled else None
+    ) if not settings.corporate_auth_enabled else None
     app.state.login_attempts = {}
     app.state.login_lock = threading.Lock()
     app.state.email_test_next_at = 0.0
@@ -344,7 +345,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     async def security_headers_inner(request: Request, call_next):
         path = request.url.path
-        if not settings.local_auth_enabled and (
+        if settings.admin_only_auth and (path == "/cadastro" or path == "/admin/contas" or path.startswith("/admin/contas/")):
+            return JSONResponse({"detail": "Cadastro de usuários desativado. O acesso comum dispensa login."},
+                status_code=404, headers={"Cache-Control": "no-store"})
+        if settings.corporate_auth_enabled and (
             path in {"/login", "/cadastro", "/admin/login", "/admin/logout", "/admin/contas"}
             or path.startswith("/admin/contas/")
         ):
@@ -369,7 +373,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             return JSONResponse({"detail": "Entre para acessar a área Admin."}, status_code=401,
                 headers={"Cache-Control": "no-store"})
         public_path = path in {"/login", "/cadastro", "/admin/login", "/healthz"} or path.startswith("/static/")
-        if not public_path and not current_user(request).authenticated:
+        if not public_path and not settings.admin_only_auth and not current_user(request).authenticated:
             if request.method in {"GET", "HEAD"}:
                 return RedirectResponse(request.url_for("login_page"), status_code=303,
                     headers={"Cache-Control": "no-store"})
@@ -645,7 +649,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                            admin_configured=True, error="Muitas tentativas. Tente novamente em alguns minutos.")
 
         logged_username = await run_in_threadpool(app.state.admin_accounts.authenticate, username, password)
-        if not logged_username:
+        if not logged_username or (settings.admin_only_auth and app.state.admin_accounts.role(logged_username) != "admin"):
             app.state.audit.write(
                 request,
                 PUBLIC_USER,

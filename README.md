@@ -11,7 +11,7 @@ Documentação revisada em **19/10/2026** para o código da `main`, versão decl
 | Runtime | Python 3.11+; CI com Python 3.12 |
 | Servidor | FastAPI/Uvicorn; um processo, um worker |
 | Banco fiscal | SQLite ou SQLCipher; caminho selecionado em Admin |
-| Acesso | Sem login local; controle de acesso sob responsabilidade do TI |
+| Acesso | Consultas e relatórios sem login; Admin e cancelamento manual exigem senha |
 | Sincronização SEFAZ | Windows com PowerShell e certificado A1 |
 | Janela AtlasDFE | **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)** |
 | Disparos automáticos | **22:00, 23:00, 00:00, 01:00, 02:00 e 03:00** por padrão; configuráveis no Admin |
@@ -34,13 +34,14 @@ Para instalar o estado descrito nesta documentação, obtenha a `main` por Git e
 git clone --branch main https://github.com/MagroNego/ConsultaManifestacao_DFE.git
 Set-Location ConsultaManifestacao_DFE
 .\INSTALAR.cmd
+.\CONFIGURAR_ADMIN.cmd
 $env:NFE_AUTO_SYNC_ENABLED = "0"
 .\INICIAR_WEB.cmd
 ```
 
 O comando acima desativa a agenda inicial em uma instalação nova. Uma agenda já salva em `secrets/auto-sync.json` prevalece.
 
-Acesse `http://127.0.0.1:8080`. Abra Admin e configure o banco de manifestações existente e o certificado A1. As credenciais, o certificado e o banco fiscal não acompanham o pacote. O Admin também abre sem senha: a restrição de acesso deve existir na infraestrutura do TI. Procedimento completo: [Instalação](MANUAL_DE_INSTALACAO.md).
+Acesse `http://127.0.0.1:8080`. Abra Admin e configure o banco de manifestações existente e o certificado A1. As credenciais, o certificado e o banco fiscal não acompanham o pacote. Configure a conta em `CONFIGURAR_ADMIN.cmd` e entre no Admin com essa senha. Consultas e relatórios continuam livres; importações, configurações e alterações manuais da situação de notas exigem Admin. Procedimento completo: [Instalação](MANUAL_DE_INSTALACAO.md).
 
 ## Recursos
 

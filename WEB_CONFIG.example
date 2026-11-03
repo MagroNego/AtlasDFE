@@ -1,7 +1,9 @@
 # Exemplo de variáveis não sensíveis/operacionais.
 # INICIAR_WEB.cmd NÃO carrega este arquivo automaticamente.
 # Senhas do banco, certificado e SMTP: arquivos de secrets/.
-# Acesso ao app e ao Admin controlado pelo TI na infraestrutura.
+# Consultas livres; Admin, importações e cancelamento manual exigem senha.
+# Execute CONFIGURAR_ADMIN.cmd. HTTPS e controle de rede ficam com o TI.
+# 0: senha somente Admin. 1: modo legado de contas para todos.
 NFE_WEB_LOCAL_AUTH=0
 
 NFE_WEB_ENV=production

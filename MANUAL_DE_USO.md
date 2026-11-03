@@ -2,9 +2,9 @@
 
 ## Acesso
 
-A aplicação abre diretamente, sem login, cadastro ou senha de administrador. Quem alcançar o endereço tem acesso também ao Admin, importações e configurações. A autenticação e as restrições de rede ficam sob responsabilidade do TI, no proxy ou na infraestrutura.
+A aplicação abre diretamente para consultas e relatórios, sem login ou cadastro de usuários. A área Admin, importações e alterações manuais da situação de notas (marcar como cancelada ou remover a marcação) exigem login administrativo. Abra **Admin** e entre com a conta configurada em `CONFIGURAR_ADMIN.cmd`. Sem conta configurada, as ações administrativas permanecem bloqueadas.
 
-As ações são registradas com a identidade técnica compartilhada `acesso-rede`; o AtlasDFE não identifica individualmente os operadores nesse modo. A identificação individual deve ser mantida pela infraestrutura do TI. As contas antigas não são apagadas, mas deixam de ser utilizadas.
+Consultas e relatórios usam a identidade compartilhada `usuario-interno`; ações administrativas usam o nome da conta autenticada. **Sair do Admin** revoga a sessão e retorna ao acesso comum. A sessão expira após 30 minutos de inatividade (configurável), com duração máxima de oito horas. Contas comuns antigas são preservadas, mas não autorizam login no modo padrão.
 
 As senhas do banco SQLCipher, certificado e SMTP continuam necessárias. Formulários mantêm a validação CSRF e as consultas à SEFAZ continuam limitadas à janela das 22h às 04h, com cooldown e trava.
 
@@ -73,7 +73,7 @@ Os relatórios ficam disponíveis por 24 horas após a geração, em `dados/down
 | Pronto | Arquivo disponível para transferência |
 | Cancelar transferência | Interrompe o recebimento no navegador; preserva a cópia pronta |
 
-No modo padrão sem login, os acessos compartilham a identidade técnica e podem cancelar qualquer solicitação. No modo legado com contas, usuários cancelam suas próprias solicitações e administradores podem cancelar outras. O cancelamento é verificado durante SQL e montagem das linhas. A gravação final do Excel ainda pode concluir seu bloco antes de descartar o resultado. A porcentagem exibida na transferência mede bytes recebidos, não progresso de geração. Tarefas em andamento não sobrevivem ao reinício do servidor; arquivos concluídos permanecem até expirar.
+No modo padrão, os acessos comuns compartilham a identidade técnica e podem cancelar as solicitações dessa identidade; administradores podem cancelar outras. No modo legado com contas, usuários cancelam suas próprias solicitações e administradores podem cancelar outras. O cancelamento é verificado durante SQL e montagem das linhas. A gravação final do Excel ainda pode concluir seu bloco antes de descartar o resultado. A porcentagem exibida na transferência mede bytes recebidos, não progresso de geração. Tarefas em andamento não sobrevivem ao reinício do servidor; arquivos concluídos permanecem até expirar.
 
 ## Status e sincronização
 

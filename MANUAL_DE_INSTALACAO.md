@@ -28,12 +28,13 @@ Set-Location C:\AtlasDFE
 git rev-parse HEAD
 py --version
 .\INSTALAR.cmd
+.\CONFIGURAR_ADMIN.cmd
 $env:NFE_AUTO_SYNC_ENABLED = "0"
 $env:NFE_WEB_LOCAL_AUTH = "0"
 .\INICIAR_WEB.cmd
 ```
 
-`INSTALAR.cmd` cria `.venv`, instala as dependências e prepara `dados`, `secrets` e `logs`. O acesso não exige conta ou senha local, inclusive no Admin; o TI deve restringir o acesso na infraestrutura.
+`INSTALAR.cmd` cria `.venv`, instala as dependências e prepara `dados`, `secrets` e `logs`. Consultas e relatórios não exigem conta. Admin, importações e alterações manuais da situação de notas exigem login administrativo. `CONFIGURAR_ADMIN.cmd` pede uma senha de pelo menos 12 caracteres e grava somente seu hash no banco de contas; não existe senha padrão.
 
 O lançador inicia em produção, gera `secrets/web-csrf-secret.txt` se necessário e ativa a sincronização automática quando a variável não foi definida. Os comandos de instalação acima desativam os disparos iniciais. A variável abaixo só controla a ativação quando não existe agenda salva:
 
@@ -46,7 +47,7 @@ Se `secrets/auto-sync.json` já existir, seu campo `enabled` prevalece sobre a v
 
 ## Configuração inicial
 
-1. Acesse `http://127.0.0.1:8080` e abra **Admin**.
+1. Execute `CONFIGURAR_ADMIN.cmd` se ainda não definiu a senha. Acesse `http://127.0.0.1:8080`, abra **Admin** e entre com as credenciais configuradas.
 2. Em **Admin**, selecione o banco fiscal existente. O caminho padrão é `dados/nfe_manifestacoes_seguro.db`; a seleção salva em `secrets/db-path.txt` prevalece.
 3. Para SQLCipher, disponibilize a senha em `secrets/db-password.txt`. Essa credencial pertence ao banco, não ao acesso Web.
 4. Configure o certificado A1 por arquivo ou repositório Windows. O arquivo PFX/P12 permanece no caminho selecionado; não é copiado para o projeto.
