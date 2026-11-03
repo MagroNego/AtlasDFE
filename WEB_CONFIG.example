@@ -1,7 +1,9 @@
 # Exemplo de variáveis não sensíveis/operacionais.
 # INICIAR_WEB.cmd NÃO carrega este arquivo automaticamente.
 # Senhas do banco, certificado e SMTP: arquivos de secrets/.
-# Acesso ao app e ao Admin controlado pelo TI na infraestrutura.
+# Consultas livres; Admin, importações e cancelamento manual exigem senha.
+# Execute CONFIGURAR_ADMIN.cmd. Para acesso de rede, use HTTPS e restrinja o backend ao proxy.
+# 0: senha somente Admin. 1: modo legado de contas para todos.
 NFE_WEB_LOCAL_AUTH=0
 
 NFE_WEB_ENV=production
@@ -13,7 +15,7 @@ NFE_CERT_STORE=CurrentUser
 
 # O agendador funciona somente enquanto o processo Web estiver ativo.
 # Configuração salva no Admin em secrets/auto-sync.json prevalece sobre ativação/dias abaixo.
-# Ativar/desativar e ajustar horários/dias: Admin > Disparos automáticos, sem reinício.
+# Ativar/desativar e ajustar janela/horários/dias: Admin > Disparos automáticos, sem reinício.
 NFE_AUTO_SYNC_ENABLED=1
 NFE_AUTO_SYNC_WEEKDAYS=0,1,2,3,4,5,6
 NFE_AUTO_SYNC_MAX_LOTES=50
@@ -36,14 +38,14 @@ NFE_SMTP_USER=
 # NFE_CERT_STORE=LocalMachine
 # NFE_CERT_THUMBPRINT=<impressão digital quando necessário>
 # Para desativar a rotina automática: NFE_AUTO_SYNC_ENABLED=0
-# Janela externa: 22:00 inclusive até 04:00 exclusiva, Brasília (UTC-3).
+# Janela externa padrão (configurável no Admin): 22:00 inclusive até 04:00 exclusiva, Brasília (UTC-3).
 # Disparos: 22:00, 23:00, 00:00, 01:00, 02:00 e 03:00. Não dispara às 04:00.
 # Qive: janela solicitada 08:00-18:00, incluindo novas tentativas.
 # O app não verifica nem configura a janela do Qive.
 # Política e atendimento: DISTRIBUICAO_DFE_QIVE.md.
 
 
-# Login corporativo via gateway do TI (preparado, desativado por padrão).
+# Login corporativo via gateway externo (opcional, desativado por padrão).
 NFE_WEB_CORPORATE_AUTH=0
 # Para habilitar: LOCAL_AUTH=0, CORPORATE_AUTH=1, AUTH_MODE=proxy e grupos.
 # NFE_WEB_AUTH_MODE=proxy

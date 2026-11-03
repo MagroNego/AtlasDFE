@@ -2,13 +2,13 @@
 
 ## Acesso
 
-A aplicação abre diretamente, sem login, cadastro ou senha de administrador. Quem alcançar o endereço tem acesso também ao Admin, importações e configurações. A autenticação e as restrições de rede ficam sob responsabilidade do TI, no proxy ou na infraestrutura.
+A aplicação abre diretamente para consultas e relatórios, sem login ou cadastro de usuários. A área Admin, importações e alterações manuais da situação de notas (marcar como cancelada ou remover a marcação) exigem login administrativo. Abra **Admin** e entre com a conta configurada em `CONFIGURAR_ADMIN.cmd`. Sem conta configurada, as ações administrativas permanecem bloqueadas.
 
-As ações são registradas com a identidade técnica compartilhada `acesso-rede`; o AtlasDFE não identifica individualmente os operadores nesse modo. A identificação individual deve ser mantida pela infraestrutura do TI. As contas antigas não são apagadas, mas deixam de ser utilizadas.
+Consultas e relatórios usam a identidade compartilhada `usuario-interno`; ações administrativas usam o nome da conta autenticada. **Sair do Admin** revoga a sessão e retorna ao acesso comum. A sessão expira após 30 minutos de inatividade (configurável), com duração máxima de oito horas. Contas comuns antigas são preservadas, mas não autorizam login no modo padrão.
 
-As senhas do banco SQLCipher, certificado e SMTP continuam necessárias. Formulários mantêm a validação CSRF e as consultas à SEFAZ continuam limitadas à janela das 22h às 04h, com cooldown e trava.
+As senhas do banco SQLCipher, certificado e SMTP continuam necessárias. Formulários mantêm a validação CSRF e as consultas à SEFAZ continuam limitadas à janela salva no Admin (padrão: 22h–04h), com cooldown e trava.
 
-Quando o TI habilitar o modo corporativo, a autenticação acontece no gateway da empresa. A interface exibe o nome fornecido e as funções administrativas dependem dos grupos atribuídos. Não há cadastro nem troca de senha corporativa no AtlasDFE; encerramento de sessão fica a cargo do gateway.
+No modo corporativo opcional, a autenticação acontece no gateway da empresa. A interface exibe o nome fornecido e as funções administrativas dependem dos grupos atribuídos. Não há cadastro nem troca de senha corporativa no AtlasDFE; encerramento de sessão fica a cargo do gateway.
 
 ## Consulta de manifestações
 
@@ -30,7 +30,7 @@ Ausência de evento significa ausência no banco disponível. A tela não consul
 
 ## Emissão e importação
 
-Em **Emissão → Importar → Importar XML**, envie os XMLs completos ou o ZIP obtido no Synchro. Subpastas relativas de vários meses são percorridas automaticamente, inclusive pastas com horário no nome; não é necessário extrair ou reorganizar os XMLs. O app lê diretamente os membros do ZIP, sem extrair seus caminhos no disco. Caminhos absolutos/de unidade, referências à pasta superior, links simbólicos e dois-pontos no nome final do XML são recusados com motivo específico no registro. Confira importados, duplicados e recusados; o registro do lote é acessível na tela Importar, com permissão administrativa; no modo padrão, todos os acessos de rede têm essa permissão. A importação acumula dados entre meses. Chaves duplicadas preservam a primeira importação.
+Em **Emissão → Importar → Importar XML**, envie os XMLs completos ou o ZIP obtido no Synchro. Subpastas relativas de vários meses são percorridas automaticamente, inclusive pastas com horário no nome; não é necessário extrair ou reorganizar os XMLs. O app lê diretamente os membros do ZIP, sem extrair seus caminhos no disco. Caminhos absolutos/de unidade, referências à pasta superior, links simbólicos e dois-pontos no nome final do XML são recusados com motivo específico no registro. Confira importados, duplicados e recusados; o registro do lote é acessível na tela Importar, após entrar como Admin. A importação acumula dados entre meses. Chaves duplicadas preservam os dados fiscais já importados. A reimportação pode completar hora de emissão e pesos ausentes.
 
 Aceita NF-e modelo 55 emitida pelo CNPJ configurado, com ou sem envelope `nfeProc`, e cancelamentos homologados compatíveis. Verifica estrutura mínima e correspondência de chave/emitente/número/série; não valida assinatura digital, schema fiscal completo ou autorização atual.
 
@@ -44,9 +44,41 @@ Aceita NF-e modelo 55 emitida pelo CNPJ configurado, com ou sem envelope `nfePro
 
 O período em **Emissão** usa a data de emissão da nota; **Consulta** usa a data do evento. O filtro **Item** pesquisa código, descrição e NCM. Em notas/retenções, seleciona documentos com o item; no relatório de itens, seleciona as linhas correspondentes.
 
-O Excel reúne Notas, Itens e Retencoes, com os filtros e todas as páginas. O CSV exporta a visão selecionada. Os ícones **Itens** e **Manifestações** abrem detalhes da nota; **Voltar** preserva filtros/página e restaura rolagem quando o navegador permitir.
+O Excel reúne Resumo, Notas, Itens e Retencoes, com os filtros e todas as páginas. O CSV exporta a visão selecionada. Os ícones **Itens** e **Manifestações** abrem detalhes da nota; **Voltar** preserva filtros/página e restaura rolagem quando o navegador permitir.
 
 Novos XMLs originais não ficam armazenados permanentemente nem podem ser baixados pelo app. Dados extraídos continuam disponíveis para relatórios; obtenha o original no Synchro. Para extrair futuramente um campo não armazenado, será necessário reobter o XML. Cópias legadas existentes não são removidas automaticamente.
+
+## Aba Resumo na exportação de Emissão
+
+A exportação geral em Excel inclui a aba **Resumo**, além de Notas, Itens e
+Retencoes. Ela contém número da nota, código do produto, quantidade, valor
+total do item, CFOP, data e hora de emissão, peso líquido, peso bruto e status.
+Os pesos somam os volumes informados na NF-e e se repetem por item; não são
+pesos individuais nem rateados. Campos ausentes ficam em branco, distintos de zero.
+
+Para notas importadas antes dessa versão, reimporte os XMLs para completar
+hora e pesos que ainda não estavam armazenados. A reimportação complementa
+somente esses metadados ausentes, preservando os dados fiscais e os cancelamentos.
+
+## Carta de Correção (CC-e)
+
+Em **Emissão → Importar → Importar XML**, envie o XML processado da CC-e junto com os XMLs
+das notas, ou no mesmo ZIP. A ordem dos arquivos não importa. O evento precisa
+conter a solicitação e o retorno da SEFAZ (`procEventoNFe`, código `110110`,
+status `135`), do ambiente de produção e do CNPJ emitente configurado.
+
+A CC-e fica vinculada pela chave, mesmo se a nota for importada depois.
+Reimportações não duplicam o evento. Em **Consulta**, filtre por **Carta de
+Correção** e clique no ícone de documento com lápis na coluna **Ações** da nota
+para consultar data, hora, texto, sequência e protocolo de todas as cartas da nota.
+O mesmo ícone fica disponível nas **Ações** das notas na aba **Emissão**.
+A CC-e não cria uma linha extra na consulta; o filtro de Carta de Correção
+localiza as notas com esse evento. A exportação de eventos mantém o histórico
+completo, incluindo sequência e texto das cartas.
+
+O texto é mantido como evento: não modifica automaticamente itens, valores,
+pesos nem a situação de cancelamento da nota. A importação usa o banco local,
+sem consultar a SEFAZ ou avançar o NSU. O AtlasDFE não emite CC-e.
 
 ## Situação e CT-e
 
@@ -54,7 +86,7 @@ A tela mantém os rótulos **Autorizada** e **Cancelada**. A situação é calcu
 
 Para notas emitidas pela Yorozu, o cancelamento próprio não retorna ao emitente pelo `NFeDistribuicaoDFe`. É necessário importar o evento homologado ou registrar uma correção manual com evidência externa. Reimportar o XML original autorizado não informa um cancelamento posterior. O lote de exportação do Synchro usado nesta instalação não inclui esses eventos; não presuma que ele atualiza cancelamentos. A integração automática com o Synchro não está implementada. Referência: [Distribuição e cancelamentos](DISTRIBUICAO_DFE_QIVE.md#cancelamentos-e-papel-do-cnpj).
 
-Em **Emissão → Importar → Alterar situação de notas**, informe até 100 números/chaves e o motivo. Números ambíguos exigem chave. Se houver entrada inválida, nenhuma nota do pedido é alterada. **Remover marcação manual** desfaz somente a correção interna, preservando cancelamentos recebidos por XML/NSU. A operação não transmite evento à SEFAZ.
+Entre como Admin. Em **Emissão → Importar → Alterar situação de notas**, informe até 100 números/chaves e o motivo. Números ambíguos exigem chave. Se houver entrada inválida, nenhuma nota do pedido é alterada. **Remover marcação manual** desfaz somente a correção interna, preservando cancelamentos recebidos por XML/NSU. A operação não transmite evento à SEFAZ.
 
 Abra **CT-e vinculado** para ver os conhecimentos recebidos. Número, chave, transportadora e data aparecem somente quando disponíveis. Cada vínculo é exibido em uma linha, com rolagem horizontal quando necessário. **Vínculo identificado** não implica chave conhecida. **CT-e cancelado** indica todos os vínculos apresentados cancelados; não cancela a NF-e. **Não localizado** indica ausência no banco, não inexistência na SEFAZ. Não há download de XML completo de CT-e. Nos relatórios Excel, a coluna indica **CT-e Vinculado** quando há associação registrada ou **Não localizado** quando não há. Esse indicador não representa autorização atual; os detalhes e eventuais cancelamentos ficam na interface e no CSV.
 
@@ -73,13 +105,13 @@ Os relatórios ficam disponíveis por 24 horas após a geração, em `dados/down
 | Pronto | Arquivo disponível para transferência |
 | Cancelar transferência | Interrompe o recebimento no navegador; preserva a cópia pronta |
 
-No modo padrão sem login, os acessos compartilham a identidade técnica e podem cancelar qualquer solicitação. No modo legado com contas, usuários cancelam suas próprias solicitações e administradores podem cancelar outras. O cancelamento é verificado durante SQL e montagem das linhas. A gravação final do Excel ainda pode concluir seu bloco antes de descartar o resultado. A porcentagem exibida na transferência mede bytes recebidos, não progresso de geração. Tarefas em andamento não sobrevivem ao reinício do servidor; arquivos concluídos permanecem até expirar.
+No modo padrão, os acessos comuns compartilham a identidade técnica e podem cancelar as solicitações dessa identidade; administradores podem cancelar outras. No modo legado com contas, usuários cancelam suas próprias solicitações e administradores podem cancelar outras. O cancelamento é verificado durante SQL e montagem das linhas. A gravação final do Excel ainda pode concluir seu bloco antes de descartar o resultado. A porcentagem exibida na transferência mede bytes recebidos, não progresso de geração. Tarefas em andamento não sobrevivem ao reinício do servidor; arquivos concluídos permanecem até expirar.
 
 ## Status e sincronização
 
 **Status** mostra disponibilidade, última gravação, `ultNSU`, `maxNSU` e próxima tentativa. **Abrir logs** exibe as sincronizações automáticas agrupadas por horário agendado, com resultado, documentos distNSU e manifestações adicionadas da última execução efetiva. Registros antigos usam faixas de data/hora quando comparáveis; sincronizações manuais permanecem separadas. Abra **Detalhes** para ver cada tentativa, motivo, contagens, diagnóstico, referência e próxima tentativa. Uma espera por intervalo fica junto da execução posterior; falhas permanecem nos detalhes. Contagens ausentes aparecem como —, sem assumir zero. `ultNSU == maxNSU` indica que a distribuição alcançou o limite informado naquele retorno; não garante que toda nota emitida já esteja disponível.
 
-O AtlasDFE consulta externamente das **22:00 até antes de 04:00, Brasília**. Disparos padrão: **22h, 23h, 00h, 01h, 02h e 03h**. Manual, automático e retentativas compartilham banco, certificado, cursor, trava e cooldown. Em **Admin → Disparos automáticos**, marque ou desmarque **Ativar disparos automáticos**, informe os horários separados por vírgula e selecione os dias. Use **Salvar agendamento**. A mudança persiste e vale sem reiniciar. São aceitos até seis horários com intervalo mínimo de 60 minutos, dentro das 22h–04h. Os dias seguem a data civil: 01h de terça pertence à terça. Desativar impede novos disparos e retentativas; uma sincronização já iniciada termina normalmente. A reativação pode retomar a oportunidade mais recente da noite atual, respeitando bloqueios.
+O AtlasDFE consulta externamente dentro da janela salva no Admin; o padrão é **22:00 até antes de 04:00, Brasília**. Disparos padrão: **22h, 23h, 00h, 01h, 02h e 03h**. Manual, automático e retentativas compartilham banco, certificado, cursor, trava e cooldown. Em **Admin → Disparos automáticos**, marque ou desmarque **Ativar disparos automáticos**, informe início e fim da janela, os horários separados por vírgula e selecione os dias. Use **Salvar agendamento**. A mudança persiste e vale sem reiniciar. São aceitos até seis horários com intervalo mínimo de 60 minutos, dentro da janela escolhida. Os dias seguem a data civil: 01h de terça pertence à terça. Desativar impede novos disparos e retentativas; uma sincronização já iniciada termina normalmente. A reativação pode retomar a oportunidade mais recente da noite atual, respeitando bloqueios.
 
 O processo precisa permanecer ativo. A rotina manual exige as confirmações exibidas pela interface.
 
