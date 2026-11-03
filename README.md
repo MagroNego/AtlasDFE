@@ -122,8 +122,8 @@ status `135`), do ambiente de produção e do CNPJ emitente configurado.
 
 A CC-e fica vinculada pela chave, mesmo se a nota for importada depois.
 Reimportações não duplicam o evento. Em **Consulta**, filtre por **Carta de
-Correção** e abra **Ver correção** para consultar o texto, a sequência e o
-protocolo. A exportação de eventos inclui sequência e texto quando há CC-e.
+Correção** e clique no ícone de documento com lápis ao lado do número da nota
+para consultar o texto, a sequência e o protocolo. A exportação de eventos inclui sequência e texto quando há CC-e.
 
 O texto é mantido como evento: não modifica automaticamente itens, valores,
 pesos nem a situação de cancelamento da nota. A importação usa o banco local,
