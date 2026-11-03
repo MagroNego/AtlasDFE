@@ -1,30 +1,28 @@
-# AtlasDFE 2.6.0
+# AtlasDFE 2.7.0
 
-## Escopo desta revisão
+Aplicação interna para consultar manifestações de NF-e, importar XMLs e gerar relatórios Excel/CSV.
 
-Documentação revisada em 03/11/2026, incluindo login exclusivo do Admin, janela configurável, CC-e e resumo da exportação. A versão declarada permanece 2.6.0, mas o ZIP publicado em 16/10/2026 não contém todas as alterações posteriores. Identifique a instalação pelo commit. O workflow não substitui uma release existente.
+## O que esta versão entrega
 
-## Comportamento atual
+- Consultas, relatórios e downloads sem senha. Admin, importações e cancelamento manual exigem login administrativo.
+- Janela SEFAZ configurável no Admin, com padrão 22h–04h de Brasília. Disparos padrão às 22h, 23h, 00h, 01h, 02h e 03h; cooldown de 60 minutos e bloqueios preservados.
+- Importação de XMLs e ZIPs, CC-e acessível nas ações da nota e vínculos de CT-e disponíveis no banco.
+- Excel de Emissão com Resumo, Notas, Itens e Retencoes. Reimportação completa hora de emissão e pesos ausentes.
+- Alertas por e-mail para Operação não Realizada, downloads disponíveis por 24 horas e animações breves na interface.
+- Manuais revisados para instalação, uso, administração e backup.
 
-- Consultas e relatórios sem login; Admin, importações e cancelamento manual exigem senha configurada em `CONFIGURAR_ADMIN.cmd`. Contas antigas permanecem preservadas no modo legado opcional.
-- Sincronização dentro da janela configurável, com padrão **22h–04h, Brasília**. Agenda padrão às 22h, 23h, 00h, 01h, 02h e 03h; ativação, janela, dias e horários configuráveis no Admin. Cooldown, pausas e trava continuam obrigatórios.
-- Recuperação `consNSU` desabilitada por padrão; pendências preservadas. O cursor de distribuição avança somente após processamento confirmado.
-- Alertas de Operação não Realizada (`210240`), remetente SMTP configurável e botão de envio de teste.
-- Importação de XMLs/ZIPs com subpastas, consultas por chaves ou NOTAS.TXT e relatórios Excel/CSV.
-- Cancelamento cooperativo de exportações. No modo padrão, os acessos comuns podem cancelar solicitações da identidade compartilhada; o Admin pode cancelar outras. A serialização final do Excel pode concluir antes da limpeza.
-- Relatórios temporários por 24 horas. Logs de sincronização descartados após 30 dias, sujeitos também à rotação por tamanho; dados fiscais permanecem no banco.
-- Novos XMLs não são arquivados permanentemente. Respostas pendentes são preservadas até processamento; XMLs legados não são apagados automaticamente.
+## Instalação
 
-O modo corporativo opcional usa gateway autenticado e autorização por grupos; fica desativado por padrão. Veja o [contrato de integração](SERVIDOR_WEB.md#preparação-para-login-corporativo).
-
-## Validação e limites
-
-Os registros operacionais de 15 e 16/10 mostram distribuição concluída e cursores atualizados nos trechos fornecidos. O operador confirmou a entrega de e-mail na instalação. Esses resultados são históricos; não comprovam a configuração interna do Qive nem todos os cenários de convivência.
-
-A CI está configurada para testes sintéticos em Windows e Linux. Certificado, comunicação SEFAZ e entrega SMTP dependem da instalação. O aplicativo não transmite manifestações/cancelamentos nem consulta a situação fiscal atual de cada nota. Cancelamentos de emissão própria exigem fonte adicional, conforme [Distribuição DF-e e Qive](DISTRIBUICAO_DFE_QIVE.md#cancelamentos-e-papel-do-cnpj).
+Extraia o ZIP, execute `INSTALAR.cmd` e `CONFIGURAR_ADMIN.cmd`. Não existe senha padrão. Siga `LEIA_PRIMEIRO.md` para iniciar com a agenda parada e configurar banco e certificado.
 
 ## Atualização
 
-Pare o processo, faça backup consistente e registre o commit instalado. Atualize código e dependências, preserve configuração e certificado e valide o banco antes de reativar a agenda. Uma agenda salva prevalece sobre `NFE_AUTO_SYNC_ENABLED`; siga o procedimento de [restauração](SEGURANCA_BANCO.md#restauração) para impedir disparos durante a conferência.
+Pare o app e faça backup do banco fiscal, `dados/admin_accounts.db` e `secrets`. Preserve certificado e logs. Atualize o código e execute `INSTALAR.cmd`. Contas existentes são preservadas; use `CONFIGURAR_ADMIN.cmd` para criar ou redefinir a senha administrativa.
 
-Consulte [Instalação](MANUAL_DE_INSTALACAO.md), [Servidor](SERVIDOR_WEB.md) e [Histórico](CHANGELOG.md).
+A agenda salva em `secrets/auto-sync.json` prevalece sobre o ambiente. Para pausar, desative no Admin antes de encerrar o processo. Confira banco, certificado e agenda após reiniciar.
+
+## Funcionamento
+
+Consultas e relatórios usam os dados locais. O AtlasDFE não emite manifestações, cancelamentos ou CC-e. A marcação manual de cancelamento altera somente a situação interna. A captura SEFAZ usa Windows, PowerShell e certificado A1; o processo precisa permanecer aberto. A recuperação `consNSU` fica desativada por padrão.
+
+O pacote não contém dados fiscais, senhas ou certificado. A publicação exige testes aprovados em Windows e Linux.

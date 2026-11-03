@@ -2,7 +2,9 @@
 
 Aplicação Web interna para consulta de manifestações de NF-e, importação de dados de XML e geração de relatórios Excel/CSV. Desenvolvida em Python, FastAPI e SQLite/SQLCipher. A captura de eventos usa `NFeDistribuicaoDFe`; consultas e relatórios usam o banco local.
 
-Documentação revisada em **03/11/2026** para o código desta revisão, versão declarada **2.6.0**. O ZIP da release `v2.6.0` foi publicado antes das últimas alterações e não é atualizado automaticamente. Identifique a instalação pelo commit, além do número da versão.
+Versão **2.7.0**. [Baixar a versão estável](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest).
+
+Consultas e relatórios são livres. Admin, importações e alterações manuais de situação exigem senha.
 
 ## Operação
 
@@ -86,7 +88,7 @@ python scripts/package_release.py
 
 A CI testa Windows e Linux com dados sintéticos, sem chamadas reais à SEFAZ nem envio real de e-mail. O pacote contém código, recursos, lançadores e documentação; não contém dados operacionais.
 
-A versão declarada permanece `2.6.0`. A branch `main` pode conter correções posteriores ao ZIP dessa release. O workflow não substitui uma release existente: um pacote novo exige atualização de versão e nova publicação.
+O pacote de cada release corresponde ao código da sua tag e inclui checksum SHA-256.
 
 ### Janela de consultas configurável
 

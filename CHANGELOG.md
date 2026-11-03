@@ -1,6 +1,6 @@
 # Histórico de versões
 
-## Revisão de 03/11/2026 — após 2.6.0
+## 2.7.0 — 03/11/2026
 
 - Login apenas para Admin, importações e alteração manual da situação de notas; consultas e relatórios continuam livres.
 - Janela SEFAZ configurável junto com a agenda, aplicada também às chamadas manuais e retentativas.
