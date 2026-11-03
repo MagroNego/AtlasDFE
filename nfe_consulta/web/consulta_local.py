@@ -14,6 +14,7 @@ from nfe_consulta.cancelamento import cancellation_condition, cancelled_keys, st
 
 
 TIPOS_MANIFESTACAO = {
+    "110110": "Carta de Correção",
     "210200": "Confirmação da Operação",
     "210210": "Ciência da Operação",
     "210220": "Desconhecimento da Operação",
@@ -70,6 +71,8 @@ class EventoNota:
     emitente: str = ""
     ctes: tuple = ()
     cancelada: bool = False
+    correcao: str = ""
+    sequencia: str = ""
 
     @property
     def situacao(self):
@@ -233,10 +236,12 @@ def _where_eventos(
 
 
 def _evento_da_linha(linha) -> EventoNota:
-    chave, codigo, descricao, data_evento, protocolo, nsu, recebido_em, emitente = linha
+    chave, codigo, descricao, data_evento, protocolo, nsu, recebido_em, emitente, correcao, sequencia = linha
     numero = int(chave[25:34])
     serie = chave[22:25].lstrip("0") or "0"
     return EventoNota(
+        correcao=correcao,
+        sequencia=sequencia,
         numero=numero,
         serie=serie,
         chave=chave,
@@ -264,6 +269,18 @@ def _campos_nota(tem_informacoes: bool) -> str:
                         WHERE cnpj=manifestacoes.cnpj AND chave=manifestacoes.chave), '') AS emitente"""
 
 
+
+def _campos_correcao(conexao):
+    if not conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cartas_correcao'").fetchone():
+        return "'' AS correcao, '' AS sequencia"
+    return """COALESCE((SELECT correcao FROM cartas_correcao c WHERE
+        manifestacoes.codigo='110110' AND c.cnpj=manifestacoes.cnpj AND c.chave=manifestacoes.chave
+        AND c.protocolo=manifestacoes.protocolo), '') AS correcao,
+        COALESCE((SELECT sequencia FROM cartas_correcao c WHERE
+        manifestacoes.codigo='110110' AND c.cnpj=manifestacoes.cnpj AND c.chave=manifestacoes.chave
+        AND c.protocolo=manifestacoes.protocolo), '') AS sequencia"""
+
+
 def consultar_eventos(
     database_path: Path,
     cnpj: str,
@@ -283,7 +300,7 @@ def consultar_eventos(
     try:
         tem_informacoes = _tem_informacoes_nfe(conexao)
         where, parametros = _where_eventos(cnpj, filtros, tem_informacoes, cancellation_condition(conexao, 'manifestacoes'))
-        campos_nota = _campos_nota(tem_informacoes)
+        campos_nota = _campos_nota(tem_informacoes) + ", " + _campos_correcao(conexao)
         total = int(
             conexao.execute(
                 f"SELECT COUNT(*) FROM manifestacoes WHERE {where}",
@@ -341,7 +358,7 @@ def consultar_eventos_exportacao(
     try:
         tem_informacoes = _tem_informacoes_nfe(conexao)
         where, parametros = _where_eventos(cnpj, filtros, tem_informacoes, cancellation_condition(conexao, 'manifestacoes'))
-        campos_nota = _campos_nota(tem_informacoes)
+        campos_nota = _campos_nota(tem_informacoes) + ", " + _campos_correcao(conexao)
         total = int(
             conexao.execute(
                 f"SELECT COUNT(*) FROM manifestacoes WHERE {where}",

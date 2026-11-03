@@ -11,6 +11,7 @@ from nfe_consulta.modelos import (
     NfeErroResposta,
     RetornoDistribuicao,
 )
+from nfe_consulta.carta_correcao import read_corrections
 from nfe_consulta.parser import DESCRICOES
 from nfe_consulta.cte import parse_event
 from nfe_consulta.cancelamento import read_cancellation
@@ -59,6 +60,11 @@ def parse_documento_distribuido(
     if _nome_local(root.tag) not in ("resEvento", "procEventoNFe"):
         return None
     codigo = _primeiro_texto(root, "tpEvento")
+    if codigo == '110110':
+        try:
+            return read_corrections(root, nsu=nsu, schema=schema, allow_summary=True)[0]
+        except (ValueError, IndexError) as exc:
+            raise NfeErroResposta(f'CC-e inválida no NSU {nsu}') from exc
     if codigo not in DESCRICOES:
         return None
 

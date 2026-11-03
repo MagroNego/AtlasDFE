@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 
+from nfe_consulta.carta_correcao import read_corrections
 from nfe_consulta.modelos import Manifestacao, ResultadoConsulta
 
 NS = {"nfe": "http://www.portalfiscal.inf.br/nfe"}
@@ -27,7 +28,12 @@ def parse_retorno_consulta(xml_str: str, chave: str) -> ResultadoConsulta:
     manifestacoes = []
     for evento in root.findall(".//nfe:procEventoNFe", NS):
         tp = _find_text(evento, ".//nfe:tpEvento")
-        if tp in DESCRICOES:
+        if tp == '110110':
+            try:
+                manifestacoes.extend(event for key, event in read_corrections(evento) if key == chave)
+            except ValueError:
+                pass
+        elif tp in DESCRICOES:
             desc = DESCRICOES[tp]
             data = _find_text(evento, ".//nfe:dhEvento")
             prot = _find_text(evento, ".//nfe:nProt")

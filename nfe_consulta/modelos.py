@@ -42,6 +42,8 @@ class Manifestacao:
     protocolo: str
     nsu: str = ""
     schema: str = ""
+    correcao: str = ""
+    sequencia: str = ""
 
 
 @dataclass(frozen=True)

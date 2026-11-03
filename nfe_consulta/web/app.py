@@ -179,7 +179,7 @@ def _consulta_database_state(settings: WebSettings) -> dict:
         from nfe_consulta.seguranca_banco import abrir_banco
         conn = abrir_banco(caminho, settings.current_database_password(), somente_leitura=True)
         try:
-            for table in ('xml_documentos', 'xml_cancelamentos'):
+            for table in ('xml_documentos', 'xml_cancelamentos', 'cartas_correcao'):
                 if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone() and conn.execute(f'SELECT 1 FROM {table} WHERE cnpj=? LIMIT 1', (CNPJ_PADRAO,)).fetchone():
                     return dict(ready=True, label='Banco local disponível', notice=None)
         finally:

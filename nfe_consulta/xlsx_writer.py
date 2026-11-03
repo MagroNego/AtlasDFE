@@ -22,6 +22,7 @@ DESCRICOES = {
     "210200": "Confirmação da Operação",
     "210210": "Ciência da Operação",
     "210220": "Desconhecimento da Operação",
+    "110110": "Carta de Correção",
     "210240": "Operação não Realizada",
 }
 

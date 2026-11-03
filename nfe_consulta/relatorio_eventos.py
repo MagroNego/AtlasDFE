@@ -73,7 +73,9 @@ def gravar_eventos_xlsx(
     ws.sheet_view.zoomScale = 85
     ws.freeze_panes = "A2"
 
-    for coluna, titulo in enumerate(HEADERS, 1):
+    has_cce = any(evento.codigo == "110110" for evento in eventos)
+    headers = HEADERS + (["Sequência CC-e", "Correção"] if has_cce else [])
+    for coluna, titulo in enumerate(headers, 1):
         ws.cell(1, coluna, titulo)
 
     for indice, evento in enumerate(cancellable_rows(eventos), 2):
@@ -92,6 +94,8 @@ def gravar_eventos_xlsx(
             spreadsheet_label(evento.ctes),
         ]
 
+        if has_cce:
+            valores.extend([evento.sequencia, evento.correcao])
         for coluna, valor in enumerate(valores, 1):
             celula = ws.cell(indice, coluna, valor)
             if isinstance(valor, str):
@@ -107,8 +111,8 @@ def gravar_eventos_xlsx(
 
         ws.row_dimensions[indice].height = max(text_row_height(evento.descricao, 34), text_row_height(evento.emitente, 44))
 
-    configure_sheet(ws, header_row=1, widths=[14, 10, 51, 13, 34, 24, 23, 19, 25, 44, 19, 23])
-    ws.auto_filter.ref = f"A1:L{max(1, 1 + len(eventos))}"
+    configure_sheet(ws, header_row=1, widths=[14, 10, 51, 13, 34, 24, 23, 19, 25, 44, 19, 23] + ([16, 80] if has_cce else []))
+    ws.auto_filter.ref = ws.dimensions
 
     destino = Path(caminho)
     destino.parent.mkdir(parents=True, exist_ok=True)

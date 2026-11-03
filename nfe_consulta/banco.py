@@ -4,6 +4,7 @@ from pathlib import Path
 from nfe_consulta.seguranca_banco import abrir_banco
 from nfe_consulta.cte import SCHEMA as CTE_SCHEMA, save_events, linked_ctes
 from nfe_consulta.cancelamento import cancelled_keys
+from nfe_consulta.carta_correcao import SCHEMA as CORRECTION_SCHEMA, save_correction
 
 from nfe_consulta.modelos import (
     Manifestacao,
@@ -25,7 +26,7 @@ class BancoManifestacoes:
         self._criar_schema()
 
     def _criar_schema(self) -> None:
-        self.conexao.executescript(CTE_SCHEMA)
+        self.conexao.executescript(CTE_SCHEMA + CORRECTION_SCHEMA)
         self.conexao.executescript(
             """
             CREATE TABLE IF NOT EXISTS documentos_nsu (
@@ -326,6 +327,9 @@ class BancoManifestacoes:
                     (cnpj, info.chave, info.emitente, int(info.cancelada)),
                 )
             for chave, evento in retorno.manifestacoes:
+                if evento.codigo == '110110':
+                    inseridos += save_correction(self.conexao, cnpj, chave, evento)
+                    continue
                 cursor = self.conexao.execute(
                     """
                     INSERT OR IGNORE INTO manifestacoes
@@ -376,6 +380,9 @@ class BancoManifestacoes:
                     (cnpj, info.chave, info.emitente, int(info.cancelada)),
                 )
             for chave, evento in retorno.manifestacoes:
+                if evento.codigo == '110110':
+                    inseridos += save_correction(self.conexao, cnpj, chave, evento)
+                    continue
                 cursor = self.conexao.execute(
                     """INSERT OR IGNORE INTO manifestacoes
                     (cnpj, chave, codigo, descricao, data_evento, protocolo, nsu, schema_xml)
@@ -508,7 +515,10 @@ class BancoManifestacoes:
 def consultar_chave_local(conexao, chave: str, cnpj: str | None = None) -> ResultadoConsulta:
     sql = (
         "SELECT codigo, descricao, data_evento, protocolo, nsu, schema_xml "
-        "FROM manifestacoes WHERE chave = ?"
+        + (", COALESCE((SELECT correcao FROM cartas_correcao c WHERE manifestacoes.codigo='110110' AND c.cnpj=manifestacoes.cnpj AND c.chave=manifestacoes.chave AND c.protocolo=manifestacoes.protocolo), ''), "
+           "COALESCE((SELECT sequencia FROM cartas_correcao c WHERE manifestacoes.codigo='110110' AND c.cnpj=manifestacoes.cnpj AND c.chave=manifestacoes.chave AND c.protocolo=manifestacoes.protocolo), '') "
+           if conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='cartas_correcao'").fetchone() else ", '', '' ")
+        + "FROM manifestacoes WHERE chave = ?"
     )
     parametros = [chave]
     if cnpj:

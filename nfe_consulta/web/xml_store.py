@@ -23,6 +23,8 @@ from nfe_consulta.cte import linked_ctes, export_label
 from nfe_consulta.cancelamento import SCHEMA as CANCELLATION_SCHEMA, read_cancellation, save_cancellation, cancelled_keys, status_label, cancellation_condition
 from nfe_consulta.xml_reader import parse_nfe_xml, emission_metadata, decimal_value, FIELDS_ITENS, FIELDS_RETIDO
 
+from nfe_consulta.carta_correcao import SCHEMA as CORRECTION_SCHEMA, read_corrections, save_correction
+
 MAX_XML = 8 * 1024 * 1024
 MAX_UPLOAD = 100 * 1024 * 1024
 MAX_EXPANDED = 250 * 1024 * 1024
@@ -36,7 +38,7 @@ EXCEL_EXCLUDED_COLUMNS = frozenset({
 
 
 def _schema(conn):
-    conn.executescript(CANCELLATION_SCHEMA)
+    conn.executescript(CANCELLATION_SCHEMA + CORRECTION_SCHEMA)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS xml_documentos (
             cnpj TEXT NOT NULL, chave TEXT NOT NULL, numero TEXT NOT NULL,
@@ -192,7 +194,7 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
     if not Path(database_path).is_file():
         raise ValueError("Configure o banco existente antes de importar.")
     conn = abrir_banco(database_path, password)
-    summary = dict(importadas=0, duplicadas=0, cancelamentos=0, erros=0, itens=0, retencoes=0, registros=[])
+    summary = dict(importadas=0, duplicadas=0, cancelamentos=0, cartas_correcao=0, erros=0, itens=0, retencoes=0, registros=[])
     try:
         _schema(conn)
         # Um erro estrutural de ZIP/limite desfaz o lote; erros individuais ficam no registro.
@@ -204,8 +206,10 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
                     continue
                 try:
                     root = ET.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
-                    cancellation = read_cancellation(root, cnpj)
-                    event_only = cancellation is not None and root.tag.rsplit('}', 1)[-1] != 'nfeProc'
+                    corrections = read_corrections(root, cnpj)
+                    correction_only = bool(corrections) and root.tag.rsplit('}', 1)[-1] == 'procEventoNFe'
+                    cancellation = None if correction_only else read_cancellation(root, cnpj)
+                    event_only = bool(corrections or cancellation) and root.tag.rsplit('}', 1)[-1] != 'nfeProc'
                     if not event_only:
                         inf = next((el for el in root.iter() if el.tag.rsplit('}', 1)[-1] == 'infNFe'), None)
                         candidate = inf.attrib.get('Id', '').removeprefix('NFe') if inf is not None else ''
@@ -217,11 +221,16 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
                     summary["erros"] += 1
                     summary["registros"].append(dict(arquivo=name, status="Erro", mensagem="XML inválido, incompleto ou de outro emitente."))
                     continue
+                added_corrections = sum(save_correction(conn, cnpj, key, event) for key, event in corrections)
+                summary['cartas_correcao'] += added_corrections
                 if event_only:
-                    added = save_cancellation(conn, cnpj, cancellation, data)
-                    summary['cancelamentos' if added else 'duplicadas'] += 1
-                    summary['registros'].append(dict(arquivo=name, status='Cancelamento' if added else 'Duplicada',
-                        mensagem='Cancelamento registrado pela chave da NF-e.' if added else 'Cancelamento já registrado.'))
+                    added_cancellation = save_cancellation(conn, cnpj, cancellation, data) if cancellation else False
+                    summary['cancelamentos'] += added_cancellation
+                    added = added_corrections or added_cancellation
+                    summary['duplicadas'] += not added
+                    label = 'Cancelamento e Carta de Correção' if cancellation and corrections else 'Carta de Correção' if corrections else 'Cancelamento'
+                    summary['registros'].append(dict(arquivo=name, status=label if added else 'Duplicada',
+                        mensagem='Evento(s) registrado(s) pela chave da NF-e.' if added else 'Evento(s) já registrado(s).'))
                     continue
                 chave = meta["chave"]
                 if cancellation is not None:

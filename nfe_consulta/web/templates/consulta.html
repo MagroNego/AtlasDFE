@@ -170,6 +170,10 @@
           <td><span class="note-status{% if evento.cancelada %} cancelled{% endif %}">{{ evento.situacao }}</span></td>
           <td class="manifestation-cell">
             <strong>{{ evento.descricao }}</strong>
+            {% if evento.codigo == '110110' %}
+            {% if evento.sequencia %}<small>Sequência {{ evento.sequencia }}</small>{% endif %}
+            {% if evento.correcao %}<details><summary>Ver correção</summary><p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ evento.correcao }}</p></details>{% else %}<small>Texto não disponível no resumo do evento.</small>{% endif %}
+            {% endif %}
           </td>
           <td class="event-date">{{ evento.data_label }}</td>
           <td class="mono">{{ evento.protocolo or "—" }}</td>

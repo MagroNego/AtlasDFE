@@ -15,14 +15,14 @@
 {% if success %}<div class="alert success">{{ success }}</div>{% endif %}
 {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
 {% if batch %}
-<div class="alert success">Lote processado: {{ batch.importadas }} importada(s), {{ batch.cancelamentos|default(0) }} cancelamento(s), {{ batch.duplicadas }} duplicada(s), {{ batch.erros }} erro(s)/ignorada(s).
+<div class="alert success">Lote processado: {{ batch.importadas }} importada(s), {{ batch.cancelamentos|default(0) }} cancelamento(s), {{ batch.cartas_correcao|default(0) }} carta(s) de correção, {{ batch.duplicadas }} duplicada(s), {{ batch.erros }} erro(s)/ignorada(s).
   <a data-download-link href="{{ url_for('xml_batch_log', lote=request.query_params.get('lote')) }}">Baixar registro do lote</a>
   <a href="{{ url_for('xml_page') }}">Consultar Emissão</a>
 </div>
 {% endif %}
 <section class="card xml-import">
   <div class="card-title"><h2>Importar XML</h2>
-  {% call guide('Importar XML') %}<ol><li>Selecione XMLs de NF-e emitidas pelo CNPJ configurado, eventos de cancelamento homologados ou ZIPs com subpastas.</li><li>Clique em <strong>Importar dados</strong> e confira o registro do lote.</li></ol><p>Limites: 100 MiB por envio, 250 MiB descompactados e 5.000 documentos. Chaves repetidas preservam os dados existentes; cancelamentos atualizam a situação.</p><p>O app guarda dados para relatórios. Obtenha o XML original no Synchro.</p>{% endcall %}</div>
+  {% call guide('Importar XML') %}<ol><li>Selecione XMLs de NF-e emitidas pelo CNPJ configurado, eventos de cancelamento ou de Carta de Correção com retorno da SEFAZ, ou ZIPs com subpastas.</li><li>Clique em <strong>Importar dados</strong> e confira o registro do lote.</li></ol><p>Limites: 100 MiB por envio, 250 MiB descompactados e 5.000 documentos. Chaves repetidas preservam os dados existentes; cancelamentos atualizam a situação. Cartas de Correção ficam vinculadas à nota para consulta, sem alterar automaticamente os dados fiscais.</p><p>O app guarda dados para relatórios. Obtenha o XML original no Synchro.</p>{% endcall %}</div>
   <form action="{{ url_for('xml_import') }}" method="post" enctype="multipart/form-data" data-processing-form>
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label class="field"><span>Arquivos XML ou ZIP</span><input type="file" name="files" accept=".xml,.zip" multiple required></label>
