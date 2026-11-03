@@ -100,3 +100,15 @@ janela e respeitar 60 minutos entre execuções nos dias selecionados.
 A configuração vale sem reiniciar e permanece após reinício. Salvar não
 consulta a SEFAZ nem altera o NSU. Cooldown e bloqueios continuam valendo.
 Consultas e exportações locais permanecem disponíveis fora da janela.
+
+### Aba Resumo na exportação de Emissão
+
+A exportação geral em Excel inclui a aba **Resumo**, além de Notas, Itens e
+Retencoes. Ela contém número da nota, código do produto, quantidade, valor
+total do item, CFOP, data e hora de emissão, peso líquido, peso bruto e status.
+Os pesos somam os volumes informados na NF-e e se repetem por item; não são
+pesos individuais nem rateados. Campos ausentes ficam em branco, distintos de zero.
+
+Para notas importadas antes dessa versão, reimporte os XMLs para completar
+hora e pesos que ainda não estavam armazenados. A reimportação complementa
+somente esses metadados ausentes, preservando os dados fiscais e os cancelamentos.

@@ -211,8 +211,14 @@ def register_xml_routes(app, settings, render, database_path):
             else:
                 def reports():
                     sections = (("Itens", "itens"),) if chave else (("Notas", "notas"), ("Itens", "itens"), ("Retencoes", "retencoes"))
+                    summary_items = None
                     for title, kind in sections:
-                        yield title, remember(store.query_report(database_path(settings), CNPJ_PADRAO, kind=kind, **kwargs))
+                        report = remember(store.query_report(database_path(settings), CNPJ_PADRAO, kind=kind, **kwargs))
+                        if kind == 'itens' and not chave:
+                            summary_items = report
+                        yield title, report
+                    if summary_items is not None:
+                        yield 'Resumo', store.emission_summary(summary_items)
                 data = store.export_excel(reports())
             return data, len(document_keys), period_label(
                 emission_dates, start=selected.data_inicial, end=selected.data_final)

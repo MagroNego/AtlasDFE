@@ -199,7 +199,7 @@ def test_web_lote_manifestacao_sem_download_xml_export_e_permissoes(tmp_path, mo
         assert client.get('/xml/arquivo/'+'9'*44).status_code == 404
         assert client.get('/xml/exportar?formato=csv&tipo=itens&q=produto').status_code == 200
         data = client.get('/xml/exportar?formato=xlsx').content
-        assert load_workbook(BytesIO(data)).sheetnames == ['Notas','Itens','Retencoes']
+        assert load_workbook(BytesIO(data)).sheetnames == ['Notas','Itens','Retencoes','Resumo']
         assert client.get('/xml/lote/1/registro').status_code == 200
         banco = BancoManifestacoes(str(cfg.database_path))
         banco.salvar_retorno(CNPJ_PADRAO, RetornoDistribuicao(138,'ok','1'.zfill(15),'1'.zfill(15),((CHAVE,Manifestacao('210240','Operação não Realizada','2026-10-01T10:00:00-03:00','1')),),0))

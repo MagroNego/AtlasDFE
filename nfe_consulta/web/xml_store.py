@@ -7,7 +7,7 @@ import hashlib
 import json
 import re
 import stat
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal, ROUND_HALF_UP, localcontext
 from io import BytesIO, StringIO
 from pathlib import Path, PurePosixPath
@@ -21,7 +21,7 @@ from nfe_consulta.xlsx_style import configure_sheet, style_cell, text_row_height
 from nfe_consulta.seguranca_banco import abrir_banco
 from nfe_consulta.cte import linked_ctes, export_label
 from nfe_consulta.cancelamento import SCHEMA as CANCELLATION_SCHEMA, read_cancellation, save_cancellation, cancelled_keys, status_label, cancellation_condition
-from nfe_consulta.xml_reader import parse_nfe_xml, decimal_value, FIELDS_ITENS, FIELDS_RETIDO
+from nfe_consulta.xml_reader import parse_nfe_xml, emission_metadata, decimal_value, FIELDS_ITENS, FIELDS_RETIDO
 
 MAX_XML = 8 * 1024 * 1024
 MAX_UPLOAD = 100 * 1024 * 1024
@@ -211,6 +211,8 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
                         candidate = inf.attrib.get('Id', '').removeprefix('NFe') if inf is not None else ''
                         duplicate = conn.execute('SELECT 1 FROM xml_documentos WHERE cnpj=? AND chave=?', (cnpj, candidate)).fetchone() is not None
                         meta, rows, retained = read_document(data, cnpj, root=root, include_items=not duplicate)
+                        if duplicate:
+                            metadata = emission_metadata(root)
                 except Exception:
                     summary["erros"] += 1
                     summary["registros"].append(dict(arquivo=name, status="Erro", mensagem="XML inválido, incompleto ou de outro emitente."))
@@ -227,6 +229,13 @@ def import_batch(database_path, cnpj, paths, *, password=None, user="admin"):
                 conn.execute('''INSERT INTO informacoes_nfe(cnpj,chave,emitente) VALUES (?,?,?)
                     ON CONFLICT(cnpj,chave) DO UPDATE SET emitente=CASE WHEN informacoes_nfe.emitente='' THEN excluded.emitente ELSE informacoes_nfe.emitente END''', (cnpj, chave, meta['emitente']))
                 if duplicate:
+                    records = conn.execute("SELECT linha,dados FROM xml_relatorio WHERE cnpj=? AND chave=? AND tipo='itens'", (cnpj, chave)).fetchall()
+                    for line, raw in records:
+                        row = json.loads(raw)
+                        missing = {key: value for key, value in metadata.items() if value != '' and row.get(key) in (None, '')}
+                        if missing:
+                            row.update(missing)
+                            conn.execute("UPDATE xml_relatorio SET dados=? WHERE cnpj=? AND chave=? AND tipo='itens' AND linha=?", (json.dumps(row, ensure_ascii=False), cnpj, chave, line))
                     summary["duplicadas"] += 1
                     summary["registros"].append(dict(arquivo=name, status="Duplicada", mensagem="Chave já importada; dados anteriores preservados."))
                     continue
@@ -353,6 +362,22 @@ def export_csv(report):
     return out.getvalue().encode("utf-8-sig")
 
 
+SUMMARY_COLUMNS = ['Número de nota', 'Item', 'Quantidade', 'Preço total', 'CFOP',
+                   'Data', 'Hora', 'Peso líq.', 'Peso bruto', 'Status']
+
+
+def emission_summary(report):
+    def rows():
+        for item in cancellable_rows(report['rows']):
+            yield dict(zip(SUMMARY_COLUMNS, (
+                item.get('Numero Nota', ''), item.get('Codigo') or item.get('Item', ''),
+                item.get('Qtd', ''), item.get('Vl. Total', ''), item.get('CFOP', ''),
+                item.get('Data Emissao', ''), item.get('Hora Emissao', ''),
+                item.get('Peso Liquido', ''), item.get('Peso Bruto', ''), item.get('Situação', ''),
+            )))
+    return dict(columns=SUMMARY_COLUMNS, rows=rows())
+
+
 def export_excel(reports):
     workbook = Workbook()
     workbook.remove(workbook.active)
@@ -366,14 +391,19 @@ def export_excel(reports):
                 value = row.get(key, "")
                 if key == "CT-e vinculado":
                     value = spreadsheet_label(value and value != "Não localizado")
-                if key == "Data Emissao" and value:
+                if key in ("Data Emissao", "Data") and value:
                     for pattern in ("%Y-%m-%d", "%d/%m/%Y"):
                         try:
                             value = datetime.strptime(str(value), pattern).date()
                             break
                         except ValueError:
                             continue
-                elif key.startswith(("Vl.", "Base ", "% ", "Qtd", "Aliquota ")) and value != "":
+                elif key == 'Hora' and value:
+                    try:
+                        value = time.fromisoformat(str(value))
+                    except ValueError:
+                        pass
+                elif (key.startswith(("Vl.", "Base ", "% ", "Qtd", "Aliquota ")) or key in ('Quantidade', 'Preço total', 'Peso líq.', 'Peso bruto')) and value != "":
                     try:
                         with localcontext() as context:
                             context.prec = 110
@@ -388,6 +418,8 @@ def export_excel(reports):
                 style_cell(cell, alternate=row_index % 2 == 0, wrap=columns[column_index - 1] in {"Descricao", "Emitente Razao", "Destinatario Razao"})
                 if isinstance(cell.value, date):
                     cell.number_format = "dd/mm/yyyy"
+                elif isinstance(cell.value, time):
+                    cell.number_format = 'hh:mm:ss'
                 elif isinstance(cell.value, str):
                     cell.data_type = "s"
                     cell.number_format = "@"

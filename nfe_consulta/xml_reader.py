@@ -52,6 +52,25 @@ def zfill_cst(v, width=2):
 #  PARSER NF-e  — retorna (lista_itens, dict_retido)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def emission_metadata(root):
+    """Hora e pesos totais declarados na NF-e; nunca rateia peso entre produtos."""
+    def child(parent, name):
+        return next((el for el in parent if el.tag.rsplit('}', 1)[-1] == name), None) if parent is not None else None
+    def text(parent, name):
+        node = child(parent, name)
+        return (node.text or '').strip() if node is not None else ''
+    nfe = root if root.tag.rsplit('}', 1)[-1] == 'NFe' else child(root, 'NFe')
+    inf = child(nfe, 'infNFe')
+    issued = text(child(inf, 'ide'), 'dhEmi')
+    hour = re.split(r'[+-]', issued.split('T', 1)[1])[0].rstrip('Z') if 'T' in issued else ''
+    transport = child(inf, 'transp')
+    volumes = [el for el in transport if el.tag.rsplit('}', 1)[-1] == 'vol'] if transport is not None else []
+    def weight(field):
+        values = [text(vol, field) for vol in volumes if text(vol, field)]
+        return fmt_qtd(sum((decimal_value(value) for value in values), Decimal('0'))) if values else ''
+    return {'Hora Emissao': hour, 'Peso Liquido': weight('pesoL'), 'Peso Bruto': weight('pesoB')}
+
+
 def parse_nfe_xml(xml_file_path, *, root=None):
     if root is None:
         root = ET.parse(xml_file_path).getroot()
@@ -135,6 +154,7 @@ def parse_nfe_xml(xml_file_path, *, root=None):
 
     # ── Itens ─────────────────────────────────────────────────────────────────
     itens = []
+    metadata = emission_metadata(root)
 
     for det in findall(infNFe, 'det'):
         n_item = det.get('nItem', '')
@@ -230,6 +250,7 @@ def parse_nfe_xml(xml_file_path, *, root=None):
                 vCOFINS    = fmt_valor(txt(cofqt, 'vCOFINS'))
 
         itens.append({
+            **metadata,
             'Chave Acesso':        chnfe,
             'Numero Nota':         numero_nota,
             'Serie':               serie,
