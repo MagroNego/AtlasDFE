@@ -1,0 +1,397 @@
+{
+  "baseline": "d872efa7ef1340ddd425d1e36837cf0152abde91",
+  "transporte": "ASGI em processo: sem TCP, parser HTTP, rede, assets, JavaScript ou pintura no navegador",
+  "comparacao": "Blocos sequenciais em processos separados; comparação exploratória, sem p95.",
+  "fixture": "Mesmas regras de geração; uma ciência por nota e CC-e em 10%; item real na nota min(10, tamanho).",
+  "antes": {
+    "python": "3.12.14",
+    "sistema": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "notas": 10000,
+    "banco": "SQLCipher",
+    "motor": {
+      "sqlite": "3.51.1",
+      "drivers": {
+        "sqlcipher3-binary": "0.6.0"
+      },
+      "cipher_version": "4.12.0 community",
+      "kdf_iter": "256000",
+      "cipher_kdf_algorithm": "PBKDF2_HMAC_SHA512",
+      "cipher_hmac_algorithm": "HMAC_SHA512"
+    },
+    "fontes_sha256": {
+      "nfe_consulta/web/xml_routes.py": "42b7cd5f287a0648eef7202a36cd075369d591531ef7a667bbbf74f19b06e2af",
+      "nfe_consulta/web/xml_store.py": "5f3f11df2f37bcbfb383a33af38cc26b629ab272b3a1dc477ee695cbeba8c10d",
+      "nfe_consulta/web/consulta_local.py": "7f43678ae92f119bdea4a938a508b247c281cc22678e245075fcf38e2b003fbf"
+    },
+    "respostas": [
+      {
+        "caso": "lista",
+        "rota": "/xml?tipo=notas",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 239.143,
+        "amostras_ms": [
+          231.344,
+          239.143,
+          242.935
+        ],
+        "html_sha256": "6ee7fa91466b2572195496455c3258ae77644312577ba218e7f765c34e6bb397",
+        "aberturas": 6,
+        "aberturas_por_requisicao": 2.0,
+        "abertura_mediana_ms": 102.633
+      },
+      {
+        "caso": "pagina_2",
+        "rota": "/xml?tipo=notas&pagina=2",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 254.486,
+        "amostras_ms": [
+          254.486,
+          246.548,
+          258.124
+        ],
+        "html_sha256": "bc9e6fc3c7af1ad85d988067171b4d0002ef72ccf50fb766bc42a5b447b32990",
+        "aberturas": 6,
+        "aberturas_por_requisicao": 2.0,
+        "abertura_mediana_ms": 109.851
+      },
+      {
+        "caso": "itens",
+        "rota": "/xml/itens/33261116840128000101550020000000101000000000",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 223.385,
+        "amostras_ms": [
+          221.196,
+          223.385,
+          226.958
+        ],
+        "html_sha256": "e3aedcf9d4547eed606715ed348549cd0f1ec4ba47fdabb11f5a9eb76ea18826",
+        "aberturas": 6,
+        "aberturas_por_requisicao": 2.0,
+        "abertura_mediana_ms": 107.542
+      },
+      {
+        "caso": "manifestacoes",
+        "rota": "/xml/manifestacoes/33261116840128000101550020000000101000000000",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 360.923,
+        "amostras_ms": [
+          358.914,
+          363.994,
+          360.923
+        ],
+        "html_sha256": "c8d8fa8f2b035f562afa0b0caa51848089f2538aba60574c0796ec3fd6e01f06",
+        "aberturas": 9,
+        "aberturas_por_requisicao": 3.0,
+        "abertura_mediana_ms": 115.031
+      },
+      {
+        "caso": "lista",
+        "rota": "/xml?tipo=notas",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 309.752,
+        "amostras_ms": [
+          284.79,
+          265.056,
+          317.679,
+          340.768,
+          261.73,
+          281.161,
+          239.323,
+          301.826,
+          330.58,
+          353.546,
+          330.729,
+          377.161
+        ],
+        "html_sha256": "6ee7fa91466b2572195496455c3258ae77644312577ba218e7f765c34e6bb397",
+        "aberturas": 24,
+        "aberturas_por_requisicao": 2.0,
+        "abertura_mediana_ms": 126.157
+      },
+      {
+        "caso": "pagina_2",
+        "rota": "/xml?tipo=notas&pagina=2",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 327.021,
+        "amostras_ms": [
+          400.688,
+          399.619,
+          399.731,
+          343.08,
+          266.111,
+          327.057,
+          326.49,
+          326.984,
+          239.127,
+          327.08,
+          277.418,
+          292.803
+        ],
+        "html_sha256": "bc9e6fc3c7af1ad85d988067171b4d0002ef72ccf50fb766bc42a5b447b32990",
+        "aberturas": 24,
+        "aberturas_por_requisicao": 2.0,
+        "abertura_mediana_ms": 139.72
+      },
+      {
+        "caso": "itens",
+        "rota": "/xml/itens/33261116840128000101550020000000101000000000",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 308.206,
+        "amostras_ms": [
+          309.028,
+          343.665,
+          329.257,
+          316.276,
+          307.385,
+          295.345,
+          216.082,
+          237.633,
+          262.523,
+          248.166,
+          336.918,
+          333.231
+        ],
+        "html_sha256": "e3aedcf9d4547eed606715ed348549cd0f1ec4ba47fdabb11f5a9eb76ea18826",
+        "aberturas": 24,
+        "aberturas_por_requisicao": 2.0,
+        "abertura_mediana_ms": 142.481
+      },
+      {
+        "caso": "manifestacoes",
+        "rota": "/xml/manifestacoes/33261116840128000101550020000000101000000000",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 424.487,
+        "amostras_ms": [
+          490.965,
+          423.958,
+          435.245,
+          492.276,
+          418.444,
+          402.876,
+          394.879,
+          428.197,
+          440.036,
+          386.79,
+          413.621,
+          425.017
+        ],
+        "html_sha256": "c8d8fa8f2b035f562afa0b0caa51848089f2538aba60574c0796ec3fd6e01f06",
+        "aberturas": 36,
+        "aberturas_por_requisicao": 3.0,
+        "abertura_mediana_ms": 127.134
+      }
+    ]
+  },
+  "depois": {
+    "python": "3.12.14",
+    "sistema": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "notas": 10000,
+    "banco": "SQLCipher",
+    "motor": {
+      "sqlite": "3.51.1",
+      "drivers": {
+        "sqlcipher3-binary": "0.6.0"
+      },
+      "cipher_version": "4.12.0 community",
+      "kdf_iter": "256000",
+      "cipher_kdf_algorithm": "PBKDF2_HMAC_SHA512",
+      "cipher_hmac_algorithm": "HMAC_SHA512"
+    },
+    "fontes_sha256": {
+      "nfe_consulta/web/xml_routes.py": "78e69c258a27e95deedfb3d4d342e11b27449db35c5ddb1af7aa6fb4ee938531",
+      "nfe_consulta/web/xml_store.py": "8ae77f885fb75b5cfd83f780d689a727d53f7f980d0181f44c24b714b4ffb293",
+      "nfe_consulta/web/consulta_local.py": "089c0adb792691b7f293851400dd846785c1d5166aa372ccaffc2cc48407ad14",
+      "nfe_consulta/web/emissao_data.py": "320a3ea8c4c0304341c959c6c64958663ea234ff2175b644676b1d68ef775702"
+    },
+    "respostas": [
+      {
+        "caso": "lista",
+        "rota": "/xml?tipo=notas",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 139.363,
+        "amostras_ms": [
+          135.632,
+          142.965,
+          139.363
+        ],
+        "html_sha256": "6ee7fa91466b2572195496455c3258ae77644312577ba218e7f765c34e6bb397",
+        "aberturas": 3,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 112.32
+      },
+      {
+        "caso": "pagina_2",
+        "rota": "/xml?tipo=notas&pagina=2",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 140.393,
+        "amostras_ms": [
+          140.393,
+          132.161,
+          146.336
+        ],
+        "html_sha256": "bc9e6fc3c7af1ad85d988067171b4d0002ef72ccf50fb766bc42a5b447b32990",
+        "aberturas": 3,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 113.79
+      },
+      {
+        "caso": "itens",
+        "rota": "/xml/itens/33261116840128000101550020000000101000000000",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 121.019,
+        "amostras_ms": [
+          125.674,
+          113.812,
+          121.019
+        ],
+        "html_sha256": "e3aedcf9d4547eed606715ed348549cd0f1ec4ba47fdabb11f5a9eb76ea18826",
+        "aberturas": 3,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 114.502
+      },
+      {
+        "caso": "manifestacoes",
+        "rota": "/xml/manifestacoes/33261116840128000101550020000000101000000000",
+        "simultaneas": 1,
+        "grupos": 3,
+        "requisicoes": 3,
+        "mediana_ms": 129.799,
+        "amostras_ms": [
+          137.986,
+          129.799,
+          126.515
+        ],
+        "html_sha256": "c8d8fa8f2b035f562afa0b0caa51848089f2538aba60574c0796ec3fd6e01f06",
+        "aberturas": 3,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 110.872
+      },
+      {
+        "caso": "lista",
+        "rota": "/xml?tipo=notas",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 174.15,
+        "amostras_ms": [
+          160.628,
+          199.451,
+          198.909,
+          135.739,
+          208.736,
+          159.373,
+          136.947,
+          187.38,
+          160.919,
+          206.792,
+          206.949,
+          139.818
+        ],
+        "html_sha256": "6ee7fa91466b2572195496455c3258ae77644312577ba218e7f765c34e6bb397",
+        "aberturas": 12,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 123.776
+      },
+      {
+        "caso": "pagina_2",
+        "rota": "/xml?tipo=notas&pagina=2",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 215.006,
+        "amostras_ms": [
+          259.656,
+          202.594,
+          225.301,
+          278.367,
+          229.083,
+          247.209,
+          166.129,
+          142.96,
+          171.193,
+          215.529,
+          146.163,
+          214.483
+        ],
+        "html_sha256": "bc9e6fc3c7af1ad85d988067171b4d0002ef72ccf50fb766bc42a5b447b32990",
+        "aberturas": 12,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 153.543
+      },
+      {
+        "caso": "itens",
+        "rota": "/xml/itens/33261116840128000101550020000000101000000000",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 148.541,
+        "amostras_ms": [
+          188.823,
+          150.828,
+          142.861,
+          188.211,
+          163.444,
+          113.65,
+          117.592,
+          153.955,
+          146.253,
+          151.624,
+          111.473,
+          123.811
+        ],
+        "html_sha256": "e3aedcf9d4547eed606715ed348549cd0f1ec4ba47fdabb11f5a9eb76ea18826",
+        "aberturas": 12,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 140.211
+      },
+      {
+        "caso": "manifestacoes",
+        "rota": "/xml/manifestacoes/33261116840128000101550020000000101000000000",
+        "simultaneas": 4,
+        "grupos": 3,
+        "requisicoes": 12,
+        "mediana_ms": 159.042,
+        "amostras_ms": [
+          173.785,
+          196.243,
+          148.428,
+          135.321,
+          126.123,
+          210.112,
+          197.639,
+          133.67,
+          161.16,
+          135.854,
+          172.462,
+          156.924
+        ],
+        "html_sha256": "c8d8fa8f2b035f562afa0b0caa51848089f2538aba60574c0796ec3fd6e01f06",
+        "aberturas": 12,
+        "aberturas_por_requisicao": 1.0,
+        "abertura_mediana_ms": 135.978
+      }
+    ]
+  }
+}

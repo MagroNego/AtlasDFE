@@ -139,4 +139,39 @@ O runtime criptografado medido usa `sqlcipher3-binary` 0.6.0, SQLCipher 4.12.0, 
 
 Após esta etapa, 484 testes Python e cinco testes JavaScript passaram localmente. A revisão independente identificou e corrigiu durante a implementação a resolução de senha fora do worker, que poderia transformar arquivo de senha vazio/inacessível em erro HTTP 500. Os testes finais preservam o aviso amigável e não houve achado importante ou crítico pendente.
 
-Permanece necessário medir a rede e o navegador do ambiente de uso. A Emissão ainda tem leituras separadas que pagam mais de uma abertura do SQLCipher, e a capacidade do pool de threads continua limitada. A reorganização ampla das rotas do `app.py` também continua pendente; esta etapa separa apenas a coordenação dos dados da Consulta.
+Permanece necessário medir a rede e o navegador do ambiente de uso, e a capacidade do pool de threads continua limitada. A reorganização ampla das rotas do `app.py` também continua pendente. A terceira etapa separa a coordenação dos dados da Consulta; as aberturas adicionais da Emissão foram tratadas na quarta etapa abaixo.
+
+## Quarta etapa: Emissão e detalhes
+
+`web/emissao_data.py` coordena a leitura da listagem, dos itens e das manifestações usando uma conexão somente leitura por pedido. A listagem antes abria duas conexões (relatório e CC-e); os itens abriam duas (nota e itens); as manifestações abriam três (nota, verificação da tabela e eventos). Agora cada fluxo abre uma conexão e a fecha no mesmo worker.
+
+As funções públicas `query_report` e `consultar_cartas` continuam responsáveis por abrir e fechar suas conexões. As novas funções com sufixo `na_conexao` permitem compartilhar a conexão sem tomar sua propriedade. O SQL e a montagem dos relatórios foram preservados; exportações continuam usando a interface anterior. Não há conexão persistente, cache fiscal, dependência ou índice novo nesta etapa.
+
+A ordem de validação da listagem continua sendo leitura da senha, validação dos filtros e abertura do banco. Filtros inválidos não tentam abrir um banco com senha errada. Nos detalhes, nota inexistente continua retornando 404 antes de avaliar filtros adicionais. Arquivo de senha vazio ou inacessível nesses detalhes agora retorna mensagem genérica 400, em vez de erro interno 500. Se falhar apenas o enriquecimento de CC-e, a listagem já carregada continua visível com a mensagem de erro.
+
+Comparação da resposta HTML completa em SQLCipher com dez mil notas, três amostras sequenciais ou doze respostas em três grupos de quatro, após aquecimento:
+
+| Página | Simultâneas | Antes | Conexão única |
+|---|---:|---:|---:|
+| Listagem de Emissão | 1 | 239,143 ms | 139,363 ms |
+| Página 2 da Emissão | 1 | 254,486 ms | 140,393 ms |
+| Itens da nota | 1 | 223,385 ms | 121,019 ms |
+| Manifestações da nota | 1 | 360,923 ms | 129,799 ms |
+| Listagem de Emissão | 4 | 309,752 ms | 174,150 ms |
+| Página 2 da Emissão | 4 | 327,021 ms | 215,006 ms |
+| Itens da nota | 4 | 308,206 ms | 148,541 ms |
+| Manifestações da nota | 4 | 424,487 ms | 159,042 ms |
+
+O benchmark contabilizou as aberturas por pedido e verificou hashes do HTML completo. Todas as respostas foram idênticas entre versões nos cenários medidos, incluindo item e CC-e sintéticos. Cada versão executa em um processo novo com suas próprias configurações e banco temporário; os hashes das fontes são conferidos antes e depois da medição. A versão anterior é o commit público `d872efa7ef1340ddd425d1e36837cf0152abde91`.
+
+Os tempos vêm de uma execução diferente da terceira etapa. A comparação válida é entre as colunas desta tabela: o host e sua carga variam. O transporte continua ASGI no processo, sem TCP, parser HTTP, rede, recursos estáticos, JavaScript ou pintura no navegador; a amostra é exploratória, sem p95 e sem estimativa de capacidade em produção. [Dados completos](benchmarks/2026-11-04-emissao-response.json).
+
+Para reproduzir, com o commit de referência disponível no Git local e as dependências do Atlas instaladas:
+
+```bash
+python -m scripts.benchmark_emissao_response --size 10000 --repeats 3
+```
+
+O padrão usa SQLCipher. `--engine plain` mede SQLite sem criptografia. O script não abre dados do usuário, não chama a SEFAZ e não altera parâmetros da criptografia. A etapa mantém testes específicos de abertura/fechamento e worker em SQLite/SQLCipher, conexão emprestada, ausência do banco, senha e sua rotação, filtros, precedência de erros, CC-e, resultado fresco e falha de enriquecimento.
+
+Validação final da quarta etapa: 512 testes Python e cinco testes JavaScript passaram localmente; revisão independente sem achados importantes ou críticos pendentes. Durante a revisão, a validação da listagem foi reposicionada antes da abertura, preservando a mensagem de filtro inválido mesmo quando a senha está errada.

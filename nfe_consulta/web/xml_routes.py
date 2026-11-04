@@ -1,7 +1,6 @@
 """Rotas do leitor XML integradas às sessões e ao banco da aplicação."""
 from __future__ import annotations
 
-from nfe_consulta.web.consulta_local import consultar_cartas
 
 import tempfile
 from pathlib import Path
@@ -14,11 +13,13 @@ from starlette.datastructures import UploadFile as MultipartUploadFile
 
 from nfe_consulta.config import CNPJ_PADRAO
 from nfe_consulta.web.auth import WebUser, current_user, require_admin, require_export, require_user, validate_csrf
-from nfe_consulta.web.consulta_local import normalizar_filtros, consultar_eventos, ResultadoEventos, TIPOS_MANIFESTACAO
+from nfe_consulta.web.consulta_local import normalizar_filtros, TIPOS_MANIFESTACAO
 from nfe_consulta.web import xml_store as store
 from nfe_consulta.web.downloads import archive_file, period_label
 from nfe_consulta.cte import linked_ctes
-from nfe_consulta.seguranca_banco import abrir_banco
+from nfe_consulta.web.emissao_data import (
+    carregar_emissao, carregar_itens, carregar_manifestacoes, NotaNaoEncontrada,
+)
 
 
 def register_xml_routes(app, settings, render, database_path):
@@ -40,24 +41,12 @@ def register_xml_routes(app, settings, render, database_path):
         if len(chave) != 44 or not chave.isascii() or not chave.isdigit():
             raise HTTPException(400, 'Chave de acesso inválida.')
         try:
-            note = await run_in_threadpool(store.query_report, database_path(settings), CNPJ_PADRAO,
-                password=settings.current_database_password(), note_key=chave)
-            if not note['rows']:
-                raise HTTPException(404, 'Nota não encontrada no banco local.')
-            selected = normalizar_filtros(chave=chave, data_inicial=data_inicial, data_final=data_final, codigo=codigo)
-            if pagina < 1:
-                raise ValueError('Página inválida.')
-            def read_events():
-                conn = abrir_banco(database_path(settings), settings.current_database_password(), somente_leitura=True)
-                try:
-                    has_events = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manifestacoes'").fetchone()
-                finally:
-                    conn.close()
-                if not has_events:
-                    return ResultadoEventos((), 0, 1, 100)
-                return consultar_eventos(database_path(settings), CNPJ_PADRAO, selected,
-                    password=settings.current_database_password(), pagina=pagina, agrupar_cartas=True)
-            result = await run_in_threadpool(read_events)
+            note, result, selected = await run_in_threadpool(carregar_manifestacoes,
+                database_path(settings), CNPJ_PADRAO, chave,
+                password_provider=settings.current_database_password,
+                data_inicial=data_inicial, data_final=data_final, codigo=codigo, pagina=pagina)
+        except NotaNaoEncontrada as exc:
+            raise HTTPException(404, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         return render(request, 'consulta.html', user, detail=note['rows'][0],
@@ -73,13 +62,11 @@ def register_xml_routes(app, settings, render, database_path):
         if len(chave) != 44 or not chave.isascii() or not chave.isdigit():
             raise HTTPException(400, 'Chave de acesso inválida.')
         try:
-            note = await run_in_threadpool(store.query_report, database_path(settings), CNPJ_PADRAO,
-                password=settings.current_database_password(), note_key=chave)
-            if not note['rows']:
-                raise HTTPException(404, 'Nota não encontrada no banco local.')
-            result = await run_in_threadpool(store.query_report, database_path(settings), CNPJ_PADRAO,
-                password=settings.current_database_password(), kind='itens', note_key=chave,
-                item_query=item, page=pagina)
+            note, result = await run_in_threadpool(carregar_itens,
+                database_path(settings), CNPJ_PADRAO, chave,
+                password_provider=settings.current_database_password, item=item, pagina=pagina)
+        except NotaNaoEncontrada as exc:
+            raise HTTPException(404, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         return render(request, 'xml.html', user, result=result, tipo='itens', q='',
@@ -98,13 +85,15 @@ def register_xml_routes(app, settings, render, database_path):
         cartas_correcao = {}
         try:
             selected = filters(data_inicial, data_final)
-            result = await run_in_threadpool(store.query_report, database_path(settings), CNPJ_PADRAO,
-                password=settings.current_database_password(), kind=tipo, query=q,
+            leitura = await run_in_threadpool(carregar_emissao, database_path(settings), CNPJ_PADRAO,
+                password_provider=settings.current_database_password, kind=tipo, query=q,
                 inicio=selected.data_inicial, fim=selected.data_final, page=pagina, situacao=situacao, item_query=item)
+            result = leitura.result
             if tipo == 'notas':
                 ctes = result.get('ctes', {})
-                cartas_correcao = await run_in_threadpool(consultar_cartas, database_path(settings), CNPJ_PADRAO,
-                    [row['Chave Acesso'] for row in result['rows']], password=settings.current_database_password())
+                cartas_correcao = leitura.cartas_correcao
+            if leitura.error is not None:
+                raise leitura.error
         except ValueError as exc:
             error = str(exc)
         except Exception:

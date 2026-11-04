@@ -304,11 +304,18 @@ def consultar_cartas(database_path, cnpj, chaves, *, password=None):
         return {}
     conexao = abrir_banco(database_path, password, somente_leitura=True)
     try:
-        if not conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manifestacoes'").fetchone():
-            return {}
-        return _cartas_por_nota(conexao, cnpj, chaves)
+        return consultar_cartas_na_conexao(conexao, cnpj, chaves)
     finally:
         conexao.close()
+
+
+def consultar_cartas_na_conexao(conexao, cnpj, chaves):
+    """Lê cartas com uma conexão emprestada, sem assumir seu fechamento."""
+    if not chaves:
+        return {}
+    if not conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manifestacoes'").fetchone():
+        return {}
+    return _cartas_por_nota(conexao, cnpj, chaves)
 
 
 def _linhas_primarias(conexao, cnpj, chaves):
