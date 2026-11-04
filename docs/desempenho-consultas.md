@@ -96,4 +96,47 @@ Após a segunda etapa, 466 testes Python e 5 testes JavaScript passaram localmen
 
 ## Trabalho restante
 
-A contagem continua proporcional ao conjunto filtrado, e a seleção dos IDs da página ainda usa a consulta anterior. Uma experiência que também substituía essa seleção por agregação piorou a paginação; ela foi descartada. A separação das rotas do `app.py` e os testes de concorrência ficam para etapas posteriores.
+A contagem continua proporcional ao conjunto filtrado, e a seleção dos IDs da página ainda usa a consulta anterior. Uma experiência que também substituía essa seleção por agregação piorou a paginação; ela foi descartada.
+
+## Terceira etapa: HTML e concorrência
+
+A medição passou a incluir o tratamento da requisição, as consultas, a renderização dos templates e o corpo HTML completo. O transporte é `httpx.ASGITransport` no processo: não inclui socket TCP, parser HTTP do Uvicorn, rede, download de recursos estáticos, JavaScript ou pintura da tela. Portanto, não mede do clique até os documentos aparecerem no computador do usuário.
+
+O teste usa bancos temporários com dez mil e cem mil notas, uma ciência por nota, CC-e e informação de emitente em 10% delas, três séries e datas distribuídas em 28 dias. Para a Emissão, também prepara metadados sintéticos em `xml_documentos`. Consulta exibe cem linhas por página. Cada rota tem aquecimento fora das amostras; a execução sequencial usa três respostas medidas, e a concorrente usa três grupos de quatro requisições (doze respostas individuais). O relatório mantém as amostras, os tempos por etapa e hashes das fontes. Os tempos das etapas podem estar aninhados; não devem ser somados.
+
+Dois problemas foram corrigidos:
+
+1. A Consulta abria o SQLCipher para verificar disponibilidade e novamente para pesquisar. O novo `web/consulta_data.py` abre uma conexão somente leitura por pedido, verifica e consulta no mesmo worker, e fecha a conexão antes de devolver os dados. A senha é lida uma vez por pedido, sem cache e sem conexão persistente.
+2. As rotas gravavam auditoria diretamente no loop assíncrono. Trinta e sete chamadas agora aguardam a gravação em uma thread. Um pedido que precisa auditar ainda aguarda sua gravação, mas o loop não fica preso no I/O do log. Não há fila de descarte nem nova garantia de gravação em caso de falha do disco ou perda do processo.
+
+Quatro testes de concorrência exercitam requisições reais: consulta durante exportação XLSX, durante importação HTTP e durante uma transação SQLite protegida pela trava de sincronização; e resposta independente enquanto o stream real do log está pausado. Os três primeiros usam eventos para manter o trabalho em andamento e confirmar que a Consulta responde antes da liberação. O teste de escrita verifica que dados não confirmados ficam invisíveis e que o próximo pedido vê o commit. Eles não reproduzem uma comunicação real com a SEFAZ nem uma carga ilimitada de usuários.
+
+Quatorze testes específicos verificam abertura única em SQLite/SQLCipher, fechamento no mesmo worker, conexão emprestada, resultado fresco no pedido seguinte, banco ausente sem criação de arquivo, legado sem prontidão, fallback de XML importado, falha da consulta, senha errada e arquivo de senha vazio/inacessível. A rotação de senha entre pedidos é relida sem cache.
+
+O Chromium local via Playwright não iniciou: `process_singleton_posix.cc:297 socket() failed: Operation not permitted`, com `ptrace` também negado. Não houve teste visual nem medição de pintura no navegador; nenhum contorno da restrição foi tentado.
+
+Reprodução da resposta da aplicação, na raiz do repositório com suas dependências instaladas:
+
+```bash
+python -m scripts.benchmark_web_response --sizes 10000 --repeats 3 --encrypted
+python -m scripts.benchmark_web_response --sizes 100000 --repeats 3
+```
+
+O script usa apenas caminhos temporários e não transmite NF-e nem envia e-mail. A opção de servidor local, quando necessária, usa uma fixture e se limita a `127.0.0.1`. [Amostras HTTP e limites do ambiente](benchmarks/2026-11-04-web-response.json).
+
+Resultados com dez mil notas e SQLCipher, comparando a revisão que já executava auditoria em threads com a conexão única:
+
+| Rota | Simultâneas | Antes da conexão única | Conexão única |
+|---|---:|---:|---:|
+| Consulta, primeira página | 1 | 382,223 ms | 209,865 ms |
+| Consulta, página 2 | 1 | 379,887 ms | 212,168 ms |
+| Consulta, primeira página | 4 | 554,797 ms | 407,870 ms |
+| Consulta, página 2 | 4 | 524,225 ms | 398,063 ms |
+
+Com cem mil notas e SQLite sem criptografia, a revisão final gerou a primeira página de Consulta em 94,744 ms e a segunda em 97,623 ms; com quatro pedidos simultâneos, as medianas individuais foram 179,164 e 154,849 ms. Esses números não devem ser comparados diretamente com os de SQLCipher: os tamanhos e os motores são diferentes. As execuções antes/depois ocorreram em blocos, não em amostras alternadas, e o host teve variação de carga. A economia observada em SQLCipher corresponde à remoção de uma segunda abertura, não a uma estimativa de ganho em produção.
+
+O runtime criptografado medido usa `sqlcipher3-binary` 0.6.0, SQLCipher 4.12.0, SQLite 3.51.1 e 256.000 iterações de KDF com PBKDF2-HMAC-SHA512. Nenhum desses parâmetros foi alterado pela otimização. As dependências declaradas do Atlas permanecem iguais. O script registra os metadados do motor fora do intervalo medido.
+
+Após esta etapa, 484 testes Python e cinco testes JavaScript passaram localmente. A revisão independente identificou e corrigiu durante a implementação a resolução de senha fora do worker, que poderia transformar arquivo de senha vazio/inacessível em erro HTTP 500. Os testes finais preservam o aviso amigável e não houve achado importante ou crítico pendente.
+
+Permanece necessário medir a rede e o navegador do ambiente de uso. A Emissão ainda tem leituras separadas que pagam mais de uma abertura do SQLCipher, e a capacidade do pool de threads continua limitada. A reorganização ampla das rotas do `app.py` também continua pendente; esta etapa separa apenas a coordenação dos dados da Consulta.

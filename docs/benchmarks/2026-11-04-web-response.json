@@ -1,0 +1,1584 @@
+{
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "sistema": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "repeticoes": 3,
+  "transporte": "ASGI in-process: middleware + banco + templates + corpo HTML; sem TCP, parser HTTP, rede ou pintura no navegador",
+  "navegador": {
+    "medido": false,
+    "motivo": "Playwright/Chromium: FATAL process_singleton_posix.cc:297 socket() failed: Operation not permitted; ptrace denied. Browser plugin not available."
+  },
+  "bases": [
+    {
+      "notas": 10000,
+      "eventos": 11000,
+      "banco": "SQLite sem criptografia",
+      "respostas": [
+        {
+          "rota": "/consulta?consultar=1",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 33.669,
+          "amostras_ms": [
+            33.669,
+            36.846,
+            30.105
+          ],
+          "bytes_html": 127639,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 3,
+              "mediana_ms": 0.33
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 3,
+              "mediana_ms": 10.469
+            },
+            "consultar_pagina": {
+              "chamadas": 3,
+              "mediana_ms": 11.686
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 18.321
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1&pagina=2",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 34.25,
+          "amostras_ms": [
+            33.141,
+            34.25,
+            35.422
+          ],
+          "bytes_html": 128982,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 3,
+              "mediana_ms": 0.326
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 3,
+              "mediana_ms": 12.218
+            },
+            "consultar_pagina": {
+              "chamadas": 3,
+              "mediana_ms": 13.06
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 19.707
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 33.363,
+          "amostras_ms": [
+            33.363,
+            40.917,
+            30.998
+          ],
+          "bytes_html": 127891,
+          "etapas": {
+            "query_report": {
+              "chamadas": 3,
+              "mediana_ms": 4.55
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 25.645
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas&pagina=2",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 37.285,
+          "amostras_ms": [
+            40.928,
+            37.275,
+            37.285
+          ],
+          "bytes_html": 130564,
+          "etapas": {
+            "query_report": {
+              "chamadas": 3,
+              "mediana_ms": 4.494
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 30.13
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 98.071,
+          "amostras_ms": [
+            98.331,
+            121.36,
+            75.738,
+            135.519,
+            102.132,
+            39.979,
+            136.041,
+            122.397,
+            86.074,
+            97.812,
+            46.035,
+            62.201
+          ],
+          "bytes_html": 127639,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 12,
+              "mediana_ms": 1.374
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 12,
+              "mediana_ms": 55.127
+            },
+            "consultar_pagina": {
+              "chamadas": 12,
+              "mediana_ms": 60.349
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 13.333
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1&pagina=2",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 79.754,
+          "amostras_ms": [
+            73.073,
+            72.192,
+            109.457,
+            97.161,
+            62.792,
+            47.397,
+            99.847,
+            86.434,
+            57.603,
+            36.774,
+            92.958,
+            92.518
+          ],
+          "bytes_html": 128982,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 12,
+              "mediana_ms": 1.368
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 12,
+              "mediana_ms": 44.019
+            },
+            "consultar_pagina": {
+              "chamadas": 12,
+              "mediana_ms": 48.588
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 13.404
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 101.144,
+          "amostras_ms": [
+            77.024,
+            75.783,
+            110.309,
+            138.763,
+            49.434,
+            74.128,
+            130.923,
+            129.65,
+            91.978,
+            142.049,
+            142.819,
+            90.468
+          ],
+          "bytes_html": 127891,
+          "etapas": {
+            "query_report": {
+              "chamadas": 12,
+              "mediana_ms": 25.923
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 26.781
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas&pagina=2",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 120.093,
+          "amostras_ms": [
+            67.156,
+            66.048,
+            141.883,
+            140.612,
+            103.735,
+            52.399,
+            162.525,
+            161.534,
+            43.287,
+            73.375,
+            136.452,
+            136.613
+          ],
+          "bytes_html": 130564,
+          "etapas": {
+            "query_report": {
+              "chamadas": 12,
+              "mediana_ms": 57.205
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 27.437
+            }
+          }
+        }
+      ],
+      "motor": {
+        "sqlite": "3.53.1"
+      }
+    },
+    {
+      "notas": 10000,
+      "eventos": 11000,
+      "banco": "SQLCipher",
+      "respostas": [
+        {
+          "rota": "/consulta?consultar=1",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 209.865,
+          "amostras_ms": [
+            210.929,
+            200.324,
+            209.865
+          ],
+          "bytes_html": 127639,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 3,
+              "mediana_ms": 0.275
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 3,
+              "mediana_ms": 26.921
+            },
+            "consultar_pagina": {
+              "chamadas": 3,
+              "mediana_ms": 190.796
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 12.456
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1&pagina=2",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 212.168,
+          "amostras_ms": [
+            212.168,
+            209.576,
+            213.327
+          ],
+          "bytes_html": 128982,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 3,
+              "mediana_ms": 0.271
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 3,
+              "mediana_ms": 28.323
+            },
+            "consultar_pagina": {
+              "chamadas": 3,
+              "mediana_ms": 194.979
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 13.41
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 374.913,
+          "amostras_ms": [
+            374.913,
+            378.577,
+            373.029
+          ],
+          "bytes_html": 127891,
+          "etapas": {
+            "query_report": {
+              "chamadas": 3,
+              "mediana_ms": 174.762
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 31.99
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas&pagina=2",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 369.363,
+          "amostras_ms": [
+            394.016,
+            369.363,
+            362.886
+          ],
+          "bytes_html": 130564,
+          "etapas": {
+            "query_report": {
+              "chamadas": 3,
+              "mediana_ms": 169.788
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 27.004
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 407.87,
+          "amostras_ms": [
+            480.853,
+            421.402,
+            442.026,
+            480.155,
+            355.843,
+            369.551,
+            397.319,
+            414.633,
+            350.479,
+            364.559,
+            408.182,
+            407.558
+          ],
+          "bytes_html": 127639,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 12,
+              "mediana_ms": 0.281
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 12,
+              "mediana_ms": 84.591
+            },
+            "consultar_pagina": {
+              "chamadas": 12,
+              "mediana_ms": 374.84
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 13.869
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1&pagina=2",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 398.063,
+          "amostras_ms": [
+            382.984,
+            364.596,
+            428.652,
+            428.706,
+            414.328,
+            413.143,
+            350.978,
+            372.035,
+            349.6,
+            370.937,
+            418.049,
+            416.651
+          ],
+          "bytes_html": 128982,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 12,
+              "mediana_ms": 0.336
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 12,
+              "mediana_ms": 75.766
+            },
+            "consultar_pagina": {
+              "chamadas": 12,
+              "mediana_ms": 369.813
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 15.266
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 719.348,
+          "amostras_ms": [
+            720.173,
+            719.966,
+            718.729,
+            717.506,
+            663.418,
+            661.416,
+            732.454,
+            732.59,
+            648.239,
+            675.21,
+            740.022,
+            739.372
+          ],
+          "bytes_html": 127891,
+          "etapas": {
+            "query_report": {
+              "chamadas": 12,
+              "mediana_ms": 315.43
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 26.943
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas&pagina=2",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 729.191,
+          "amostras_ms": [
+            718.796,
+            717.797,
+            661.649,
+            661.797,
+            741.438,
+            740.962,
+            741.765,
+            741.06,
+            741.323,
+            676.232,
+            676.498,
+            739.586
+          ],
+          "bytes_html": 130564,
+          "etapas": {
+            "query_report": {
+              "chamadas": 12,
+              "mediana_ms": 313.997
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 29.151
+            }
+          }
+        }
+      ],
+      "motor": {
+        "sqlite": "3.51.1",
+        "drivers": {
+          "sqlcipher3-binary": "0.6.0"
+        },
+        "cipher_version": "4.12.0 community",
+        "kdf_iter": "256000",
+        "cipher_kdf_algorithm": "PBKDF2_HMAC_SHA512",
+        "cipher_hmac_algorithm": "HMAC_SHA512"
+      }
+    },
+    {
+      "notas": 100000,
+      "eventos": 110000,
+      "banco": "SQLite sem criptografia",
+      "respostas": [
+        {
+          "rota": "/consulta?consultar=1",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 94.744,
+          "amostras_ms": [
+            98.173,
+            94.744,
+            91.228
+          ],
+          "bytes_html": 127941,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 3,
+              "mediana_ms": 0.353
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 3,
+              "mediana_ms": 76.338
+            },
+            "consultar_pagina": {
+              "chamadas": 3,
+              "mediana_ms": 77.187
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 13.557
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1&pagina=2",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 97.623,
+          "amostras_ms": [
+            97.623,
+            92.275,
+            103.378
+          ],
+          "bytes_html": 129284,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 3,
+              "mediana_ms": 0.365
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 3,
+              "mediana_ms": 79.617
+            },
+            "consultar_pagina": {
+              "chamadas": 3,
+              "mediana_ms": 80.539
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 14.801
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 56.181,
+          "amostras_ms": [
+            46.445,
+            56.181,
+            56.644
+          ],
+          "bytes_html": 127895,
+          "etapas": {
+            "query_report": {
+              "chamadas": 3,
+              "mediana_ms": 22.117
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 22.612
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas&pagina=2",
+          "simultaneas": 1,
+          "grupos": 3,
+          "requisicoes": 3,
+          "mediana_ms": 50.359,
+          "amostras_ms": [
+            45.755,
+            62.869,
+            50.359
+          ],
+          "bytes_html": 130850,
+          "etapas": {
+            "query_report": {
+              "chamadas": 3,
+              "mediana_ms": 19.33
+            },
+            "_render": {
+              "chamadas": 3,
+              "mediana_ms": 29.383
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 179.164,
+          "amostras_ms": [
+            239.5,
+            221.859,
+            176.124,
+            154.425,
+            179.043,
+            114.753,
+            217.491,
+            217.655,
+            129.0,
+            142.675,
+            179.891,
+            179.284
+          ],
+          "bytes_html": 127941,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 12,
+              "mediana_ms": 1.287
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 12,
+              "mediana_ms": 143.545
+            },
+            "consultar_pagina": {
+              "chamadas": 12,
+              "mediana_ms": 148.251
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 13.425
+            }
+          }
+        },
+        {
+          "rota": "/consulta?consultar=1&pagina=2",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 154.849,
+          "amostras_ms": [
+            122.998,
+            140.047,
+            165.578,
+            184.41,
+            144.12,
+            120.809,
+            191.879,
+            190.367,
+            138.115,
+            116.834,
+            181.999,
+            183.656
+          ],
+          "bytes_html": 129284,
+          "etapas": {
+            "estado_consulta": {
+              "chamadas": 12,
+              "mediana_ms": 1.551
+            },
+            "consultar_eventos_na_conexao": {
+              "chamadas": 12,
+              "mediana_ms": 128.804
+            },
+            "consultar_pagina": {
+              "chamadas": 12,
+              "mediana_ms": 133.38
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 13.924
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 118.973,
+          "amostras_ms": [
+            91.694,
+            57.252,
+            138.099,
+            138.264,
+            160.712,
+            159.053,
+            99.753,
+            99.846,
+            92.253,
+            92.083,
+            157.256,
+            156.537
+          ],
+          "bytes_html": 127895,
+          "etapas": {
+            "query_report": {
+              "chamadas": 12,
+              "mediana_ms": 35.687
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 25.494
+            }
+          }
+        },
+        {
+          "rota": "/xml?tipo=notas&pagina=2",
+          "simultaneas": 4,
+          "grupos": 3,
+          "requisicoes": 12,
+          "mediana_ms": 116.502,
+          "amostras_ms": [
+            60.215,
+            91.453,
+            141.551,
+            141.672,
+            143.025,
+            62.918,
+            142.195,
+            90.216,
+            84.685,
+            49.643,
+            147.028,
+            147.508
+          ],
+          "bytes_html": 130850,
+          "etapas": {
+            "query_report": {
+              "chamadas": 12,
+              "mediana_ms": 47.484
+            },
+            "_render": {
+              "chamadas": 12,
+              "mediana_ms": 25.312
+            }
+          }
+        }
+      ],
+      "motor": {
+        "sqlite": "3.53.1"
+      }
+    }
+  ],
+  "app_sha256": "6de22ae927225456cc22f5626ef94a62fdde078d42ef5b800d8779921ed033dd",
+  "fontes_sha256": {
+    "web/app.py": "6de22ae927225456cc22f5626ef94a62fdde078d42ef5b800d8779921ed033dd",
+    "web/consulta_local.py": "7f43678ae92f119bdea4a938a508b247c281cc22678e245075fcf38e2b003fbf",
+    "web/consulta_data.py": "5c2497ae3da908d096012fd0d71175a242f38051681d511eed5cb01dc3c1effa"
+  },
+  "antes_da_conexao_unica": {
+    "python": "3.12.14",
+    "sqlite": "3.53.1",
+    "sistema": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "repeticoes": 3,
+    "transporte": "ASGI in-process: middleware + banco + templates + corpo HTML; sem TCP, parser HTTP, rede ou pintura no navegador",
+    "navegador": {
+      "medido": false,
+      "motivo": "Playwright/Chromium: FATAL process_singleton_posix.cc:297 socket() failed: Operation not permitted; ptrace denied. Browser plugin not available."
+    },
+    "bases": [
+      {
+        "notas": 10000,
+        "eventos": 11000,
+        "banco": "SQLite sem criptografia",
+        "respostas": [
+          {
+            "rota": "/consulta?consultar=1",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 28.056,
+            "amostras_ms": [
+              27.359,
+              28.056,
+              30.062
+            ],
+            "bytes_html": 127639,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 3,
+                "mediana_ms": 0.658
+              },
+              "consultar_eventos": {
+                "chamadas": 3,
+                "mediana_ms": 10.566
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 14.392
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1&pagina=2",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 31.118,
+            "amostras_ms": [
+              31.623,
+              31.118,
+              24.524
+            ],
+            "bytes_html": 128982,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 3,
+                "mediana_ms": 0.957
+              },
+              "consultar_eventos": {
+                "chamadas": 3,
+                "mediana_ms": 9.106
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 16.497
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 30.932,
+            "amostras_ms": [
+              30.932,
+              30.7,
+              35.256
+            ],
+            "bytes_html": 127891,
+            "etapas": {
+              "query_report": {
+                "chamadas": 3,
+                "mediana_ms": 4.092
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 23.803
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas&pagina=2",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 36.553,
+            "amostras_ms": [
+              36.664,
+              33.695,
+              36.553
+            ],
+            "bytes_html": 130564,
+            "etapas": {
+              "query_report": {
+                "chamadas": 3,
+                "mediana_ms": 3.347
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 26.681
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 103.403,
+            "amostras_ms": [
+              86.36,
+              107.031,
+              121.785,
+              134.909,
+              139.591,
+              163.014,
+              63.992,
+              179.471,
+              99.775,
+              68.275,
+              99.251,
+              54.499
+            ],
+            "bytes_html": 127639,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 12,
+                "mediana_ms": 5.45
+              },
+              "consultar_eventos": {
+                "chamadas": 12,
+                "mediana_ms": 60.832
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 14.066
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1&pagina=2",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 79.394,
+            "amostras_ms": [
+              91.695,
+              107.949,
+              67.092,
+              40.431,
+              92.793,
+              36.956,
+              91.879,
+              52.796,
+              104.533,
+              39.731,
+              103.885,
+              58.215
+            ],
+            "bytes_html": 128982,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 12,
+                "mediana_ms": 3.397
+              },
+              "consultar_eventos": {
+                "chamadas": 12,
+                "mediana_ms": 45.254
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 15.174
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 99.485,
+            "amostras_ms": [
+              78.744,
+              47.451,
+              132.714,
+              105.404,
+              62.787,
+              93.567,
+              161.172,
+              160.391,
+              146.492,
+              79.949,
+              48.647,
+              144.326
+            ],
+            "bytes_html": 127891,
+            "etapas": {
+              "query_report": {
+                "chamadas": 12,
+                "mediana_ms": 60.644
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 28.767
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas&pagina=2",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 118.715,
+            "amostras_ms": [
+              53.431,
+              90.151,
+              140.801,
+              140.898,
+              118.786,
+              118.644,
+              51.647,
+              148.486,
+              73.331,
+              44.193,
+              132.373,
+              131.782
+            ],
+            "bytes_html": 130564,
+            "etapas": {
+              "query_report": {
+                "chamadas": 12,
+                "mediana_ms": 51.391
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 27.468
+              }
+            }
+          }
+        ],
+        "motor": {
+          "sqlite": "3.53.1"
+        }
+      },
+      {
+        "notas": 10000,
+        "eventos": 11000,
+        "banco": "SQLCipher",
+        "respostas": [
+          {
+            "rota": "/consulta?consultar=1",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 382.223,
+            "amostras_ms": [
+              375.179,
+              382.223,
+              395.256
+            ],
+            "bytes_html": 127639,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 3,
+                "mediana_ms": 166.079
+              },
+              "consultar_eventos": {
+                "chamadas": 3,
+                "mediana_ms": 192.127
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 18.721
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1&pagina=2",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 379.887,
+            "amostras_ms": [
+              376.593,
+              390.925,
+              379.887
+            ],
+            "bytes_html": 128982,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 3,
+                "mediana_ms": 168.938
+              },
+              "consultar_eventos": {
+                "chamadas": 3,
+                "mediana_ms": 193.903
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 16.756
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 1495.126,
+            "amostras_ms": [
+              504.207,
+              1518.274,
+              1495.126
+            ],
+            "bytes_html": 127891,
+            "etapas": {
+              "query_report": {
+                "chamadas": 3,
+                "mediana_ms": 576.108
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 227.193
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas&pagina=2",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 475.462,
+            "amostras_ms": [
+              683.459,
+              388.459,
+              475.462
+            ],
+            "bytes_html": 130564,
+            "etapas": {
+              "query_report": {
+                "chamadas": 3,
+                "mediana_ms": 256.641
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 36.36
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 554.797,
+            "amostras_ms": [
+              423.645,
+              671.658,
+              446.051,
+              671.626,
+              388.15,
+              402.06,
+              634.615,
+              634.778,
+              478.713,
+              456.983,
+              650.18,
+              630.88
+            ],
+            "bytes_html": 127639,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 12,
+                "mediana_ms": 227.347
+              },
+              "consultar_eventos": {
+                "chamadas": 12,
+                "mediana_ms": 301.132
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 14.882
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1&pagina=2",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 524.225,
+            "amostras_ms": [
+              386.349,
+              428.444,
+              645.028,
+              643.422,
+              388.956,
+              638.628,
+              620.005,
+              402.486,
+              415.892,
+              391.203,
+              649.674,
+              650.283
+            ],
+            "bytes_html": 128982,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 12,
+                "mediana_ms": 232.564
+              },
+              "consultar_eventos": {
+                "chamadas": 12,
+                "mediana_ms": 271.272
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 13.932
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 586.564,
+            "amostras_ms": [
+              389.829,
+              423.014,
+              659.675,
+              658.411,
+              508.453,
+              689.109,
+              506.412,
+              688.636,
+              409.33,
+              527.791,
+              645.338,
+              645.438
+            ],
+            "bytes_html": 127891,
+            "etapas": {
+              "query_report": {
+                "chamadas": 12,
+                "mediana_ms": 276.858
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 32.063
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas&pagina=2",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 547.92,
+            "amostras_ms": [
+              661.235,
+              661.969,
+              452.431,
+              453.366,
+              404.582,
+              434.615,
+              658.943,
+              658.183,
+              412.841,
+              412.597,
+              643.611,
+              642.473
+            ],
+            "bytes_html": 130564,
+            "etapas": {
+              "query_report": {
+                "chamadas": 12,
+                "mediana_ms": 257.295
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 30.14
+              }
+            }
+          }
+        ],
+        "motor": {
+          "sqlite": "3.51.1",
+          "drivers": {
+            "sqlcipher3-binary": "0.6.0"
+          },
+          "cipher_version": "4.12.0 community",
+          "kdf_iter": "256000",
+          "cipher_kdf_algorithm": "PBKDF2_HMAC_SHA512",
+          "cipher_hmac_algorithm": "HMAC_SHA512"
+        }
+      },
+      {
+        "notas": 100000,
+        "eventos": 110000,
+        "banco": "SQLite sem criptografia",
+        "respostas": [
+          {
+            "rota": "/consulta?consultar=1",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 100.83,
+            "amostras_ms": [
+              100.83,
+              105.818,
+              98.695
+            ],
+            "bytes_html": 127941,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 3,
+                "mediana_ms": 0.695
+              },
+              "consultar_eventos": {
+                "chamadas": 3,
+                "mediana_ms": 79.51
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 13.205
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1&pagina=2",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 97.224,
+            "amostras_ms": [
+              108.657,
+              97.224,
+              93.493
+            ],
+            "bytes_html": 129284,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 3,
+                "mediana_ms": 2.083
+              },
+              "consultar_eventos": {
+                "chamadas": 3,
+                "mediana_ms": 75.186
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 15.248
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 45.58,
+            "amostras_ms": [
+              45.58,
+              45.477,
+              47.889
+            ],
+            "bytes_html": 127895,
+            "etapas": {
+              "query_report": {
+                "chamadas": 3,
+                "mediana_ms": 19.356
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 22.507
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas&pagina=2",
+            "simultaneas": 1,
+            "grupos": 3,
+            "requisicoes": 3,
+            "mediana_ms": 46.384,
+            "amostras_ms": [
+              48.239,
+              46.08,
+              46.384
+            ],
+            "bytes_html": 130850,
+            "etapas": {
+              "query_report": {
+                "chamadas": 3,
+                "mediana_ms": 20.554
+              },
+              "_render": {
+                "chamadas": 3,
+                "mediana_ms": 23.609
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 226.448,
+            "amostras_ms": [
+              235.439,
+              252.69,
+              213.671,
+              270.307,
+              246.815,
+              278.337,
+              177.003,
+              277.688,
+              183.389,
+              182.518,
+              217.458,
+              216.497
+            ],
+            "bytes_html": 127941,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 12,
+                "mediana_ms": 5.097
+              },
+              "consultar_eventos": {
+                "chamadas": 12,
+                "mediana_ms": 184.396
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 12.365
+              }
+            }
+          },
+          {
+            "rota": "/consulta?consultar=1&pagina=2",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 212.711,
+            "amostras_ms": [
+              182.514,
+              201.539,
+              233.933,
+              233.208,
+              201.229,
+              235.166,
+              181.147,
+              234.55,
+              224.182,
+              223.884,
+              185.213,
+              184.336
+            ],
+            "bytes_html": 129284,
+            "etapas": {
+              "_consulta_database_state": {
+                "chamadas": 12,
+                "mediana_ms": 4.271
+              },
+              "consultar_eventos": {
+                "chamadas": 12,
+                "mediana_ms": 176.973
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 13.909
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 146.77,
+            "amostras_ms": [
+              123.199,
+              121.531,
+              173.039,
+              173.012,
+              148.7,
+              179.97,
+              143.878,
+              144.841,
+              150.126,
+              93.193,
+              150.001,
+              91.846
+            ],
+            "bytes_html": 127895,
+            "etapas": {
+              "query_report": {
+                "chamadas": 12,
+                "mediana_ms": 40.836
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 25.682
+              }
+            }
+          },
+          {
+            "rota": "/xml?tipo=notas&pagina=2",
+            "simultaneas": 4,
+            "grupos": 3,
+            "requisicoes": 12,
+            "mediana_ms": 136.292,
+            "amostras_ms": [
+              157.977,
+              75.665,
+              158.123,
+              157.244,
+              153.094,
+              152.023,
+              51.845,
+              82.888,
+              85.306,
+              83.762,
+              136.385,
+              136.2
+            ],
+            "bytes_html": 130850,
+            "etapas": {
+              "query_report": {
+                "chamadas": 12,
+                "mediana_ms": 56.857
+              },
+              "_render": {
+                "chamadas": 12,
+                "mediana_ms": 25.003
+              }
+            }
+          }
+        ],
+        "motor": {
+          "sqlite": "3.53.1"
+        }
+      }
+    ],
+    "app_sha256": "df393f081c12674f93853555a523f12c2c8dcbefcd5b52a87fe0e302d90ca1dc",
+    "limites": [
+      "Três amostras sequenciais e doze respostas individuais em três grupos de quatro por cenário. Medição exploratória, sem percentis de cauda.",
+      "Contém banco sintético de um CNPJ, sem trânsito real SEFAZ, importação, exportação ou escrita concorrente neste script.",
+      "A medição de resposta inclui corpo HTML, não o clique até a tela visível."
+    ]
+  },
+  "limites": [
+    "Três amostras sequenciais e doze respostas individuais em três grupos de quatro por cenário. Medição exploratória, sem percentis de cauda.",
+    "Rotas aquecidas por uma resposta fora das amostras; 100 linhas por página.",
+    "Contém banco sintético de um CNPJ, sem trânsito real SEFAZ, importação, exportação ou escrita concorrente neste script.",
+    "A resposta inclui corpo HTML, não o clique até a tela visível. Não inclui TCP, parser HTTP, rede, assets, execução JS ou pintura do navegador.",
+    "Antes/depois executados em momentos diferentes no mesmo host; valores sujeitos à carga e ao cache. Não atribuir ruído da Emissão ao ajuste na Consulta."
+  ],
+  "metadados_motor": "Versões e configuração SQLCipher lidas fora das amostras em conexão temporária equivalente, com os padrões do mesmo runtime."
+}

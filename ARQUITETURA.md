@@ -7,6 +7,7 @@
 | `web/app.py` | Rotas, middleware, autorização e coordenação |
 | `web/auth.py`, `web/admin_accounts.py` | Acesso público, login administrativo, sessões, permissões e CSRF |
 | `web/consulta_local.py`, `consulta_numeros.py` | Consultas locais, filtros e correspondência por números de notas |
+| `web/consulta_data.py` | Disponibilidade do banco e dados da página de Consulta na mesma conexão por pedido |
 | `web/scheduler.py`, `web/auto_sync_config.py`, `web/sync_runtime.py` | Agendamento, trava, cooldown e configuração |
 | `janela_consulta.py` | Restrição de horário antes das chamadas externas |
 | `sincronizacao.py`, `distribuicao.py` | Fluxo distNSU e transporte SOAP/PowerShell |
@@ -38,6 +39,10 @@ O modo corporativo opcional (`NFE_WEB_CORPORATE_AUTH=1`) exige um gateway autent
 ## Concorrência e agendamento
 
 A implantação exige um processo/worker. As travas locais não coordenam processos separados. O banco deve permanecer preferencialmente em disco local.
+
+A página de Consulta abre uma conexão somente leitura por pedido com pesquisa, usa essa conexão para verificar a disponibilidade e buscar as linhas, e a fecha no mesmo worker. Não há conexão global nem cache de resultado fiscal. A API de consulta também permite usar uma conexão emprestada sem fechá-la; quem a abriu mantém a responsabilidade pelo fechamento.
+
+Nas rotas HTTP, a gravação de auditoria executa em thread e continua aguardada antes da resposta. Isso evita bloquear o loop durante escrita ou rotação do log. Um pedido que precisa auditar ainda pode esperar por esse I/O; as demais requisições não precisam esperar o loop ser liberado pela gravação. O mecanismo de tratamento de falhas do log permanece o mesmo.
 
 Janela externa padrão: **22:00 inclusive a 04:00 exclusiva, UTC−3**. Disparos padrão: **22, 23, 00, 01, 02 e 03 horas**. A agenda persistida em `secrets/auto-sync.json` substitui os padrões de ativação, janela, dias e horários. A janela também é aplicada às chamadas manuais e relida entre chamadas externas. O loop permanece aguardando quando desativado e é acordado por evento após salvar no Admin; uma execução ativa termina com a trava reservada. Horários usam data civil de Brasília, ficam dentro da janela e são separados por pelo menos 60 minutos.
 

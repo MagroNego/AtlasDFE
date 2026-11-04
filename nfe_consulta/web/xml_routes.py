@@ -177,17 +177,17 @@ def register_xml_routes(app, settings, render, database_path):
                 finally:
                     lock.release()
         except ValueError as exc:
-            app.state.audit.write(request, user, "xml_import", "erro", reason=type(exc).__name__)
+            await run_in_threadpool(app.state.audit.write, request, user, "xml_import", "erro", reason=type(exc).__name__)
             raise HTTPException(400, str(exc)) from exc
         except HTTPException:
             raise
         except Exception as exc:
-            app.state.audit.write(request, user, "xml_import", "erro", reason=type(exc).__name__)
+            await run_in_threadpool(app.state.audit.write, request, user, "xml_import", "erro", reason=type(exc).__name__)
             raise HTTPException(400, "Não foi possível importar o lote. Confira o banco e os arquivos.") from exc
         finally:
             for upload in files:
                 await upload.close()
-        app.state.audit.write(request, user, "xml_import", "ok", lote=summary["id"],
+        await run_in_threadpool(app.state.audit.write, request, user, "xml_import", "ok", lote=summary["id"],
             importadas=summary["importadas"], cancelamentos=summary["cancelamentos"], cartas_correcao=summary["cartas_correcao"], duplicadas=summary["duplicadas"], erros=summary["erros"])
         return RedirectResponse(request.url_for("xml_import_page").include_query_params(lote=summary["id"]), status_code=303)
 
@@ -231,7 +231,7 @@ def register_xml_routes(app, settings, render, database_path):
             raise HTTPException(400, str(exc)) from exc
         except Exception as exc:
             raise HTTPException(503, "Não foi possível gerar o relatório. Confira o banco.") from exc
-        app.state.audit.write(request, user, "xml_export", "ok", formato=formato)
+        await run_in_threadpool(app.state.audit.write, request, user, "xml_export", "ok", formato=formato)
         media = "text/csv" if formato == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         await archive_file(request, data, filename=f"Leitor_XML.{formato}", media_type=media,
             documents=documents, period=period)
