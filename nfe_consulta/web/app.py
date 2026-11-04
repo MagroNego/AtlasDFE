@@ -73,7 +73,7 @@ from nfe_consulta.web.sync_diagnostics import detalhes_erro, mensagem_erro
 from nfe_consulta import janela_consulta
 from nfe_consulta.web.uploads import consolidar_txts
 from nfe_consulta.web.xml_routes import register_xml_routes
-from nfe_consulta.web.xml_store import existing_keys, MAX_UPLOAD, import_history
+from nfe_consulta.web.xml_store import MAX_UPLOAD, import_history
 from nfe_consulta.web.xml_upload_limit import XmlUploadLimit
 from nfe_consulta.web.export_queue import ExportQueue, ExportQueueBusy
 from nfe_consulta.web.export_jobs import ExportJobs, current_export_job
@@ -869,8 +869,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                         por_pagina=100,
                         agrupar_cartas=True,
                     )
-                    xml_keys = await run_in_threadpool(existing_keys, banco, CNPJ_PADRAO,
-                        [evento.chave for evento in resultado.eventos], password=settings.current_database_password())
+                    xml_keys = resultado.xml_keys
                     app.state.audit.write(
                         request,
                         user,

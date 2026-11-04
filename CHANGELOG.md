@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 2.7.5 — 04/11/2026
+
+- Paginação seleciona os IDs da página antes de buscar emitente e detalhes de CC-e, preservando filtros, ordenação e totais.
+- Identificação de XMLs importados usa a conexão já aberta, evitando reabrir o banco cifrado a cada página da Consulta.
+- Emissão deixa de ler o histórico de importações que não é exibido nessa tela; o histórico continua disponível em Importar.
+
 ## 2.7.4 — 04/11/2026
 
 - Consulta verifica disponibilidade sem montar o diagnóstico completo de NSUs; erros de formulário reutilizam uma única leitura do estado.

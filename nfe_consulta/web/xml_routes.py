@@ -105,9 +105,6 @@ def register_xml_routes(app, settings, render, database_path):
                 ctes = result.get('ctes', {})
                 cartas_correcao = await run_in_threadpool(consultar_cartas, database_path(settings), CNPJ_PADRAO,
                     [row['Chave Acesso'] for row in result['rows']], password=settings.current_database_password())
-            if user.is_admin:
-                history, batch = await run_in_threadpool(store.import_history, database_path(settings),
-                    password=settings.current_database_password(), batch_id=lote)
         except ValueError as exc:
             error = str(exc)
         except Exception:

@@ -95,6 +95,7 @@ class ResultadoEventos:
     pagina: int
     por_pagina: int
     notas_canceladas: tuple = ()
+    xml_keys: frozenset[str] = frozenset()
 
     @property
     def paginas(self) -> int:
@@ -375,24 +376,25 @@ def consultar_eventos(
         pagina_efetiva = min(pagina, paginas) if paginas else 1
         offset = (pagina_efetiva - 1) * por_pagina
 
+        # Limitar IDs antes dos subselects de emitente/CC-e evita enriquecimento
+        # de todas as linhas que o SQLite precisa ordenar para achar a página.
         linhas = conexao.execute(
-            prefixo + f"""
-            SELECT
-                chave,
-                codigo,
-                descricao,
-                data_evento,
-                protocolo,
-                nsu,
-                recebido_em,
-                {campos_nota}
-            FROM {fonte}
-            WHERE {consulta_where}
-            ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC
-            LIMIT ? OFFSET ?
-            """,
+            f"""SELECT chave, codigo, descricao, data_evento, protocolo, nsu,
+                recebido_em, {campos_nota}
+            FROM manifestacoes WHERE id IN (
+                {prefixo}SELECT id FROM {fonte} WHERE {consulta_where}
+                ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC
+                LIMIT ? OFFSET ?
+            )
+            ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC""",
             [*parametros, por_pagina, offset],
         ).fetchall()
+        keys = list(dict.fromkeys(line[0] for line in linhas))
+        xml_keys = frozenset()
+        if keys and conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='xml_documentos'").fetchone():
+            marks = ','.join('?' for _ in keys)
+            xml_keys = frozenset(row[0] for row in conexao.execute(
+                f'SELECT chave FROM xml_documentos WHERE cnpj=? AND chave IN ({marks})', (cnpj, *keys)))
         cartas = _cartas_por_nota(conexao, cnpj, [line[0] for line in linhas]) if agrupar_cartas else {}
         primarias = _linhas_primarias(conexao, cnpj, [line[0] for line in linhas if line[1] == '110110']) if agrupar_cartas else {}
         ctes = linked_ctes(conexao, cnpj, [line[0] for line in linhas])
@@ -407,6 +409,7 @@ def consultar_eventos(
         pagina=pagina_efetiva,
         por_pagina=por_pagina,
         notas_canceladas=cancelled_notes,
+        xml_keys=xml_keys,
     )
 
 
