@@ -94,6 +94,8 @@ Relatórios já gerados preservam o estado da geração. Gere novamente após im
 
 ## Downloads e cancelamento
 
+Os arquivos usam `emissao_DATAINICIAL-DATAFINAL.xlsx` ou `manifestacao_DATAINICIAL-DATAFINAL.xlsx`, com datas no formato `AAAA-MM-DD`. O CSV da Emissão segue o mesmo padrão. O período selecionado tem prioridade; sem filtro de data, o nome usa as datas mínima e máxima dos documentos/eventos exportados. Isso também vale para consulta por TXT. Quando não há datas disponíveis, o nome termina em `_sem_periodo`.
+
 Os relatórios ficam disponíveis por 24 horas após a geração, em `dados/downloads`, fora do banco fiscal. Repetir o download não renova a validade. A tabela informa documentos processados, período, geração, expiração, tamanho e estado. Nos relatórios, documentos representam notas distintas, não necessariamente linhas.
 
 | Estado/ação | Comportamento |

@@ -48,6 +48,10 @@ def test_exports_archive_document_count_period_and_download_without_renewal(tmp_
             response = client.get(url)
             assert response.status_code == 200, response.text
             item = app.state.downloads.list()[0]
+            expected_name = ('emissao_2026-10-01-2026-10-31.csv' if 'data_inicial' in url
+                             else 'emissao_2026-10-01-2026-10-01.xlsx')
+            assert item['filename'] == expected_name
+            assert expected_name in response.headers['content-disposition']
             assert item['documents'] == 1
             assert item['period'] == ('01/10/2026 a 31/10/2026' if 'data_inicial' in url else '01/10/2026')
             restored = client.get('/downloads/' + item['id'])
@@ -74,6 +78,9 @@ def test_private_archive_not_visible_or_downloadable_publicly(tmp_path):
 
 
 def test_period_without_dates():
+    from nfe_consulta.web.downloads import report_filename
+    assert report_filename('manifestacao', []) == 'manifestacao_sem_periodo.xlsx'
+    assert report_filename('emissao', ['2026-10-07T10:00:00', '01/10/2026']) == 'emissao_2026-10-01-2026-10-07.xlsx'
     assert period_label([]) == 'Não informado'
     assert period_label(['2026-10-07T10:00:00', '01/10/2026']) == '01/10/2026 a 07/10/2026'
 

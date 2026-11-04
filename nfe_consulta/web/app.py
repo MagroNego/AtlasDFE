@@ -24,7 +24,7 @@ from starlette.concurrency import run_in_threadpool
 from nfe_consulta import __version__
 from nfe_consulta.cancelamento import change_manual_status
 from nfe_consulta.banco_config import carregar_caminho_banco, salvar_caminho_banco
-from nfe_consulta.config import CNPJ_PADRAO, NOME_PLANILHA, UF_PADRAO
+from nfe_consulta.config import CNPJ_PADRAO, UF_PADRAO
 from nfe_consulta.certificado_arquivo import carregar_certificado_arquivo
 from nfe_consulta.certificado_config import (
     carregar_config_certificado_arquivo,
@@ -79,7 +79,7 @@ from nfe_consulta.web.xml_store import MAX_UPLOAD, import_history
 from nfe_consulta.web.xml_upload_limit import XmlUploadLimit
 from nfe_consulta.web.export_queue import ExportQueue, ExportQueueBusy
 from nfe_consulta.web.export_jobs import ExportJobs, current_export_job
-from nfe_consulta.web.downloads import DownloadArchive, archive_file, cleanup_loop, period_label
+from nfe_consulta.web.downloads import DownloadArchive, archive_file, cleanup_loop, period_label, report_filename
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -942,9 +942,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             ) from exc
 
         temporario = Path(tempfile.mkdtemp(prefix="nfe-eventos-web-"))
-        inicio = filtros.data_inicial.isoformat() if filtros.data_inicial else "inicio"
-        fim = filtros.data_final.isoformat() if filtros.data_final else "atual"
-        nome = f"Manifestacoes_{inicio}_a_{fim}.xlsx"
+        nome = report_filename('manifestacao', (evento.data for evento in eventos),
+            start=filtros.data_inicial, end=filtros.data_final)
         saida = temporario / nome
 
         try:
@@ -1048,8 +1047,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 max_chaves=settings.max_keys,
                 tipo=tipo_arquivo,
             )
-            nome_planilha = "Consulta_Manifestacao_por_Numeros.xlsx" if tipo_arquivo == "numeros" else NOME_PLANILHA
-            saida = temporario / nome_planilha
+            saida = temporario / 'relatorio.xlsx'
             if tipo_arquivo == "numeros":
                 resultado = await run_in_threadpool(executar_consulta_numeros, chaves,
                     _database_path(settings), saida, CNPJ_PADRAO,
@@ -1067,6 +1065,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                         senha_banco=settings.current_database_password(),
                     ),
                 )
+            nome_planilha = report_filename('manifestacao',
+                (evento.data for nota in resultado.resultados for evento in nota.manifestacoes))
             await run_in_threadpool(app.state.audit.write,
                 request,
                 user,

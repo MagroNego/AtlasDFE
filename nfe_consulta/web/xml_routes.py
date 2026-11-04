@@ -15,7 +15,7 @@ from nfe_consulta.config import CNPJ_PADRAO
 from nfe_consulta.web.auth import WebUser, current_user, require_admin, require_export, require_user, validate_csrf
 from nfe_consulta.web.consulta_local import normalizar_filtros, TIPOS_MANIFESTACAO
 from nfe_consulta.web import xml_store as store
-from nfe_consulta.web.downloads import archive_file, period_label
+from nfe_consulta.web.downloads import archive_file, period_label, report_filename
 from nfe_consulta.cte import linked_ctes
 from nfe_consulta.web.emissao_data import (
     carregar_emissao, carregar_itens, carregar_manifestacoes, NotaNaoEncontrada,
@@ -212,19 +212,21 @@ def register_xml_routes(app, settings, render, database_path):
                         yield 'Resumo', store.emission_summary(summary_items)
                 data = store.export_excel(reports())
             return data, len(document_keys), period_label(
-                emission_dates, start=selected.data_inicial, end=selected.data_final)
+                emission_dates, start=selected.data_inicial, end=selected.data_final), report_filename(
+                'emissao', emission_dates, start=selected.data_inicial,
+                end=selected.data_final, extension=formato)
 
         try:
-            data, documents, period = await run_in_threadpool(generate)
+            data, documents, period, filename = await run_in_threadpool(generate)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         except Exception as exc:
             raise HTTPException(503, "Não foi possível gerar o relatório. Confira o banco.") from exc
         await run_in_threadpool(app.state.audit.write, request, user, "xml_export", "ok", formato=formato)
         media = "text/csv" if formato == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        await archive_file(request, data, filename=f"Leitor_XML.{formato}", media_type=media,
+        await archive_file(request, data, filename=filename, media_type=media,
             documents=documents, period=period)
-        return Response(data, media_type=media, headers={"Content-Disposition": f'attachment; filename="Leitor_XML.{formato}"'})
+        return Response(data, media_type=media, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
     @app.get("/xml/lote/{lote}/registro")
     async def xml_batch_log(request: Request, lote: int, user: Annotated[WebUser, Depends(require_admin)]):
