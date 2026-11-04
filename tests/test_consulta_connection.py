@@ -198,7 +198,7 @@ def test_unavailable_password_file_renders_friendly_notice(tmp_path, monkeypatch
     cfg = ready_settings(tmp_path)
     secret = tmp_path / 'secrets' / 'db-password.txt'
     secret.parent.mkdir(parents=True)
-    secret.write_text('valid password' if unreadable else '')
+    secret.write_text('valid password' if unreadable else '', encoding='utf-8')
     cfg = replace(cfg, database_password_file=secret)
     original = Path.read_text
 
@@ -221,7 +221,7 @@ def test_password_file_is_resolved_once_per_request_and_not_cached(tmp_path, mon
     password = cfg.database_password
     secret = tmp_path / 'secrets' / 'db-password.txt'
     secret.parent.mkdir(parents=True)
-    secret.write_text(password)
+    secret.write_text(password, encoding='utf-8')
     cfg = replace(cfg, database_password_file=secret, database_password=None)
     original = Path.read_text
     reads = []
@@ -235,9 +235,9 @@ def test_password_file_is_resolved_once_per_request_and_not_cached(tmp_path, mon
     opened, closed, _ = observe_connections(monkeypatch)
     with TestClient(webapp.create_app(cfg)) as client:
         assert KEY in client.get('/consulta?consultar=1').text
-        secret.write_text('Senha incorreta')
+        secret.write_text('Senha incorreta', encoding='utf-8')
         assert KEY not in client.get('/consulta?consultar=1').text
-        secret.write_text(password)
+        secret.write_text(password, encoding='utf-8')
         assert KEY in client.get('/consulta?consultar=1').text
     assert len(reads) == 3
     assert len(opened) == len(closed) == 2

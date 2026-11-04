@@ -176,7 +176,7 @@ def test_password_is_read_once_in_worker_and_rotated_between_requests(tmp_path, 
     cfg = configured(tmp_path, encrypted=True)
     password_file = tmp_path / 'db-password.txt'
     correct = cfg.database_password
-    password_file.write_text(correct)
+    password_file.write_text(correct, encoding='utf-8')
     cfg = replace(cfg, database_password_file=password_file)
     original = type(cfg).current_database_password
     reads = []
@@ -191,9 +191,9 @@ def test_password_is_read_once_in_worker_and_rotated_between_requests(tmp_path, 
     with TestClient(create_app(cfg)) as client:
         first = client.get('/xml')
         assert KEY in first.text
-        password_file.write_text('Senha incorreta')
+        password_file.write_text('Senha incorreta', encoding='utf-8')
         assert KEY not in client.get('/xml').text
-        password_file.write_text(correct)
+        password_file.write_text(correct, encoding='utf-8')
         assert KEY in client.get('/xml').text
     assert len(reads) == 3 and all(thread != caller for thread in reads)
     assert len(opened) == len(closed) == 2
