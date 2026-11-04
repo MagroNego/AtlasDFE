@@ -365,9 +365,18 @@ def consultar_eventos(
                  AND id IN (SELECT MIN(id) FROM filtrados WHERE codigo='110110' GROUP BY chave))) """
             fonte = "visiveis AS manifestacoes"
         consulta_where = '1=1' if agrupar_cartas else where
+        consulta_total = f"SELECT COUNT(*) FROM manifestacoes WHERE {where}"
+        if agrupar_cartas:
+            # Uma chave com manifestações contribui com todas elas; uma chave
+            # somente com CC-e contribui com uma linha. Não precisa selecionar
+            # IDs nem montar listas de exclusão para calcular esse total.
+            consulta_total = f"""SELECT COALESCE(SUM(
+                CASE WHEN principais > 0 THEN principais ELSE 1 END), 0)
+                FROM (SELECT SUM(codigo != '110110') AS principais
+                      FROM manifestacoes WHERE {where} GROUP BY chave)"""
         total = int(
             conexao.execute(
-                prefixo + f"SELECT COUNT(*) FROM {fonte} WHERE {consulta_where}",
+                consulta_total,
                 parametros,
             ).fetchone()[0]
         )

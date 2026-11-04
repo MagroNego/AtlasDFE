@@ -15,7 +15,7 @@
 - [x] Criar `nfe_consulta/indices_consulta.py` e integrar em `BancoManifestacoes._criar_schema` e `web.xml_store._schema`. Criar apenas índices ausentes nos fluxos de escrita.
 - [x] Repetir benchmark; registrar resultados e limites em `docs/desempenho-consultas.md`. Medir custo de escrita e armazenamento, além da leitura.
 - [x] Executar suíte Python e testes JavaScript; revisar diff e concluir commit local com evidências.
-- [ ] Enviar a branch e disponibilizar PR: bloqueado pela revisão automática de autorização de publicação; aguardando autorização explícita do usuário.
+- [x] Enviar a branch e disponibilizar PR: publicação autorizada pelo usuário; [PR #15](https://github.com/MagroNego/ConsultaManifestacao_DFE/pull/15) aberto para a main.
 
 ## Verificação
 
@@ -27,4 +27,4 @@ Base de trabalho: `0814b7a` (main 2.7.5). Amostra exploratória de 100 mil event
 
 Resultado final: 457 testes Python passaram (449 avisos de depreciação já existentes na base), 5 testes JavaScript passaram e compileall/diff-check passaram. Testes novos antes dos índices falharam nos custos e planos esperados. A contagem agrupada residual exige orçamento de 80 mil instruções no teste com dez mil eventos, contra cerca de 132 mil no esquema anterior; o caso sem agrupamento usa limite de dez mil. Uma variante de índice cobrindo chave/código foi descartada porque prejudicava o plano da listagem geral. Comparação final: nove amostras alternadas, dez mil/cem mil notas com 10% de CC-e, resultados completos iguais entre esquemas. Revisão independente sem achados críticos/importantes; implementação feita nesta sessão.
 
-Código e relatório no commit `c09dcd1`, branch `codex/query-performance`. Nenhuma integração na main. O envio por `git push` foi rejeitado pela revisão automática por considerar insuficiente a autorização de publicação; não foi tentado outro caminho de envio.
+Código e relatório no commit `c09dcd1`, branch `codex/query-performance`. Nenhuma integração na main. O envio inicial por `git push` foi rejeitado pela revisão automática por considerar insuficiente a autorização de publicação. Após autorização explícita do usuário, o Git do terminal não encontrou credenciais; a integração GitHub publicou a mesma árvore validada (`af4c20c8f1db268355cedd8931ec9d2cb26dbf3b`) e abriu o PR #15, sem merge.

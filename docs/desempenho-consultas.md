@@ -63,6 +63,37 @@ Os limites de instruções evitam depender da velocidade do host para detectar r
 
 Estes números medem a função de consulta local, incluindo abertura/fechamento do banco e montagem dos resultados. Não medem HTTP, renderização de HTML, navegador, rede, certificado ou banco real de produção. Os tempos variam com carga e cache do sistema operacional; não representam promessa de latência no Windows ou com SQLCipher. A compatibilidade funcional com SQLCipher foi testada, mas seu desempenho não foi medido aqui. Não houve consulta real à SEFAZ.
 
-## Próxima etapa
+## Segunda etapa: contagem agrupada
 
-A contagem e a seleção das linhas com CC-e agrupada ainda percorrem o conjunto filtrado. Essa é a próxima consulta a analisar, preservando os casos em que existe apenas CC-e e os filtros que localizam a carta e exibem a manifestação principal. A separação das rotas do `app.py` e os testes de concorrência ficam para etapas posteriores.
+A contagem passou a agrupar os eventos filtrados por chave e somar a quantidade de manifestações diferentes de CC-e. Uma chave sem manifestação contribui com uma linha, mesmo quando há várias cartas. Uma chave com duas manifestações continua contribuindo com duas linhas. Isso calcula o mesmo total sem montar listas de inclusão/exclusão nem selecionar o ID da carta para contar.
+
+A escolha dos IDs da página, a ordenação e a exibição das cartas permanecem iguais. Esta etapa não acrescenta índices, dependências ou cache.
+
+Comparação específica da segunda etapa, no mesmo banco, com nove amostras alternadas. A referência é o código do PR #15, commit `6a1ff061f10269bf23c5e3af8237dea363aa7e9f`, já com os índices da primeira etapa. Os tempos medem a consulta completa com CC-e agrupada, incluindo a seleção e o enriquecimento das linhas.
+
+| Consulta | Notas | PR #15, antes da segunda etapa | Contagem nova |
+|---|---:|---:|---:|
+| Primeira página | 10.000 | 29,256 ms | 19,562 ms |
+| Página 250 | 10.000 | 42,683 ms | 27,353 ms |
+| Número | 10.000 | 14,210 ms | 13,146 ms |
+| Período e série | 10.000 | 12,262 ms | 11,727 ms |
+| Primeira página | 100.000 | 206,293 ms | 152,626 ms |
+| Página 2500 | 100.000 | 232,941 ms | 172,847 ms |
+| Número | 100.000 | 57,282 ms | 38,574 ms |
+| Período e série | 100.000 | 73,566 ms | 72,327 ms |
+
+Estes resultados vêm de outra execução, com carga e cache próprios do host; a comparação válida é entre as duas colunas desta tabela, não entre esta referência e os números da primeira etapa. As limitações de ambiente e do conjunto sintético continuam as mesmas. Todas as amostras verificam a igualdade do resultado completo. [Dados da comparação](benchmarks/2026-11-04-contagem-agrupada.json).
+
+Para reproduzir, com o commit de referência disponível no Git local:
+
+```bash
+python -m scripts.benchmark_grouped_count --sizes 10000 100000 --repeats 9 > benchmark-contagem.json
+```
+
+O script lê a versão de referência pelo hash do commit e executa as duas funções sobre o mesmo banco temporário. Não altera nem abre um banco do usuário. Os nove casos adicionais cobrem leitura única da fonte no plano da contagem, mais de uma manifestação por nota, cartas sem manifestação, filtro que encontra só cartas, datas, número e resultado vazio. A suíte existente cobre situação de cancelamento e banco criptografado.
+
+Após a segunda etapa, 466 testes Python e 5 testes JavaScript passaram localmente; a revisão independente não encontrou problemas importantes ou críticos.
+
+## Trabalho restante
+
+A contagem continua proporcional ao conjunto filtrado, e a seleção dos IDs da página ainda usa a consulta anterior. Uma experiência que também substituía essa seleção por agregação piorou a paginação; ela foi descartada. A separação das rotas do `app.py` e os testes de concorrência ficam para etapas posteriores.
