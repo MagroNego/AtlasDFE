@@ -4,8 +4,8 @@
 <section class="login-shell">
   <div class="card login-card">
     <div class="login-heading">
-      <h1>{{ 'Entrar no Admin' if public_access else 'Entrar no AtlasDFE' }}</h1>
-      <p>{{ 'Acesso exclusivo para administradores. Consultas e relatórios não precisam de senha.' if public_access else 'Use sua conta de usuário ou administrador. As permissões seguem o perfil cadastrado.' }}</p>
+      <h1>Entrar no AtlasDFE</h1>
+      <p>Use sua conta de usuário ou administrador. As permissões seguem o perfil cadastrado.</p>
     </div>
 
     {% if success %}<div class="alert success">{{ success }}</div>{% endif %}
@@ -51,11 +51,7 @@
       </button>
     </form>
 
-    {% if public_access %}
-    <a class="button secondary login-submit" href="{{ url_for('consulta_page') }}">Voltar para consulta</a>
-    {% else %}
     <a class="button secondary login-submit" href="{{ url_for('register_page') }}">Criar conta</a>
-    {% endif %}
     <p class="login-note">
       A sessão expira após {{ request.app.state.settings.admin_session_minutes }} minutos de inatividade.
     </p>

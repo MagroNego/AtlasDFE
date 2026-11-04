@@ -5,7 +5,7 @@
 | Recurso | Localização padrão | Política |
 | --- | --- | --- |
 | Banco fiscal | Caminho em `secrets/db-path.txt`; fallback `dados/nfe_manifestacoes_seguro.db` | Histórico, NSUs, pendências, agendamento, dados extraídos e fila SMTP |
-| Contas e sessões | `dados/admin_accounts.db` | Contas administrativas, hashes e sessões; contas comuns antigas preservadas |
+| Contas e sessões | `dados/admin_accounts.db` | Opcional: contas e sessões preservadas, sem abertura no modo padrão |
 | Configuração/segredos | `secrets/` | Caminhos, senhas e configuração de e-mail |
 | Certificado A1 | Caminho configurado ou repositório Windows | Externo ao pacote; preservar chave privada |
 | Auditoria | `logs/web_audit.log` e arquivos de rotação | Sincronizações: descarte após 30 dias e rotação por tamanho; demais registros por rotação |

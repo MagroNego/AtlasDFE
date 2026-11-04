@@ -131,11 +131,6 @@ class WebSettings:
     smtp_password_file: Path = SMTP_PASSWORD_FILE
 
     @property
-    def admin_only_auth(self) -> bool:
-        """Modo padrão: acesso fiscal livre e sessão somente para Admin."""
-        return not self.local_auth_enabled and not self.corporate_auth_enabled
-
-    @property
     def production(self) -> bool:
         return self.environment == "production"
 
@@ -176,8 +171,8 @@ def get_settings() -> WebSettings:
     corporate_auth_enabled = os.getenv("NFE_WEB_CORPORATE_AUTH", "0").strip() == "1"
     if corporate_auth_enabled and not proxy_secret:
         proxy_secret = _ler_segredo(SECRETS_DIR / "web-proxy-secret.txt", rotulo="segredo do proxy corporativo")
-    admin_password = _senha_admin() if not corporate_auth_enabled else None
-    admin_username = _usuario_admin() if not corporate_auth_enabled else "admin"
+    admin_password = _senha_admin() if local_auth_enabled else None
+    admin_username = _usuario_admin() if local_auth_enabled else "admin"
     if admin_password and not 12 <= len(admin_password) <= 1024:
         raise RuntimeError("A senha do administrador deve ter entre 12 e 1024 caracteres.")
     accounts_path = Path(os.getenv("NFE_ADMIN_ACCOUNTS_PATH", str(RAIZ_PROJETO / "dados" / "admin_accounts.db"))).expanduser()

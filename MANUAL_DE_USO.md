@@ -2,9 +2,9 @@
 
 ## Acesso
 
-A aplicação abre diretamente para consultas e relatórios, sem login ou cadastro de usuários. A área Admin, importações e alterações manuais da situação de notas (marcar como cancelada ou remover a marcação) exigem login administrativo. Abra **Admin** e entre com a conta configurada em `CONFIGURAR_ADMIN.cmd`. Sem conta configurada, as ações administrativas permanecem bloqueadas.
+O modo padrão abre todas as telas sem login, inclusive Admin, importações e alteração manual da situação de notas. Não há senha de acesso nem configuração de conta obrigatória. Quem alcançar o app pela rede poderá usar essas funções.
 
-Consultas e relatórios usam a identidade compartilhada `usuario-interno`; ações administrativas usam o nome da conta autenticada. **Sair do Admin** revoga a sessão e retorna ao acesso comum. A sessão expira após 30 minutos de inatividade (configurável), com duração máxima de oito horas. Contas comuns antigas são preservadas, mas não autorizam login no modo padrão.
+As ações usam a identidade compartilhada `acesso-rede`. Não há identificação individual do operador nesse modo. Contas antigas são preservadas para o modo opcional de contas locais.
 
 As senhas do banco SQLCipher, certificado e SMTP continuam necessárias. Formulários mantêm a validação CSRF e as consultas à SEFAZ continuam limitadas à janela salva no Admin (padrão: 22h–04h), com cooldown e trava.
 
@@ -30,7 +30,7 @@ Ausência de evento significa ausência no banco disponível. A tela não consul
 
 ## Emissão e importação
 
-Em **Emissão → Importar → Importar XML**, envie os XMLs completos ou o ZIP obtido no Synchro. Subpastas relativas de vários meses são percorridas automaticamente, inclusive pastas com horário no nome; não é necessário extrair ou reorganizar os XMLs. O app lê diretamente os membros do ZIP, sem extrair seus caminhos no disco. Caminhos absolutos/de unidade, referências à pasta superior, links simbólicos e dois-pontos no nome final do XML são recusados com motivo específico no registro. Confira importados, duplicados e recusados; o registro do lote é acessível na tela Importar, após entrar como Admin. A importação acumula dados entre meses. Chaves duplicadas preservam os dados fiscais já importados. A reimportação pode completar hora de emissão e pesos ausentes.
+Em **Emissão → Importar → Importar XML**, envie os XMLs completos ou o ZIP obtido no Synchro. Subpastas relativas de vários meses são percorridas automaticamente, inclusive pastas com horário no nome; não é necessário extrair ou reorganizar os XMLs. O app lê diretamente os membros do ZIP, sem extrair seus caminhos no disco. Caminhos absolutos/de unidade, referências à pasta superior, links simbólicos e dois-pontos no nome final do XML são recusados com motivo específico no registro. Confira importados, duplicados e recusados; o registro do lote é acessível na tela Importar, sem login no modo padrão. A importação acumula dados entre meses. Chaves duplicadas preservam os dados fiscais já importados. A reimportação pode completar hora de emissão e pesos ausentes.
 
 Aceita NF-e modelo 55 emitida pelo CNPJ configurado, com ou sem envelope `nfeProc`, e cancelamentos homologados compatíveis. Verifica estrutura mínima e correspondência de chave/emitente/número/série; não valida assinatura digital, schema fiscal completo ou autorização atual.
 
@@ -86,7 +86,7 @@ A tela mantém os rótulos **Autorizada** e **Cancelada**. A situação é calcu
 
 Para notas emitidas pela Yorozu, o cancelamento próprio não retorna ao emitente pelo `NFeDistribuicaoDFe`. É necessário importar o evento homologado ou registrar uma correção manual com evidência externa. Reimportar o XML original autorizado não informa um cancelamento posterior. O lote de exportação do Synchro usado nesta instalação não inclui esses eventos; não presuma que ele atualiza cancelamentos. A integração automática com o Synchro não está implementada. Referência: [Distribuição e cancelamentos](DISTRIBUICAO_DFE_QIVE.md#cancelamentos-e-papel-do-cnpj).
 
-Entre como Admin. Em **Emissão → Importar → Alterar situação de notas**, informe até 100 números/chaves e o motivo. Números ambíguos exigem chave. Se houver entrada inválida, nenhuma nota do pedido é alterada. **Remover marcação manual** desfaz somente a correção interna, preservando cancelamentos recebidos por XML/NSU. A operação não transmite evento à SEFAZ.
+Em **Emissão → Importar → Alterar situação de notas**, informe até 100 números/chaves e o motivo. Números ambíguos exigem chave. Se houver entrada inválida, nenhuma nota do pedido é alterada. **Remover marcação manual** desfaz somente a correção interna, preservando cancelamentos recebidos por XML/NSU. A operação não transmite evento à SEFAZ.
 
 Abra **CT-e vinculado** para ver os conhecimentos recebidos. Número, chave, transportadora e data aparecem somente quando disponíveis. Cada vínculo é exibido em uma linha, com rolagem horizontal quando necessário. **Vínculo identificado** não implica chave conhecida. **CT-e cancelado** indica todos os vínculos apresentados cancelados; não cancela a NF-e. **Não localizado** indica ausência no banco, não inexistência na SEFAZ. Não há download de XML completo de CT-e. Nos relatórios Excel, a coluna indica **CT-e Vinculado** quando há associação registrada ou **Não localizado** quando não há. Esse indicador não representa autorização atual; os detalhes e eventuais cancelamentos ficam na interface e no CSV.
 
@@ -105,7 +105,7 @@ Os relatórios ficam disponíveis por 24 horas após a geração, em `dados/down
 | Pronto | Arquivo disponível para transferência |
 | Cancelar transferência | Interrompe o recebimento no navegador; preserva a cópia pronta |
 
-No modo padrão, os acessos comuns compartilham a identidade técnica e podem cancelar as solicitações dessa identidade; administradores podem cancelar outras. No modo legado com contas, usuários cancelam suas próprias solicitações e administradores podem cancelar outras. O cancelamento é verificado durante SQL e montagem das linhas. A gravação final do Excel ainda pode concluir seu bloco antes de descartar o resultado. A porcentagem exibida na transferência mede bytes recebidos, não progresso de geração. Tarefas em andamento não sobrevivem ao reinício do servidor; arquivos concluídos permanecem até expirar.
+No modo padrão, todos os acessos compartilham uma identidade administrativa e podem cancelar qualquer solicitação. No modo legado com contas, usuários cancelam suas próprias solicitações e administradores podem cancelar outras. O cancelamento é verificado durante SQL e montagem das linhas. A gravação final do Excel ainda pode concluir seu bloco antes de descartar o resultado. A porcentagem exibida na transferência mede bytes recebidos, não progresso de geração. Tarefas em andamento não sobrevivem ao reinício do servidor; arquivos concluídos permanecem até expirar.
 
 ## Status e sincronização
 

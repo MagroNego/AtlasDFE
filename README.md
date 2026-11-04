@@ -2,9 +2,9 @@
 
 Aplicação Web interna para consulta de manifestações de NF-e, importação de dados de XML e geração de relatórios Excel/CSV. Desenvolvida em Python, FastAPI e SQLite/SQLCipher. A captura de eventos usa `NFeDistribuicaoDFe`; consultas e relatórios usam o banco local.
 
-Versão **2.7.2**. [Baixar a versão estável](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest).
+Versão **2.7.3**. [Baixar a versão estável](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest).
 
-Consultas e relatórios são livres. Admin, importações e alterações manuais de situação exigem senha.
+Acesso sem login, inclusive no Admin, nas importações e nas alterações manuais de situação. Quem alcançar o app pela rede terá acesso a essas funções.
 
 ## Operação
 
@@ -13,7 +13,7 @@ Consultas e relatórios são livres. Admin, importações e alterações manuais
 | Runtime | Python 3.11+; CI com Python 3.12 |
 | Servidor | FastAPI/Uvicorn; um processo, um worker |
 | Banco fiscal | SQLite ou SQLCipher; caminho selecionado em Admin |
-| Acesso | Consultas e relatórios sem login; Admin e cancelamento manual exigem senha |
+| Acesso | Sem login, inclusive Admin e cancelamento manual |
 | Sincronização SEFAZ | Windows com PowerShell e certificado A1 |
 | Janela padrão AtlasDFE | **22:00 inclusive até 04:00 exclusiva, Brasília (UTC−3)** |
 | Disparos automáticos | **22:00, 23:00, 00:00, 01:00, 02:00 e 03:00** por padrão; configuráveis no Admin |
@@ -32,9 +32,9 @@ A interface e os testes locais também executam em Linux. O transporte SEFAZ e a
 
 [Instalar pelo PowerShell: comandos para copiar e colar](MANUAL_DE_INSTALACAO.md#instalação-por-cli-no-windows).
 
-Ou baixe o ZIP da versão estável, extraia e execute `INSTALAR.cmd` e `CONFIGURAR_ADMIN.cmd`. Inicie conforme [Leia primeiro](LEIA_PRIMEIRO.md), com a agenda parada na primeira configuração.
+Ou baixe o ZIP da versão estável, extraia e execute `INSTALAR.cmd`. Inicie conforme [Leia primeiro](LEIA_PRIMEIRO.md), com a agenda parada na primeira configuração.
 
-Abra **http://127.0.0.1:8080** e configure banco e certificado no Admin. O pacote não inclui banco fiscal, certificado ou credenciais. Não existe senha administrativa padrão.
+Abra **http://127.0.0.1:8080** e configure banco e certificado no Admin. O pacote não inclui banco fiscal, certificado ou credenciais. O acesso ao Admin também dispensa senha.
 
 ## Recursos
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request, Response, status
 
+from nfe_consulta.web.admin_accounts import AdminAccounts
 from nfe_consulta.web.settings import WebSettings
 
 
@@ -36,11 +37,16 @@ PUBLIC_USER = WebUser(
 )
 
 
+def _session_username(token: str, settings: WebSettings, accounts: AdminAccounts) -> str | None:
+    return accounts.session_username(token, settings.admin_session_minutes * 60)
+
+
 def admin_session_active(request: Request) -> bool:
     settings: WebSettings = request.app.state.settings
-    if settings.corporate_auth_enabled:
+    if not settings.local_auth_enabled:
         return False
-    return current_user(request).authenticated
+    token = request.cookies.get(settings.admin_cookie_name, "")
+    return _session_username(token, settings, request.app.state.admin_accounts) is not None
 
 
 def _corporate_user(request: Request, settings: WebSettings) -> WebUser:
@@ -70,13 +76,17 @@ def current_user(request: Request) -> WebUser:
     settings: WebSettings = request.app.state.settings
     if settings.corporate_auth_enabled:
         return _corporate_user(request, settings)
+    if not settings.local_auth_enabled:
+        # Identidade compartilhada com acesso administrativo no modo sem login.
+        return WebUser("acesso-rede", "Acesso de rede", True, "acesso-rede", "admin")
+
     identity = request.app.state.admin_accounts.session_identity(
         request.cookies.get(settings.admin_cookie_name, ""),
         settings.admin_session_minutes * 60,
     )
     if identity:
         username, role = identity
-        if role not in {"consulta", "fiscal", "admin"} or (settings.admin_only_auth and role != "admin"):
+        if role not in {"consulta", "fiscal", "admin"}:
             return PUBLIC_USER
         return WebUser(
             username=username,
@@ -101,7 +111,7 @@ def require_admin(request: Request) -> WebUser:
 
 def require_user(request: Request) -> WebUser:
     user = current_user(request)
-    if not user.authenticated and not request.app.state.settings.admin_only_auth:
+    if not user.authenticated:
         raise HTTPException(401, "Entre para acessar o AtlasDFE.")
     return user
 

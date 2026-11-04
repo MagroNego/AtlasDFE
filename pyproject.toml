@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nfe-consulta"
-version = "2.7.2"
+version = "2.7.3"
 description = "AtlasDFE: aplicacao corporativa para consulta e sincronizacao de manifestacoes de NF-e"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,4 +36,4 @@ include = ["nfe_consulta*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
-# 2.7.2
+# 2.7.3

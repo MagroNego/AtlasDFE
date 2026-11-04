@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 2.7.3 — 04/11/2026
+
+- Acesso padrão sem senha em todas as funções, incluindo Admin e alteração manual de situação. Contas existentes preservadas para o modo opcional.
+
 ## 2.7.2 — 04/11/2026
 
 - Layout desktop mais compacto em Consulta e Emissão: filtros menores, tabelas mais densas e maior largura útil.

@@ -16,9 +16,9 @@ A instalação não fornece certificado, senha, banco fiscal preenchido ou crede
 
 ## Código e versão
 
-Esta documentação acompanha a versão **2.7.2**. Baixe o ZIP em [Releases](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest) ou obtenha o código por Git. O ZIP inclui o instalador, lançadores e manuais; não inclui banco fiscal, certificado ou credenciais.
+Esta documentação acompanha a versão **2.7.3**. Baixe o ZIP em [Releases](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest) ou obtenha o código por Git. O ZIP inclui o instalador, lançadores e manuais; não inclui banco fiscal, certificado ou credenciais.
 
-Para instalar pelo ZIP, extraia em uma pasta definitiva, execute `INSTALAR.cmd`, depois `CONFIGURAR_ADMIN.cmd`. No PowerShell aberto nessa pasta, execute `$env:NFE_AUTO_SYNC_ENABLED = "0"` e `.\INICIAR_WEB.cmd`. Continue em **Configuração inicial**, abaixo.
+Para instalar pelo ZIP, extraia em uma pasta definitiva, execute `INSTALAR.cmd`. No PowerShell aberto nessa pasta, execute `$env:NFE_AUTO_SYNC_ENABLED = "0"` e `.\INICIAR_WEB.cmd`. Continue em **Configuração inicial**, abaixo.
 
 ## Instalação por CLI no Windows
 
@@ -29,7 +29,7 @@ winget install --exact --id Python.Python.3.12
 winget install --exact --id Git.Git
 ```
 
-Feche e abra o PowerShell após instalar os pré-requisitos. Cole o bloco abaixo. Ele instala em `AtlasDFE` dentro da sua pasta de usuário; a pasta deve estar ausente. O terminal solicita o usuário e a senha do Admin, sem mostrar a senha na tela.
+Feche e abra o PowerShell após instalar os pré-requisitos. Cole o bloco abaixo. Ele instala em `AtlasDFE` dentro da sua pasta de usuário; a pasta deve estar ausente. O modo padrão não solicita usuário ou senha de acesso.
 
 ```powershell
 & {
@@ -43,8 +43,6 @@ Feche e abra o PowerShell após instalar os pré-requisitos. Cole o bloco abaixo
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar o ambiente Python 3.12.' }
     .\.venv\Scripts\python.exe -m pip install -e .
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar as dependências.' }
-    .\.venv\Scripts\python.exe -m nfe_consulta.web.configure_admin
-    if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar o Admin.' }
     $env:NFE_AUTO_SYNC_ENABLED = '0'
     .\INICIAR_WEB.cmd
 }
@@ -59,13 +57,6 @@ Set-Location (Join-Path $env:USERPROFILE 'AtlasDFE')
 .\INICIAR_WEB.cmd
 ```
 
-Para redefinir a senha, com o servidor parado:
-
-```powershell
-Set-Location (Join-Path $env:USERPROFILE 'AtlasDFE')
-.\.venv\Scripts\python.exe -m nfe_consulta.web.configure_admin
-```
-
 ## Windows: instalação pelos lançadores
 
 Use uma pasta definitiva com permissão de escrita. O diretório `C:\AtlasDFE` deve estar ausente ou vazio para o clone. No PowerShell:
@@ -76,13 +67,12 @@ Set-Location C:\AtlasDFE
 git rev-parse HEAD
 py --version
 .\INSTALAR.cmd
-.\CONFIGURAR_ADMIN.cmd
 $env:NFE_AUTO_SYNC_ENABLED = "0"
 $env:NFE_WEB_LOCAL_AUTH = "0"
 .\INICIAR_WEB.cmd
 ```
 
-`INSTALAR.cmd` cria `.venv`, instala as dependências e prepara `dados`, `secrets` e `logs`. Consultas e relatórios não exigem conta. Admin, importações e alterações manuais da situação de notas exigem login administrativo. `CONFIGURAR_ADMIN.cmd` pede uma senha de pelo menos 12 caracteres e grava somente seu hash no banco de contas; não existe senha padrão.
+`INSTALAR.cmd` cria `.venv`, instala as dependências e prepara `dados`, `secrets` e `logs`. O modo padrão não exige conta nem senha de acesso, inclusive para Admin, importações e alteração manual de situação. `CONFIGURAR_ADMIN.cmd` é apenas para o modo opcional de contas locais.
 
 O lançador inicia em produção, gera `secrets/web-csrf-secret.txt` se necessário e ativa a sincronização automática quando a variável não foi definida. Os comandos de instalação acima desativam os disparos iniciais. A variável abaixo só controla a ativação quando não existe agenda salva:
 
@@ -95,7 +85,7 @@ Se `secrets/auto-sync.json` já existir, seu campo `enabled` prevalece sobre a v
 
 ## Configuração inicial
 
-1. Execute `CONFIGURAR_ADMIN.cmd` se ainda não definiu a senha. Acesse `http://127.0.0.1:8080`, abra **Admin** e entre com as credenciais configuradas.
+1. Acesse `http://127.0.0.1:8080` e abra **Admin**, sem login.
 2. Em **Admin**, selecione o banco fiscal existente. O caminho padrão é `dados/nfe_manifestacoes_seguro.db`; a seleção salva em `secrets/db-path.txt` prevalece.
 3. Para SQLCipher, disponibilize a senha em `secrets/db-password.txt`. Essa credencial pertence ao banco, não ao acesso Web.
 4. Configure o certificado A1 por arquivo ou repositório Windows. O arquivo PFX/P12 permanece no caminho selecionado; não é copiado para o projeto.
@@ -123,7 +113,7 @@ Mantenha o computador sem suspensão/hibernação e o app em execução. Fechar 
 
 ## Rede interna
 
-O lançador padrão escuta somente em `127.0.0.1:8080`. Para produção na rede, publique por HTTPS em um proxy reverso, mantendo o backend acessível somente ao proxy. `INICIAR_REDE.bat`, disponível no repositório, usa `0.0.0.0:8080` e mantém a senha apenas nas funções administrativas; consultas ficam acessíveis a quem alcançar a porta. O ZIP gerado pelo empacotador não inclui esse BAT. Veja [Servidor Web](SERVIDOR_WEB.md).
+O lançador padrão escuta somente em `127.0.0.1:8080`. Para produção na rede, publique por HTTPS em um proxy reverso, mantendo o backend acessível somente ao proxy. `INICIAR_REDE.bat`, disponível no repositório, usa `0.0.0.0:8080` e permite usar todas as funções a quem alcançar a porta. O ZIP gerado pelo empacotador não inclui esse BAT. Veja [Servidor Web](SERVIDOR_WEB.md).
 
 ## Linux: consultas locais e desenvolvimento
 
@@ -138,7 +128,6 @@ mkdir -p secrets dados logs
 chmod 700 secrets dados logs
 .venv/bin/python -c "from pathlib import Path; import secrets; p=Path('secrets/web-csrf-secret.txt'); p.exists() or p.write_text(secrets.token_urlsafe(48), encoding='utf-8')"
 chmod 600 secrets/*
-.venv/bin/python -m nfe_consulta.web.configure_admin
 env NFE_WEB_ENV=production NFE_AUTO_SYNC_ENABLED=0 NFE_RECOVERY_ENABLED=0 .venv/bin/python -m nfe_consulta.web.app
 ```
 

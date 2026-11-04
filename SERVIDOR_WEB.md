@@ -20,7 +20,7 @@ O endereço padrão é `127.0.0.1:8080`. Para acesso interno, use HTTPS por reve
 | `NFE_WEB_FORWARDED_ALLOW_IPS` | `127.0.0.1`; somente proxies confiáveis |
 | `NFE_DATABASE_PATH` | Caminho alternativo ao padrão; `secrets/db-path.txt` salvo pelo Admin prevalece |
 | `NFE_WEB_CORPORATE_AUTH` | `0`: desativado; `1`: exige gateway autenticado, segredo e grupos (seção abaixo) |
-| `NFE_WEB_LOCAL_AUTH` | `0`: consultas livres e login somente Admin; `1`: modo legado com contas locais para todos |
+| `NFE_WEB_LOCAL_AUTH` | `0`: sem login, inclusive Admin; `1`: modo legado com contas locais para todos |
 | `NFE_ADMIN_ACCOUNTS_PATH` | Banco de contas; padrão `dados/admin_accounts.db` |
 | `NFE_ADMIN_SESSION_MINUTES` | Inatividade: 30 minutos; faixa aceita 5–480 |
 | `NFE_AUTO_SYNC_ENABLED` | `1` no lançador; `0` quando app iniciado diretamente sem configuração |
@@ -35,13 +35,9 @@ A janela padrão é **22:00 ≤ horário ou horário < 04:00**, Brasília (UTC�
 
 ## Autenticação e segredos
 
-No modo padrão (`NFE_WEB_LOCAL_AUTH=0`, `NFE_WEB_CORPORATE_AUTH=0`), consultas e relatórios não exigem login. Admin, importações, configurações e alterações manuais da situação de notas exigem uma sessão administrativa válida. A identidade pública nunca recebe privilégios administrativos, inclusive em requisições diretas. Cadastro público e gerenciamento de usuários ficam desativados nesse modo.
+No modo padrão (`NFE_WEB_LOCAL_AUTH=0`, `NFE_WEB_CORPORATE_AUTH=0`), todas as funções dispensam login, inclusive Admin, importação, configurações e alteração manual da situação de notas. Quem alcançar o app pela rede terá acesso administrativo. Cadastro, login e gerenciamento de contas pela Web ficam desativados; o banco de contas existente é preservado sem ser aberto.
 
-Execute `CONFIGURAR_ADMIN.cmd` para criar ou redefinir a conta administrativa antes do primeiro acesso. Não há senha padrão; sem uma conta configurada, o Admin permanece bloqueado e o acesso comum continua disponível. O configurador salva hash PBKDF2-SHA256 com salt no banco `dados/admin_accounts.db`, preservando dados fiscais e outras contas. Contas comuns antigas não permitem login no modo padrão. Senhas são de pelo menos 12 caracteres. A sessão tem expiração por inatividade (30 minutos por padrão), limite absoluto de oito horas e revogação no logout/redefinição da senha. Login possui limites de tentativas por conta e endereço.
-
-O modo legado com contas para todos pode ser habilitado explicitamente com `NFE_WEB_LOCAL_AUTH=1` e reinício. O modo corporativo continua separado e exige configuração explícita do gateway. `NFE_WEB_AUTH_MODE=proxy` sozinho não autentica ninguém. CSRF, limites de upload, trava e janela SEFAZ permanecem ativos. A auditoria usa `usuario-interno` para acesso comum e o nome da conta para ações administrativas.
-
-Use HTTPS no acesso de rede para proteger a senha e o cookie durante o transporte. O cookie tem HttpOnly e SameSite=Strict; Secure é ativado quando a requisição é HTTPS. HTTP local permanece disponível, portanto a proteção do transporte depende da implantação. Não exponha diretamente o servidor à internet.
+Não é necessário executar `CONFIGURAR_ADMIN.cmd`. O modo opcional com contas para todos pode ser habilitado com `NFE_WEB_LOCAL_AUTH=1` e reinício; somente nesse modo configure uma conta administrativa. O modo corporativo continua separado e exige configuração explícita do gateway. CSRF, limites de upload, trava, cooldown e janela SEFAZ permanecem ativos. A auditoria no modo padrão usa a identidade compartilhada `acesso-rede`.
 
 `INICIAR_WEB.cmd` gera `secrets/web-csrf-secret.txt` quando ausente. Em outros lançadores, forneça esse arquivo ou `NFE_WEB_CSRF_SECRET`, com pelo menos 32 caracteres aleatórios. Preserve o segredo entre reinícios.
 
@@ -57,7 +53,7 @@ Use HTTPS no acesso de rede para proteger a senha e o cookie durante o transport
 | `secrets/smtp-sender.json` | Remetente e usuário salvos pela interface |
 | `secrets/email-recipients.json` | Destinatários cadastrados |
 
-A senha do Admin fica no banco de contas como hash, tanto no modo padrão quanto no modo de contas para todos. O arquivo legado `secrets/admin-password.txt`, quando presente, pode inicializar a conta; use `CONFIGURAR_ADMIN.cmd` para configurar a senha sem manter esse arquivo em texto. `NFE_DATABASE_PASSWORD`, `NFE_CERT_PASSWORD` e `NFE_ADMIN_PASSWORD` não são fontes de senha. Restrinja permissões NTFS/Unix das pastas operacionais.
+No modo padrão nenhuma senha administrativa é carregada. No modo opcional de contas locais, senhas ficam como hash em `dados/admin_accounts.db`. `NFE_DATABASE_PASSWORD`, `NFE_CERT_PASSWORD` e `NFE_ADMIN_PASSWORD` não são fontes de senha. Restrinja o acesso aos arquivos operacionais.
 
 ## Certificado e SEFAZ
 

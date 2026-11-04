@@ -1,5 +1,7 @@
 # Admin-only login implementation plan
 
+> Histórico: a exigência de senha no modo padrão foi removida na versão 2.7.3 a pedido do usuário. Os manuais da raiz descrevem o acesso atual.
+
 > Execução nesta sessão, com testes antes da alteração e revisão final.
 
 **Goal:** acesso fiscal sem senha, autenticação obrigatória para Admin e cancelamento manual.
