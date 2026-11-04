@@ -41,7 +41,8 @@ echo.
 echo Instalacao concluida.
 echo.
 echo Proximos passos:
-echo   Acesso sem login local: controle de acesso sob responsabilidade do TI
+echo   1. Execute CONFIGURAR_ADMIN.cmd para definir a senha do Admin
+echo      Consultas e relatorios nao exigem senha
 echo   2. Execute INICIAR_WEB.cmd e acesse http://127.0.0.1:8080
 echo   3. Em Admin, selecione o banco existente e configure o certificado A1
 echo   4. Para SQLCipher, use secrets\db-password.txt

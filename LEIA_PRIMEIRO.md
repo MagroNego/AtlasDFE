@@ -24,6 +24,6 @@ Em instalação existente, `secrets/auto-sync.json` prevalece sobre a variável 
 
 ## Atualização
 
-Pare o processo, faça backup, atualize o código e reinstale as dependências. Preserve banco, `secrets`, certificados e logs. Reinicie e confira acesso, banco, certificado, agenda e cursores. Esta entrega é a versão `2.7.0`; em instalações por Git, registre também o commit.
+Pare o processo, faça backup, atualize o código e reinstale as dependências. Preserve banco, `secrets`, certificados e logs. Reinicie e confira acesso, banco, certificado, agenda e cursores. Esta entrega é a versão `2.7.1`; em instalações por Git, registre também o commit.
 
 [Instalação](MANUAL_DE_INSTALACAO.md) · [Uso](MANUAL_DE_USO.md) · [Servidor](SERVIDOR_WEB.md) · [Distribuição e Qive](DISTRIBUICAO_DFE_QIVE.md) · [Backup](SEGURANCA_BANCO.md)

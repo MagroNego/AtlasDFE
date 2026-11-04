@@ -2,7 +2,7 @@
 
 Aplicação Web interna para consulta de manifestações de NF-e, importação de dados de XML e geração de relatórios Excel/CSV. Desenvolvida em Python, FastAPI e SQLite/SQLCipher. A captura de eventos usa `NFeDistribuicaoDFe`; consultas e relatórios usam o banco local.
 
-Versão **2.7.0**. [Baixar a versão estável](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest).
+Versão **2.7.1**. [Baixar a versão estável](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest).
 
 Consultas e relatórios são livres. Admin, importações e alterações manuais de situação exigem senha.
 
@@ -30,20 +30,11 @@ A interface e os testes locais também executam em Linux. O transporte SEFAZ e a
 
 ## Instalação Windows
 
-Para instalar o estado descrito nesta documentação, obtenha a `main` por Git e execute na pasta do projeto:
+[Instalar pelo PowerShell: comandos para copiar e colar](MANUAL_DE_INSTALACAO.md#instalação-por-cli-no-windows).
 
-```powershell
-git clone --branch main https://github.com/MagroNego/ConsultaManifestacao_DFE.git
-Set-Location ConsultaManifestacao_DFE
-.\INSTALAR.cmd
-.\CONFIGURAR_ADMIN.cmd
-$env:NFE_AUTO_SYNC_ENABLED = "0"
-.\INICIAR_WEB.cmd
-```
+Ou baixe o ZIP da versão estável, extraia e execute `INSTALAR.cmd` e `CONFIGURAR_ADMIN.cmd`. Inicie conforme [Leia primeiro](LEIA_PRIMEIRO.md), com a agenda parada na primeira configuração.
 
-O comando acima desativa a agenda inicial em uma instalação nova. Uma agenda já salva em `secrets/auto-sync.json` prevalece.
-
-Acesse `http://127.0.0.1:8080`. Abra Admin e configure o banco de manifestações existente e o certificado A1. As credenciais, o certificado e o banco fiscal não acompanham o pacote. Configure a conta em `CONFIGURAR_ADMIN.cmd` e entre no Admin com essa senha. Consultas e relatórios continuam livres; importações, configurações e alterações manuais da situação de notas exigem Admin. Procedimento completo: [Instalação](MANUAL_DE_INSTALACAO.md).
+Abra **http://127.0.0.1:8080** e configure banco e certificado no Admin. O pacote não inclui banco fiscal, certificado ou credenciais. Não existe senha administrativa padrão.
 
 ## Recursos
 

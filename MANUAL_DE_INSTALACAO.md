@@ -16,11 +16,57 @@ A instalação não fornece certificado, senha, banco fiscal preenchido ou crede
 
 ## Código e versão
 
-Esta documentação acompanha a versão **2.7.0**. Baixe o ZIP em [Releases](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest) ou obtenha o código por Git. O ZIP inclui o instalador, lançadores e manuais; não inclui banco fiscal, certificado ou credenciais.
+Esta documentação acompanha a versão **2.7.1**. Baixe o ZIP em [Releases](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest) ou obtenha o código por Git. O ZIP inclui o instalador, lançadores e manuais; não inclui banco fiscal, certificado ou credenciais.
 
 Para instalar pelo ZIP, extraia em uma pasta definitiva, execute `INSTALAR.cmd`, depois `CONFIGURAR_ADMIN.cmd`. No PowerShell aberto nessa pasta, execute `$env:NFE_AUTO_SYNC_ENABLED = "0"` e `.\INICIAR_WEB.cmd`. Continue em **Configuração inicial**, abaixo.
 
-## Windows: instalação por Git
+## Instalação por CLI no Windows
+
+Abra o PowerShell. Se Python e Git ainda não estiverem instalados:
+
+```powershell
+winget install --exact --id Python.Python.3.12
+winget install --exact --id Git.Git
+```
+
+Feche e abra o PowerShell após instalar os pré-requisitos. Cole o bloco abaixo. Ele instala em `AtlasDFE` dentro da sua pasta de usuário; a pasta deve estar ausente. O terminal solicita o usuário e a senha do Admin, sem mostrar a senha na tela.
+
+```powershell
+& {
+    $ErrorActionPreference = 'Stop'
+    $destinoAtlas = Join-Path $env:USERPROFILE 'AtlasDFE'
+    if (Test-Path $destinoAtlas) { throw "A pasta $destinoAtlas já existe. Use o procedimento de atualização." }
+    git clone --branch main https://github.com/MagroNego/ConsultaManifestacao_DFE.git $destinoAtlas
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar o AtlasDFE.' }
+    Set-Location $destinoAtlas
+    py -3.12 -m venv .venv
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao criar o ambiente Python 3.12.' }
+    .\.venv\Scripts\python.exe -m pip install -e .
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar as dependências.' }
+    .\.venv\Scripts\python.exe -m nfe_consulta.web.configure_admin
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao configurar o Admin.' }
+    $env:NFE_AUTO_SYNC_ENABLED = '0'
+    .\INICIAR_WEB.cmd
+}
+```
+
+Abra **http://127.0.0.1:8080**. Entre no Admin, selecione o banco fiscal existente e configure o certificado. A agenda começa desativada nessa instalação nova. Ative-a pelo Admin depois de configurar o app. Mantenha o terminal aberto; `Ctrl+C` encerra o servidor.
+
+Não é necessário ativar o ambiente virtual nem alterar a política de execução do PowerShell. Nos próximos acessos:
+
+```powershell
+Set-Location (Join-Path $env:USERPROFILE 'AtlasDFE')
+.\INICIAR_WEB.cmd
+```
+
+Para redefinir a senha, com o servidor parado:
+
+```powershell
+Set-Location (Join-Path $env:USERPROFILE 'AtlasDFE')
+.\.venv\Scripts\python.exe -m nfe_consulta.web.configure_admin
+```
+
+## Windows: instalação pelos lançadores
 
 Use uma pasta definitiva com permissão de escrita. O diretório `C:\AtlasDFE` deve estar ausente ou vazio para o clone. No PowerShell:
 
@@ -101,12 +147,20 @@ env NFE_WEB_ENV=production NFE_AUTO_SYNC_ENABLED=0 NFE_RECOVERY_ENABLED=0 .venv/
 Pare o app e faça o [backup](SEGURANCA_BANCO.md). Na pasta do repositório:
 
 ```powershell
-git status --short
-git branch --show-current
-git switch main
-git pull --ff-only origin main
-.\INSTALAR.cmd
-.\INICIAR_WEB.cmd
+& {
+    $ErrorActionPreference = 'Stop'
+    Set-Location (Join-Path $env:USERPROFILE 'AtlasDFE')
+    $alteracoesAtlas = git status --porcelain
+    if ($LASTEXITCODE -ne 0) { throw 'Esta pasta não é um repositório Git.' }
+    if ($alteracoesAtlas) { throw 'Há alterações locais. Preserve-as antes de atualizar.' }
+    git switch main
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao selecionar main.' }
+    git pull --ff-only origin main
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao atualizar o código.' }
+    .\.venv\Scripts\python.exe -m pip install -e .
+    if ($LASTEXITCODE -ne 0) { throw 'Falha ao atualizar dependências.' }
+    .\INICIAR_WEB.cmd
+}
 ```
 
 Se houver alterações locais ou divergência, resolva-as antes de atualizar; não use `reset --hard` para descartar arquivos da instalação. O `git pull` atualiza código, não o processo já aberto.

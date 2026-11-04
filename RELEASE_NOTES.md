@@ -1,4 +1,4 @@
-# AtlasDFE 2.7.0
+# AtlasDFE 2.7.1
 
 Aplicação interna para consultar manifestações de NF-e, importar XMLs e gerar relatórios Excel/CSV.
 

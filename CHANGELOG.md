@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 2.7.1 — 03/11/2026
+
+- Instalação e atualização por PowerShell com comandos completos e interrupção em caso de erro.
+- Mensagem do instalador corrigida para orientar a configuração da senha do Admin.
+
 ## 2.7.0 — 03/11/2026
 
 - Login apenas para Admin, importações e alteração manual da situação de notas; consultas e relatórios continuam livres.
