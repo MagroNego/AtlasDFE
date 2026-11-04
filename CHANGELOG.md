@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 2.7.4 — 04/11/2026
+
+- Consulta verifica disponibilidade sem montar o diagnóstico completo de NSUs; erros de formulário reutilizam uma única leitura do estado.
+- Recursos estáticos versionados podem ser reutilizados pelo navegador entre telas; páginas e relatórios continuam sem cache HTTP.
+- Metadados de exibição do certificado reaproveitados por até 30 segundos, com nova leitura ao alterar arquivo ou senha. Leitura em segundo plano, sem bloquear a navegação das outras telas. Validação e sincronização continuam usando o leitor real.
+
 ## 2.7.3 — 04/11/2026
 
 - Acesso padrão sem senha em todas as funções, incluindo Admin e alteração manual de situação. Contas existentes preservadas para o modo opcional.

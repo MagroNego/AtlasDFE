@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 from datetime import date, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
@@ -163,40 +164,26 @@ def _consulta_database_state(settings: WebSettings) -> dict:
             "notice": "O banco de manifestações ainda não está disponível para consulta.",
         }
 
+    from nfe_consulta.seguranca_banco import abrir_banco
     try:
-        status = _status_web(settings)
-    except Exception:
-        return {
-            "ready": False,
-            "label": "Banco não sincronizado",
-            "notice": (
-                "O banco de manifestações ainda não está configurado ou sincronizado "
-                "para consulta."
-            ),
-        }
-
-    if status.updated_at is None:
-        from nfe_consulta.seguranca_banco import abrir_banco
         conn = abrir_banco(caminho, settings.current_database_password(), somente_leitura=True)
         try:
+            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            if 'estado_distribuicao' in tables:
+                row = conn.execute('SELECT atualizado_em FROM estado_distribuicao WHERE cnpj=?', (CNPJ_PADRAO,)).fetchone()
+                if row and row[0] is not None:
+                    datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
+                    return dict(ready=True, label='Banco disponível', notice=None)
             for table in ('xml_documentos', 'xml_cancelamentos', 'cartas_correcao'):
-                if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone() and conn.execute(f'SELECT 1 FROM {table} WHERE cnpj=? LIMIT 1', (CNPJ_PADRAO,)).fetchone():
+                if table in tables and conn.execute(f'SELECT 1 FROM {table} WHERE cnpj=? LIMIT 1', (CNPJ_PADRAO,)).fetchone():
                     return dict(ready=True, label='Banco local disponível', notice=None)
         finally:
             conn.close()
-        return {
-            "ready": False,
-            "label": "Banco não sincronizado",
-            "notice": (
-                "O banco de manifestações ainda não possui uma sincronização concluída."
-            ),
-        }
-
-    return {
-        "ready": True,
-        "label": "Banco disponível",
-        "notice": None,
-    }
+    except Exception:
+        return dict(ready=False, label='Banco não sincronizado',
+                    notice='O banco de manifestações ainda não está configurado ou sincronizado para consulta.')
+    return dict(ready=False, label='Banco não sincronizado',
+                notice='O banco de manifestações ainda não possui uma sincronização concluída.')
 
 
 def _database_web(settings: WebSettings) -> dict:
@@ -230,6 +217,12 @@ def _filtros_iniciais():
     )
 
 
+@lru_cache(maxsize=16)
+def _certificado_arquivo_cached(path, password, signature, interval):
+    # Apenas metadados de exibição. Validação e sincronização usam o leitor real.
+    return carregar_certificado_arquivo(path, password)
+
+
 def _certificado_web(settings: WebSettings) -> dict:
     config = carregar_config_certificado_arquivo(
         settings.certificate_path_file,
@@ -237,7 +230,9 @@ def _certificado_web(settings: WebSettings) -> dict:
     )
     if config is not None:
         try:
-            certificado = carregar_certificado_arquivo(config.path, config.password)
+            stat = config.path.stat()
+            signature = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino)
+            certificado = _certificado_arquivo_cached(config.path, config.password, signature, int(time.monotonic() // 30))
             return {
                 "source": "Arquivo PFX/P12",
                 "path": str(config.path),
@@ -446,7 +441,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
-        if not path.startswith("/static/"):
+        if path.startswith("/static/") and response.status_code in {200, 304}:
+            version = request.query_params.get("v", "")
+            policy = "public, max-age=31536000, immutable" if version.startswith(__version__ + "-") else "public, max-age=0, must-revalidate"
+            response.headers.setdefault("Cache-Control", policy)
+        elif not path.startswith("/static/"):
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
@@ -832,13 +831,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                     situacao=situacao,
                 )
             except ValueError as exc:
+                database_state = await run_in_threadpool(_consulta_database_state, settings)
                 return _render(
                     request,
                     "consulta.html",
                     user,
-                    database_ready=_consulta_database_state(settings)["ready"],
-                    database_status_label=_consulta_database_state(settings)["label"],
-                    database_notice=_consulta_database_state(settings)["notice"],
+                    database_ready=database_state["ready"],
+                    database_status_label=database_state["label"],
+                    database_notice=database_state["notice"],
                     filtros=_filtros_iniciais(),
                     tipos_manifestacao=TIPOS_MANIFESTACAO,
                     consultou=True,
@@ -852,7 +852,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         xml_keys = set()
         erro_consulta = None
         banco = _database_path(settings)
-        database_state = _consulta_database_state(settings)
+        database_state = await run_in_threadpool(_consulta_database_state, settings)
 
         if consultou:
             if not database_state["ready"]:
@@ -910,7 +910,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         situacao: str = "",
     ):
         banco = _database_path(settings)
-        database_state = _consulta_database_state(settings)
+        database_state = await run_in_threadpool(_consulta_database_state, settings)
         if not database_state["ready"]:
             raise HTTPException(
                 status_code=503,
@@ -1131,14 +1131,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "erro",
                 reason=type(exc).__name__,
             )
+            database_state = await run_in_threadpool(_consulta_database_state, settings)
             return _render(
                 request,
                 "consulta.html",
                 user,
                 status_code=400,
-                database_ready=_consulta_database_state(settings)["ready"],
-                database_status_label=_consulta_database_state(settings)["label"],
-                database_notice=_consulta_database_state(settings)["notice"],
+                database_ready=database_state["ready"],
+                database_status_label=database_state["label"],
+                database_notice=database_state["notice"],
                 filtros=_filtros_iniciais(),
                 tipos_manifestacao=TIPOS_MANIFESTACAO,
                 consultou=False,
@@ -1154,14 +1155,15 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 "erro",
                 reason="unexpected",
             )
+            database_state = await run_in_threadpool(_consulta_database_state, settings)
             return _render(
                 request,
                 "consulta.html",
                 user,
                 status_code=500,
-                database_ready=_consulta_database_state(settings)["ready"],
-                database_status_label=_consulta_database_state(settings)["label"],
-                database_notice=_consulta_database_state(settings)["notice"],
+                database_ready=database_state["ready"],
+                database_status_label=database_state["label"],
+                database_notice=database_state["notice"],
                 filtros=_filtros_iniciais(),
                 tipos_manifestacao=TIPOS_MANIFESTACAO,
                 consultou=False,
@@ -1258,7 +1260,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             error=erro,
             certificate_store=settings.certificate_store,
             certificate_fixed=bool(settings.certificate_thumbprint),
-            certificate_web=_certificado_web(settings),
+            certificate_web=await run_in_threadpool(_certificado_web, settings),
             database_web=_database_web(settings),
             cooldown_minutes=settings.sync_cooldown_minutes,
             email_recipients=email_recipients,
@@ -1420,7 +1422,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 error=str(exc),
                 certificate_store=settings.certificate_store,
                 certificate_fixed=bool(settings.certificate_thumbprint),
-                certificate_web=_certificado_web(settings),
+                certificate_web=await run_in_threadpool(_certificado_web, settings),
                 database_web=_database_web(settings),
                 cooldown_minutes=settings.sync_cooldown_minutes,
             )
@@ -1509,7 +1511,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 error=str(exc),
                 certificate_store=settings.certificate_store,
                 certificate_fixed=bool(settings.certificate_thumbprint),
-                certificate_web=_certificado_web(settings),
+                certificate_web=await run_in_threadpool(_certificado_web, settings),
                 database_web=_database_web(settings),
                 cooldown_minutes=settings.sync_cooldown_minutes,
             )
@@ -1543,7 +1545,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 error="Configure um banco existente antes de sincronizar.",
                 certificate_store=settings.certificate_store,
                 certificate_fixed=bool(settings.certificate_thumbprint),
-                certificate_web=_certificado_web(settings),
+                certificate_web=await run_in_threadpool(_certificado_web, settings),
                 database_web=_database_web(settings),
                 cooldown_minutes=settings.sync_cooldown_minutes,
             )
@@ -1566,7 +1568,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 ),
                 certificate_store=settings.certificate_store,
                 certificate_fixed=bool(settings.certificate_thumbprint),
-                certificate_web=_certificado_web(settings),
+                certificate_web=await run_in_threadpool(_certificado_web, settings),
                 database_web=_database_web(settings),
                 cooldown_minutes=settings.sync_cooldown_minutes,
             )
@@ -1583,7 +1585,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 error="Já existe uma sincronização em andamento.",
                 certificate_store=settings.certificate_store,
                 certificate_fixed=bool(settings.certificate_thumbprint),
-                certificate_web=_certificado_web(settings),
+                certificate_web=await run_in_threadpool(_certificado_web, settings),
                 database_web=_database_web(settings),
                 cooldown_minutes=settings.sync_cooldown_minutes,
             )
@@ -1645,7 +1647,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 error=mensagem_erro(exc),
                 certificate_store=settings.certificate_store,
                 certificate_fixed=bool(settings.certificate_thumbprint),
-                certificate_web=_certificado_web(settings),
+                certificate_web=await run_in_threadpool(_certificado_web, settings),
                 database_web=_database_web(settings),
                 cooldown_minutes=settings.sync_cooldown_minutes,
             )
