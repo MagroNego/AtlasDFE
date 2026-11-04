@@ -29,6 +29,8 @@ Respostas `distNSU` são persistidas antes do parser. A confirmação de process
 
 Importação usa a trava compartilhada com sincronização e não altera cursor. Cancelamentos homologados e marcações administrativas alimentam a situação local; remoção de marcação manual não desfaz evento da SEFAZ. CT-e é armazenado em `eventos_cte`, separado de manifestações. A ausência de vínculo não prova inexistência de conhecimento.
 
+`indices_consulta.py` concentra os índices de manifestações para ordenação por data/NSU e busca por número. A preparação do banco para sincronização e a importação criam os índices ausentes, inclusive em bancos existentes. Navegação e consultas permanecem somente leitura; não executam migração de esquema. Medições reproduzíveis e custos de armazenamento/escrita estão em [Desempenho das consultas](https://github.com/MagroNego/ConsultaManifestacao_DFE/blob/main/docs/desempenho-consultas.md).
+
 Por padrão, `current_user` retorna a identidade administrativa compartilhada `acesso-rede`, sem cookie de sessão. Todas as funções ficam acessíveis sem login. Rotas de contas respondem 404 e o banco de contas não é aberto nesse modo. CSRF permanece obrigatório. `NFE_WEB_LOCAL_AUTH=1` habilita explicitamente o modo opcional de contas locais.
 
 O modo corporativo opcional (`NFE_WEB_CORPORATE_AUTH=1`) exige um gateway autenticado com segredo compartilhado e grupos autorizados. `current_user` valida os cabeçalhos atestados pelo gateway; a autorização distingue Consulta e Administrador. Configuração incompleta impede iniciar o app e requisições sem identidade autorizada recebem 401. O app não implementa OIDC/SAML diretamente. Contrato e implantação: [Servidor Web](SERVIDOR_WEB.md#preparação-para-login-corporativo).

@@ -19,6 +19,7 @@ from nfe_consulta.cte import spreadsheet_label
 from nfe_consulta.xlsx_style import configure_sheet, style_cell, text_row_height
 
 from nfe_consulta.seguranca_banco import abrir_banco
+from nfe_consulta.indices_consulta import criar_indices_manifestacoes
 from nfe_consulta.cte import linked_ctes, export_label
 from nfe_consulta.cancelamento import SCHEMA as CANCELLATION_SCHEMA, read_cancellation, save_cancellation, cancelled_keys, status_label, cancellation_condition
 from nfe_consulta.xml_reader import parse_nfe_xml, emission_metadata, decimal_value, FIELDS_ITENS, FIELDS_RETIDO
@@ -60,6 +61,7 @@ def _schema(conn):
             criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, resultado TEXT NOT NULL
         );
     """)
+    criar_indices_manifestacoes(conn)
 
 
 def _has_table(conn, table):

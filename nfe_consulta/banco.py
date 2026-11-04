@@ -5,6 +5,7 @@ from nfe_consulta.seguranca_banco import abrir_banco
 from nfe_consulta.cte import SCHEMA as CTE_SCHEMA, save_events, linked_ctes
 from nfe_consulta.cancelamento import cancelled_keys
 from nfe_consulta.carta_correcao import SCHEMA as CORRECTION_SCHEMA, save_correction
+from nfe_consulta.indices_consulta import criar_indices_manifestacoes
 
 from nfe_consulta.modelos import (
     Manifestacao,
@@ -142,6 +143,7 @@ class BancoManifestacoes:
         colunas_email = {row[1] for row in self.conexao.execute("PRAGMA table_info(notificacoes_email)")}
         if "cancelado_em" not in colunas_email:
             self.conexao.execute("ALTER TABLE notificacoes_email ADD COLUMN cancelado_em TEXT")
+        criar_indices_manifestacoes(self.conexao)
         self.conexao.commit()
 
     def fechar(self) -> None:

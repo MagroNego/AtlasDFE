@@ -1,0 +1,642 @@
+{
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "sistema": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "banco": "SQLite sem criptografia",
+  "por_pagina": 20,
+  "repeticoes": 9,
+  "bases": [
+    {
+      "notas": 10000,
+      "eventos": 11000,
+      "resultados": [
+        {
+          "modo": "anterior",
+          "migracao_ms": 0.002,
+          "bytes": 4591616,
+          "consultas": [
+            {
+              "caso": "primeira",
+              "agrupado": false,
+              "mediana_ms": 3.635,
+              "amostras_ms": [
+                7.229,
+                3.816,
+                2.15,
+                3.635,
+                3.9,
+                3.472,
+                3.541,
+                4.565,
+                3.232
+              ],
+              "total": 11000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": false,
+              "mediana_ms": 9.552,
+              "amostras_ms": [
+                9.552,
+                14.086,
+                22.222,
+                8.806,
+                9.553,
+                6.37,
+                11.155,
+                5.402,
+                4.267
+              ],
+              "total": 11000
+            },
+            {
+              "caso": "numero",
+              "agrupado": false,
+              "mediana_ms": 7.775,
+              "amostras_ms": [
+                7.636,
+                7.636,
+                9.751,
+                8.813,
+                6.35,
+                7.775,
+                6.07,
+                8.999,
+                9.526
+              ],
+              "total": 2
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": false,
+              "mediana_ms": 3.744,
+              "amostras_ms": [
+                3.744,
+                3.491,
+                3.469,
+                3.983,
+                6.013,
+                3.326,
+                4.261,
+                3.328,
+                4.602
+              ],
+              "total": 1309
+            },
+            {
+              "caso": "primeira",
+              "agrupado": true,
+              "mediana_ms": 11.387,
+              "amostras_ms": [
+                21.336,
+                10.018,
+                12.291,
+                10.825,
+                11.387,
+                10.813,
+                10.03,
+                11.778,
+                11.796
+              ],
+              "total": 10000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": true,
+              "mediana_ms": 14.541,
+              "amostras_ms": [
+                15.078,
+                16.881,
+                15.165,
+                13.761,
+                14.417,
+                12.361,
+                18.614,
+                14.541,
+                12.359
+              ],
+              "total": 10000
+            },
+            {
+              "caso": "numero",
+              "agrupado": true,
+              "mediana_ms": 10.789,
+              "amostras_ms": [
+                12.05,
+                10.919,
+                9.779,
+                9.793,
+                9.981,
+                10.948,
+                11.422,
+                9.246,
+                10.789
+              ],
+              "total": 1
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": true,
+              "mediana_ms": 6.285,
+              "amostras_ms": [
+                4.155,
+                5.925,
+                6.704,
+                24.613,
+                40.393,
+                5.102,
+                6.285,
+                6.562,
+                5.951
+              ],
+              "total": 1309
+            }
+          ],
+          "inserir_1000_ms": 13.805,
+          "insercao_amostras_ms": [
+            20.13,
+            14.425,
+            8.549,
+            14.186,
+            12.883,
+            11.623,
+            13.764,
+            13.805,
+            20.716
+          ]
+        },
+        {
+          "modo": "indices",
+          "migracao_ms": 22.973,
+          "bytes": 5844992,
+          "consultas": [
+            {
+              "caso": "primeira",
+              "agrupado": false,
+              "mediana_ms": 2.022,
+              "amostras_ms": [
+                5.637,
+                2.802,
+                1.755,
+                1.768,
+                2.445,
+                2.022,
+                1.591,
+                4.27,
+                1.752
+              ],
+              "total": 11000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": false,
+              "mediana_ms": 4.228,
+              "amostras_ms": [
+                8.97,
+                5.845,
+                6.644,
+                4.228,
+                4.23,
+                2.635,
+                3.873,
+                3.371,
+                2.172
+              ],
+              "total": 11000
+            },
+            {
+              "caso": "numero",
+              "agrupado": false,
+              "mediana_ms": 1.134,
+              "amostras_ms": [
+                2.016,
+                1.093,
+                1.193,
+                1.013,
+                1.134,
+                1.524,
+                1.008,
+                1.021,
+                1.427
+              ],
+              "total": 2
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": false,
+              "mediana_ms": 3.763,
+              "amostras_ms": [
+                3.31,
+                4.497,
+                3.951,
+                3.763,
+                4.1,
+                2.891,
+                3.026,
+                3.159,
+                5.178
+              ],
+              "total": 1309
+            },
+            {
+              "caso": "primeira",
+              "agrupado": true,
+              "mediana_ms": 11.228,
+              "amostras_ms": [
+                11.979,
+                9.548,
+                12.336,
+                9.51,
+                12.739,
+                10.968,
+                9.352,
+                11.228,
+                12.755
+              ],
+              "total": 10000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": true,
+              "mediana_ms": 15.193,
+              "amostras_ms": [
+                15.291,
+                19.288,
+                15.131,
+                16.228,
+                12.902,
+                14.171,
+                13.336,
+                16.092,
+                15.193
+              ],
+              "total": 10000
+            },
+            {
+              "caso": "numero",
+              "agrupado": true,
+              "mediana_ms": 7.134,
+              "amostras_ms": [
+                14.04,
+                7.134,
+                6.151,
+                5.182,
+                6.628,
+                8.087,
+                7.993,
+                8.343,
+                5.978
+              ],
+              "total": 1
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": true,
+              "mediana_ms": 5.141,
+              "amostras_ms": [
+                3.636,
+                4.558,
+                12.485,
+                11.539,
+                5.141,
+                3.67,
+                4.458,
+                7.472,
+                8.197
+              ],
+              "total": 1309
+            }
+          ],
+          "inserir_1000_ms": 19.186,
+          "insercao_amostras_ms": [
+            20.96,
+            32.957,
+            19.186,
+            15.849,
+            16.229,
+            11.993,
+            12.608,
+            22.14,
+            32.152
+          ]
+        }
+      ]
+    },
+    {
+      "notas": 100000,
+      "eventos": 110000,
+      "resultados": [
+        {
+          "modo": "anterior",
+          "migracao_ms": 0.003,
+          "bytes": 44990464,
+          "consultas": [
+            {
+              "caso": "primeira",
+              "agrupado": false,
+              "mediana_ms": 13.273,
+              "amostras_ms": [
+                19.669,
+                9.848,
+                12.385,
+                11.473,
+                10.443,
+                17.018,
+                13.392,
+                16.179,
+                13.273
+              ],
+              "total": 110000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": false,
+              "mediana_ms": 147.782,
+              "amostras_ms": [
+                205.78,
+                147.782,
+                116.097,
+                648.543,
+                6708.228,
+                92.281,
+                85.685,
+                178.215,
+                83.954
+              ],
+              "total": 110000
+            },
+            {
+              "caso": "numero",
+              "agrupado": false,
+              "mediana_ms": 226.347,
+              "amostras_ms": [
+                162.167,
+                317.016,
+                202.284,
+                234.954,
+                206.211,
+                226.347,
+                266.799,
+                477.302,
+                206.508
+              ],
+              "total": 2
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": false,
+              "mediana_ms": 77.8,
+              "amostras_ms": [
+                77.216,
+                77.8,
+                78.047,
+                80.614,
+                85.936,
+                84.653,
+                72.525,
+                64.534,
+                61.777
+              ],
+              "total": 13096
+            },
+            {
+              "caso": "primeira",
+              "agrupado": true,
+              "mediana_ms": 145.551,
+              "amostras_ms": [
+                154.215,
+                145.551,
+                160.789,
+                130.187,
+                133.536,
+                126.936,
+                155.672,
+                143.836,
+                169.174
+              ],
+              "total": 100000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": true,
+              "mediana_ms": 341.433,
+              "amostras_ms": [
+                293.217,
+                456.655,
+                401.197,
+                363.297,
+                322.231,
+                326.905,
+                348.431,
+                195.51,
+                341.433
+              ],
+              "total": 100000
+            },
+            {
+              "caso": "numero",
+              "agrupado": true,
+              "mediana_ms": 214.384,
+              "amostras_ms": [
+                257.676,
+                229.61,
+                209.071,
+                206.08,
+                220.616,
+                214.384,
+                216.934,
+                210.949,
+                198.725
+              ],
+              "total": 1
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": true,
+              "mediana_ms": 77.356,
+              "amostras_ms": [
+                65.849,
+                67.516,
+                98.589,
+                64.146,
+                117.897,
+                77.356,
+                107.513,
+                68.033,
+                113.268
+              ],
+              "total": 13096
+            }
+          ],
+          "inserir_1000_ms": 18.599,
+          "insercao_amostras_ms": [
+            18.086,
+            18.173,
+            20.594,
+            18.193,
+            23.544,
+            14.037,
+            18.599,
+            20.052,
+            21.539
+          ]
+        },
+        {
+          "modo": "indices",
+          "migracao_ms": 255.214,
+          "bytes": 57864192,
+          "consultas": [
+            {
+              "caso": "primeira",
+              "agrupado": false,
+              "mediana_ms": 6.981,
+              "amostras_ms": [
+                7.139,
+                7.735,
+                6.981,
+                5.49,
+                6.395,
+                5.865,
+                5.738,
+                10.786,
+                7.752
+              ],
+              "total": 110000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": false,
+              "mediana_ms": 14.365,
+              "amostras_ms": [
+                21.232,
+                16.747,
+                12.221,
+                14.365,
+                16.153,
+                14.043,
+                12.065,
+                19.137,
+                10.303
+              ],
+              "total": 110000
+            },
+            {
+              "caso": "numero",
+              "agrupado": false,
+              "mediana_ms": 3.548,
+              "amostras_ms": [
+                3.936,
+                2.651,
+                3.027,
+                3.779,
+                3.215,
+                4.154,
+                3.507,
+                6.805,
+                3.548
+              ],
+              "total": 2
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": false,
+              "mediana_ms": 76.174,
+              "amostras_ms": [
+                75.307,
+                69.344,
+                87.235,
+                77.346,
+                76.174,
+                91.339,
+                76.031,
+                69.017,
+                83.145
+              ],
+              "total": 13096
+            },
+            {
+              "caso": "primeira",
+              "agrupado": true,
+              "mediana_ms": 132.75,
+              "amostras_ms": [
+                140.27,
+                132.75,
+                132.632,
+                128.778,
+                111.003,
+                115.769,
+                145.589,
+                139.046,
+                138.745
+              ],
+              "total": 100000
+            },
+            {
+              "caso": "profunda",
+              "agrupado": true,
+              "mediana_ms": 231.677,
+              "amostras_ms": [
+                266.716,
+                317.934,
+                309.689,
+                311.453,
+                231.677,
+                207.202,
+                204.118,
+                196.235,
+                230.7
+              ],
+              "total": 100000
+            },
+            {
+              "caso": "numero",
+              "agrupado": true,
+              "mediana_ms": 53.467,
+              "amostras_ms": [
+                53.467,
+                51.372,
+                58.849,
+                62.164,
+                50.354,
+                54.548,
+                49.263,
+                52.525,
+                74.941
+              ],
+              "total": 1
+            },
+            {
+              "caso": "periodo_serie",
+              "agrupado": true,
+              "mediana_ms": 67.314,
+              "amostras_ms": [
+                61.13,
+                59.394,
+                60.614,
+                64.4,
+                92.542,
+                74.068,
+                110.7,
+                67.314,
+                124.666
+              ],
+              "total": 13096
+            }
+          ],
+          "inserir_1000_ms": 22.098,
+          "insercao_amostras_ms": [
+            28.039,
+            34.558,
+            30.821,
+            36.966,
+            21.271,
+            19.664,
+            20.279,
+            21.592,
+            22.098
+          ]
+        }
+      ]
+    }
+  ]
+}
