@@ -1,6 +1,10 @@
-# AtlasDFE 2.7.1
+# AtlasDFE 2.7.2
 
 Aplicação interna para consultar manifestações de NF-e, importar XMLs e gerar relatórios Excel/CSV.
+
+## Ajuste desta versão
+
+Layout desktop mais compacto, com maior largura útil, filtros menores e linhas de tabela de 44 px na Consulta. Em telas largas, os seis filtros ficam em uma linha. O layout móvel mantém os controles existentes.
 
 ## O que esta versão entrega
 

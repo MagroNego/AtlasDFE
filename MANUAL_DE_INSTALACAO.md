@@ -16,7 +16,7 @@ A instalação não fornece certificado, senha, banco fiscal preenchido ou crede
 
 ## Código e versão
 
-Esta documentação acompanha a versão **2.7.1**. Baixe o ZIP em [Releases](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest) ou obtenha o código por Git. O ZIP inclui o instalador, lançadores e manuais; não inclui banco fiscal, certificado ou credenciais.
+Esta documentação acompanha a versão **2.7.2**. Baixe o ZIP em [Releases](https://github.com/MagroNego/ConsultaManifestacao_DFE/releases/latest) ou obtenha o código por Git. O ZIP inclui o instalador, lançadores e manuais; não inclui banco fiscal, certificado ou credenciais.
 
 Para instalar pelo ZIP, extraia em uma pasta definitiva, execute `INSTALAR.cmd`, depois `CONFIGURAR_ADMIN.cmd`. No PowerShell aberto nessa pasta, execute `$env:NFE_AUTO_SYNC_ENABLED = "0"` e `.\INICIAR_WEB.cmd`. Continue em **Configuração inicial**, abaixo.
 

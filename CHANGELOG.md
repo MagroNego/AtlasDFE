@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 2.7.2 — 04/11/2026
+
+- Layout desktop mais compacto em Consulta e Emissão: filtros menores, tabelas mais densas e maior largura útil.
+- Seis filtros da Consulta em uma linha a partir de 1280 px; layout móvel preservado.
+
 ## 2.7.1 — 03/11/2026
 
 - Instalação e atualização por PowerShell com comandos completos e interrupção em caso de erro.

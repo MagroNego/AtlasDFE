@@ -1628,3 +1628,55 @@ html[data-theme="dark"] .brand-logo-dark {
 @media (max-width: 480px) { .cce-dialog { padding: 20px; } .cce-metadata { grid-template-columns: 1fr; gap: 14px; } }
 
 .cce-entry + .cce-entry { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+
+/* Densidade de trabalho no desktop; controles de toque mantêm o layout móvel. */
+@media (min-width: 1000px) {
+  .topbar { height: 56px; gap: 16px; padding-inline: 24px; }
+  .atlas-logo { width: 156px; max-height: 44px; }
+  .brand { gap: 8px; }
+  .brand-logo-link { width: 88px; flex-basis: 88px; }
+  .brand-logo-link .brand-logo { max-width: 80px; }
+  .tabs a { padding: 7px 12px; }
+  .page { width: min(1440px, calc(100% - 48px)); margin: 20px auto 40px; }
+  .page-heading { margin-bottom: 14px; }
+  .page-heading h1 { font-size: 24px; }
+  .consulta-page .consultation-card,
+  .xml-page .consultation-card,
+  .consulta-page .results-card,
+  .xml-page .results-card,
+  .consulta-page .file-query-card { padding: 16px; }
+  .consulta-page .card-title,
+  .xml-page .consultation-card .card-title { margin-bottom: 12px; }
+  .consulta-page .filters-form { max-width: none; }
+  .consulta-page .filters-form,
+  .xml-page .filters-form { gap: 12px; }
+  .consulta-page .filters-grid,
+  .xml-page .filters-grid { gap: 10px 16px; }
+  .consulta-page .filters-grid .field,
+  .xml-page .filters-grid .field { gap: 5px; }
+  .consulta-page .filters-grid input,
+  .consulta-page .filters-grid select,
+  .xml-page .filters-grid input,
+  .xml-page .filters-grid select { min-height: 36px; padding: 7px 10px; font-size: 14px; }
+  .consulta-page .filter-actions { justify-content: flex-end; }
+  .consulta-page .results-card,
+  .xml-page .results-card,
+  .consulta-page .file-query-card { margin-top: 14px; }
+  .results-heading { margin-bottom: 12px; }
+  .consulta-page .result-table tbody td { height: 44px; }
+  .consulta-page .result-table th,
+  .consulta-page .result-table td,
+  .xml-page .result-table th,
+  .xml-page .result-table td { padding: 8px 10px; }
+  .consulta-page .compact-upload { min-height: 88px; }
+  .consulta-page .file-query-grid { gap: 16px; }
+  .consulta-page .selection { margin-top: 8px; }
+  .consulta-page .file-query-form .actions { margin-top: 12px; }
+}
+
+/* Os seis filtros da consulta cabem em uma linha nas telas largas. */
+@media (min-width: 1280px) {
+  .consulta-page:not(.manifestations-detail) .filters-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(220px, 1.6fr) repeat(2, minmax(0, 1fr));
+  }
+}
