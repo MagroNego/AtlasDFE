@@ -24,7 +24,7 @@ from starlette.concurrency import run_in_threadpool
 from nfe_consulta import __version__
 from nfe_consulta.cancelamento import change_manual_status
 from nfe_consulta.banco_config import carregar_caminho_banco, salvar_caminho_banco
-from nfe_consulta.config import CNPJ_PADRAO, NOME_PLANILHA, UF_PADRAO
+from nfe_consulta.config import CNPJ_PADRAO, UF_PADRAO
 from nfe_consulta.certificado_arquivo import carregar_certificado_arquivo
 from nfe_consulta.certificado_config import (
     carregar_config_certificado_arquivo,
@@ -43,9 +43,11 @@ from nfe_consulta.web.admin_history import read_admin_history
 from nfe_consulta.web.audit import AuditLog
 from nfe_consulta.web.consulta_local import (
     TIPOS_MANIFESTACAO,
-    consultar_eventos,
     consultar_eventos_exportacao,
     normalizar_filtros,
+)
+from nfe_consulta.web.consulta_data import (
+    banco_indisponivel, banco_nao_sincronizado, estado_consulta, consultar_pagina,
 )
 from nfe_consulta.web.auth import (
     PUBLIC_USER,
@@ -77,7 +79,7 @@ from nfe_consulta.web.xml_store import MAX_UPLOAD, import_history
 from nfe_consulta.web.xml_upload_limit import XmlUploadLimit
 from nfe_consulta.web.export_queue import ExportQueue, ExportQueueBusy
 from nfe_consulta.web.export_jobs import ExportJobs, current_export_job
-from nfe_consulta.web.downloads import DownloadArchive, archive_file, cleanup_loop, period_label
+from nfe_consulta.web.downloads import DownloadArchive, archive_file, cleanup_loop, period_label, report_filename
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -158,32 +160,17 @@ def _database_path(settings: WebSettings) -> Path:
 def _consulta_database_state(settings: WebSettings) -> dict:
     caminho = _database_path(settings)
     if not caminho.is_file():
-        return {
-            "ready": False,
-            "label": "Banco indisponível",
-            "notice": "O banco de manifestações ainda não está disponível para consulta.",
-        }
+        return banco_indisponivel()
 
     from nfe_consulta.seguranca_banco import abrir_banco
     try:
         conn = abrir_banco(caminho, settings.current_database_password(), somente_leitura=True)
         try:
-            tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            if 'estado_distribuicao' in tables:
-                row = conn.execute('SELECT atualizado_em FROM estado_distribuicao WHERE cnpj=?', (CNPJ_PADRAO,)).fetchone()
-                if row and row[0] is not None:
-                    datetime.strptime(row[0], '%Y-%m-%d %H:%M:%S')
-                    return dict(ready=True, label='Banco disponível', notice=None)
-            for table in ('xml_documentos', 'xml_cancelamentos', 'cartas_correcao'):
-                if table in tables and conn.execute(f'SELECT 1 FROM {table} WHERE cnpj=? LIMIT 1', (CNPJ_PADRAO,)).fetchone():
-                    return dict(ready=True, label='Banco local disponível', notice=None)
+            return estado_consulta(conn, CNPJ_PADRAO)
         finally:
             conn.close()
     except Exception:
-        return dict(ready=False, label='Banco não sincronizado',
-                    notice='O banco de manifestações ainda não está configurado ou sincronizado para consulta.')
-    return dict(ready=False, label='Banco não sincronizado',
-                notice='O banco de manifestações ainda não possui uma sincronização concluída.')
+        return banco_nao_sincronizado(com_erro=True)
 
 
 def _database_web(settings: WebSettings) -> dict:
@@ -520,7 +507,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(403, "Você só pode cancelar suas próprias solicitações.")
         if not app.state.export_jobs.cancel(identifier):
             raise HTTPException(409, "A geração já terminou. O arquivo pronto permanece disponível.")
-        app.state.audit.write(request, user, "export_cancel", "ok", job=identifier)
+        await run_in_threadpool(app.state.audit.write, request, user, "export_cancel", "ok", job=identifier)
         if "application/json" in request.headers.get("accept", ""):
             return JSONResponse({"status": job['status']})
         return RedirectResponse(request.url_for("downloads_page"), status_code=303)
@@ -530,7 +517,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         item = await run_in_threadpool(app.state.downloads.get, identifier, admin=user.is_admin)
         if item is None:
             raise HTTPException(404, "Arquivo indisponível ou expirado. Gere o relatório novamente.")
-        app.state.audit.write(request, user, "download_archived", "ok")
+        await run_in_threadpool(app.state.audit.write, request, user, "download_archived", "ok")
         return FileResponse(app.state.downloads.directory / f"{item['id']}.bin",
             filename=item['filename'], media_type=item['media_type'],
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
@@ -573,7 +560,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except ValueError as exc:
             return _render(request, "register.html", user, status_code=400, error=str(exc),
                            username=username[:64], email=email[:254])
-        app.state.audit.write(request, user, "user_register", "ok")
+        await run_in_threadpool(app.state.audit.write, request, user, "user_register", "ok")
         return _render(request, "login.html", user,
             admin_configured=app.state.admin_accounts.configured(),
             success="Conta criada. Entre com seu e-mail ou usuário e senha.")
@@ -645,7 +632,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         logged_username = await run_in_threadpool(app.state.admin_accounts.authenticate, username, password)
         if not logged_username:
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 PUBLIC_USER,
                 "admin_login",
@@ -669,7 +656,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             is_admin=app.state.admin_accounts.role(logged_username) == "admin",
             role=app.state.admin_accounts.role(logged_username) or "consulta",
         )
-        app.state.audit.write(
+        await run_in_threadpool(app.state.audit.write,
             request,
             admin_user,
             "admin_login",
@@ -694,7 +681,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(401, "Entre para encerrar a sessão.")
         validate_csrf(csrf, user, settings)
         app.state.admin_accounts.revoke_session(user.session_token)
-        app.state.audit.write(
+        await run_in_threadpool(app.state.audit.write,
             request,
             user,
             "admin_logout",
@@ -728,7 +715,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             app.state.scheduler_settings = updated
             app.state.auto_sync_next_at = None
             app.state.auto_sync_wake.set()
-        app.state.audit.write(request, user, "auto_sync_config", "ok", enabled=enabled,
+        await run_in_threadpool(app.state.audit.write, request, user, "auto_sync_config", "ok", enabled=enabled,
                               times=list(updated.auto_sync_times), weekdays=list(updated.auto_sync_weekdays),
                               window_start=updated.sync_window_start, window_end=updated.sync_window_end,
                               previous_window_start=previous.sync_window_start,
@@ -773,7 +760,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except ValueError as exc:
             return _render(request, "admin_accounts.html", user, status_code=400,
                 accounts=await run_in_threadpool(accounts.list_accounts), error=str(exc))
-        app.state.audit.write(request, user, "admin_accounts", "ok",
+        await run_in_threadpool(app.state.audit.write, request, user, "admin_accounts", "ok",
                               operation=action, target=username.strip())
         return RedirectResponse(str(request.url_for("admin_accounts_page")) + "?saved=1", status_code=303)
 
@@ -852,25 +839,19 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         xml_keys = set()
         erro_consulta = None
         banco = _database_path(settings)
-        database_state = await run_in_threadpool(_consulta_database_state, settings)
-
         if consultou:
+            leitura = await run_in_threadpool(consultar_pagina, banco, CNPJ_PADRAO, filtros,
+                password_provider=settings.current_database_password, pagina=pagina)
+            database_state = leitura.database_state
             if not database_state["ready"]:
                 erro_consulta = database_state["notice"]
+            elif leitura.error is not None:
+                erro_consulta = _database_error_message(leitura.error, settings, user)
             else:
                 try:
-                    resultado = await run_in_threadpool(
-                        consultar_eventos,
-                        banco,
-                        CNPJ_PADRAO,
-                        filtros,
-                        password=settings.current_database_password(),
-                        pagina=pagina,
-                        por_pagina=100,
-                        agrupar_cartas=True,
-                    )
+                    resultado = leitura.resultado
                     xml_keys = resultado.xml_keys
-                    app.state.audit.write(
+                    await run_in_threadpool(app.state.audit.write,
                         request,
                         user,
                         "consulta_eventos",
@@ -880,6 +861,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                     )
                 except Exception as exc:
                     erro_consulta = _database_error_message(exc, settings, user)
+        else:
+            database_state = await run_in_threadpool(_consulta_database_state, settings)
 
         return _render(
             request,
@@ -934,7 +917,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 password=settings.current_database_password(),
             )
         except (ValueError, OSError, RuntimeError) as exc:
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "export_eventos_excel",
@@ -946,7 +929,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 detail=_database_error_message(exc, settings, user),
             ) from exc
         except Exception as exc:
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "export_eventos_excel",
@@ -959,9 +942,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             ) from exc
 
         temporario = Path(tempfile.mkdtemp(prefix="nfe-eventos-web-"))
-        inicio = filtros.data_inicial.isoformat() if filtros.data_inicial else "inicio"
-        fim = filtros.data_final.isoformat() if filtros.data_final else "atual"
-        nome = f"Manifestacoes_{inicio}_a_{fim}.xlsx"
+        nome = report_filename('manifestacao', (evento.data for evento in eventos),
+            start=filtros.data_inicial, end=filtros.data_final)
         saida = temporario / nome
 
         try:
@@ -973,7 +955,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
         except Exception as exc:
             shutil.rmtree(temporario, ignore_errors=True)
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "export_eventos_excel",
@@ -985,7 +967,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 detail="Não foi possível gerar a planilha da consulta.",
             ) from exc
 
-        app.state.audit.write(
+        await run_in_threadpool(app.state.audit.write,
             request,
             user,
             "export_eventos_excel",
@@ -1033,7 +1015,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         audit_action = "excel_numeros" if tipo_arquivo == "numeros" else "excel_chaves"
 
         if not _database_path(settings).is_file():
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 audit_action,
@@ -1065,8 +1047,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 max_chaves=settings.max_keys,
                 tipo=tipo_arquivo,
             )
-            nome_planilha = "Consulta_Manifestacao_por_Numeros.xlsx" if tipo_arquivo == "numeros" else NOME_PLANILHA
-            saida = temporario / nome_planilha
+            saida = temporario / 'relatorio.xlsx'
             if tipo_arquivo == "numeros":
                 resultado = await run_in_threadpool(executar_consulta_numeros, chaves,
                     _database_path(settings), saida, CNPJ_PADRAO,
@@ -1084,7 +1065,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                         senha_banco=settings.current_database_password(),
                     ),
                 )
-            app.state.audit.write(
+            nome_planilha = report_filename('manifestacao',
+                (evento.data for nota in resultado.resultados for evento in nota.manifestacoes))
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 audit_action,
@@ -1123,7 +1106,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise
         except (ValueError, OSError, RuntimeError) as exc:
             shutil.rmtree(temporario, ignore_errors=True)
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 audit_action,
@@ -1147,7 +1130,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             )
         except Exception:
             shutil.rmtree(temporario, ignore_errors=True)
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 audit_action,
@@ -1292,7 +1275,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         finally:
             lock.release()
-        app.state.audit.write(request, user, "manual_note_status", "ok", count=count, operation=acao)
+        await run_in_threadpool(app.state.audit.write, request, user, "manual_note_status", "ok", count=count, operation=acao)
         return RedirectResponse(
             request.url_for("xml_import_page").include_query_params(situacao_ok=count, situacao_acao=acao),
             status_code=303,
@@ -1319,8 +1302,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         try:
             await run_in_threadpool(cancelar_pendentes_removidos, settings, emails)
         except (OSError, RuntimeError) as exc:
-            app.state.audit.write(request, user, "email_recipients_cleanup", "erro", reason=type(exc).__name__)
-        app.state.audit.write(request, user, "email_recipients", "ok", count=len(emails))
+            await run_in_threadpool(app.state.audit.write, request, user, "email_recipients_cleanup", "erro", reason=type(exc).__name__)
+        await run_in_threadpool(app.state.audit.write, request, user, "email_recipients", "ok", count=len(emails))
         return RedirectResponse(
             url=request.url_for("atualizar_page").include_query_params(email_ok="1"),
             status_code=303,
@@ -1342,9 +1325,9 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(400, str(exc)) from exc
         except Exception as exc:
-            app.state.audit.write(request, user, "email_test", "erro", reason=type(exc).__name__)
+            await run_in_threadpool(app.state.audit.write, request, user, "email_test", "erro", reason=type(exc).__name__)
             raise HTTPException(503, "Não foi possível preparar o teste. Confira a configuração dos alertas.") from exc
-        app.state.audit.write(request, user, "email_test", "ok" if not falhas else "erro",
+        await run_in_threadpool(app.state.audit.write, request, user, "email_test", "ok" if not falhas else "erro",
                               sent=enviados, failed=falhas)
         return RedirectResponse(request.url_for("atualizar_page").include_query_params(
             email_test_sent=str(enviados), email_test_failed=str(falhas)), status_code=303)
@@ -1359,7 +1342,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         if not smtp_pronto(settings):
             raise HTTPException(status_code=400, detail="Configure o SMTP antes de enviar.")
         enviados = await run_in_threadpool(enviar_pendentes, settings, app.state.audit)
-        app.state.audit.write(request, user, "email_retry", "ok", sent=enviados)
+        await run_in_threadpool(app.state.audit.write, request, user, "email_retry", "ok", sent=enviados)
         return RedirectResponse(
             url=request.url_for("atualizar_page").include_query_params(email_sent=str(enviados)),
             status_code=303,
@@ -1388,7 +1371,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 settings.current_database_password(),
                 path_file=settings.database_path_file,
             )
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "database_config",
@@ -1400,7 +1383,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status_code=303,
             )
         except Exception as exc:
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "database_config",
@@ -1477,7 +1460,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 password_file=settings.certificate_password_file,
             )
 
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "certificate_config",
@@ -1489,7 +1472,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status_code=303,
             )
         except Exception as exc:
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "certificate_config",
@@ -1526,7 +1509,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         validate_csrf(csrf, user, settings)
 
         if confirmacao != "sincronizar":
-            app.state.audit.write(request, user, "sefaz_sync", "ignorado", reason="confirmation_required")
+            await run_in_threadpool(app.state.audit.write, request, user, "sefaz_sync", "ignorado", reason="confirmation_required")
             raise HTTPException(status_code=400, detail="Confirme a sincronização manual antes de continuar.")
 
         if not 1 <= max_lotes <= 500:
@@ -1534,7 +1517,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         status_web = await run_in_threadpool(_status_web, settings)
         if not status_web.database_ready:
-            app.state.audit.write(request, user, "sefaz_sync", "ignorado", reason="database_unavailable")
+            await run_in_threadpool(app.state.audit.write, request, user, "sefaz_sync", "ignorado", reason="database_unavailable")
             return _render(
                 request,
                 "sefaz.html",
@@ -1551,7 +1534,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         if not status_web.can_sync:
             agora = janela_consulta.agora_brasilia()
-            app.state.audit.write(request, user, "sefaz_sync", "ignorado",
+            await run_in_threadpool(app.state.audit.write, request, user, "sefaz_sync", "ignorado",
                 reason="fora_janela" if janela_consulta.proxima_abertura(agora) > agora else "cooldown",
                 nsu_salvo=status_web.ult_nsu,
                 proxima_tentativa=status_web.available_at.isoformat() if status_web.available_at else None)
@@ -1574,7 +1557,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         lock: threading.Lock = app.state.sync_lock
         if not lock.acquire(blocking=False):
-            app.state.audit.write(request, user, "sefaz_sync", "ignorado", reason="sync_in_progress")
+            await run_in_threadpool(app.state.audit.write, request, user, "sefaz_sync", "ignorado", reason="sync_in_progress")
             return _render(
                 request,
                 "sefaz.html",
@@ -1596,7 +1579,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 max_lotes=max_lotes,
                 audit=app.state.audit,
             )
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "sefaz_sync",
@@ -1620,7 +1603,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                 status_code=303,
             )
         except Exception as exc:
-            app.state.audit.write(
+            await run_in_threadpool(app.state.audit.write,
                 request,
                 user,
                 "sefaz_sync",

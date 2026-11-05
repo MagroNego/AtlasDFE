@@ -23,7 +23,7 @@ def _is_xml(filename, media_type):
             or media_type.split(';', 1)[0].strip().lower() in {'application/xml', 'text/xml'})
 
 
-def period_label(dates=(), *, start=None, end=None) -> str:
+def _period_bounds(dates=(), *, start=None, end=None):
     parsed = []
     for value in dates:
         text = str(value or '')[:10]
@@ -35,6 +35,18 @@ def period_label(dates=(), *, start=None, end=None) -> str:
                 continue
     first = start or (min(parsed) if parsed else None)
     last = end or (max(parsed) if parsed else None)
+    return first, last
+
+
+def report_filename(kind, dates=(), *, start=None, end=None, extension='xlsx') -> str:
+    first, last = _period_bounds(dates, start=start, end=end)
+    period = (f'{first.isoformat() if first else "inicio"}-{last.isoformat() if last else "fim"}'
+              if first or last else 'sem_periodo')
+    return f'{kind}_{period}.{extension}'
+
+
+def period_label(dates=(), *, start=None, end=None) -> str:
+    first, last = _period_bounds(dates, start=start, end=end)
     if first and last:
         return first.strftime('%d/%m/%Y') if first == last else f'{first:%d/%m/%Y} a {last:%d/%m/%Y}'
     if first:

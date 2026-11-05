@@ -304,11 +304,18 @@ def consultar_cartas(database_path, cnpj, chaves, *, password=None):
         return {}
     conexao = abrir_banco(database_path, password, somente_leitura=True)
     try:
-        if not conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manifestacoes'").fetchone():
-            return {}
-        return _cartas_por_nota(conexao, cnpj, chaves)
+        return consultar_cartas_na_conexao(conexao, cnpj, chaves)
     finally:
         conexao.close()
+
+
+def consultar_cartas_na_conexao(conexao, cnpj, chaves):
+    """Lê cartas com uma conexão emprestada, sem assumir seu fechamento."""
+    if not chaves:
+        return {}
+    if not conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='manifestacoes'").fetchone():
+        return {}
+    return _cartas_por_nota(conexao, cnpj, chaves)
 
 
 def _linhas_primarias(conexao, cnpj, chaves):
@@ -352,56 +359,84 @@ def consultar_eventos(
 
     conexao = abrir_banco(database_path, password, somente_leitura=True)
     try:
-        tem_informacoes = _tem_informacoes_nfe(conexao)
-        where, parametros = _where_eventos(cnpj, filtros, tem_informacoes, cancellation_condition(conexao, 'manifestacoes'))
-        campos_nota = _campos_nota(tem_informacoes) + ", " + _campos_correcao(conexao)
-        prefixo = ""
-        fonte = "manifestacoes"
-        if agrupar_cartas:
-            # Filtrar e agrupar antes de contar/paginar evita linhas vazias e totais inflados.
-            prefixo = f"""WITH filtrados AS (SELECT * FROM manifestacoes WHERE {where}),
-                visiveis AS (SELECT * FROM filtrados WHERE codigo!='110110' OR
-                (codigo='110110' AND chave NOT IN (SELECT chave FROM filtrados WHERE codigo!='110110')
-                 AND id IN (SELECT MIN(id) FROM filtrados WHERE codigo='110110' GROUP BY chave))) """
-            fonte = "visiveis AS manifestacoes"
-        consulta_where = '1=1' if agrupar_cartas else where
-        total = int(
-            conexao.execute(
-                prefixo + f"SELECT COUNT(*) FROM {fonte} WHERE {consulta_where}",
-                parametros,
-            ).fetchone()[0]
-        )
-
-        paginas = ceil(total / por_pagina) if total else 0
-        pagina_efetiva = min(pagina, paginas) if paginas else 1
-        offset = (pagina_efetiva - 1) * por_pagina
-
-        # Limitar IDs antes dos subselects de emitente/CC-e evita enriquecimento
-        # de todas as linhas que o SQLite precisa ordenar para achar a página.
-        linhas = conexao.execute(
-            f"""SELECT chave, codigo, descricao, data_evento, protocolo, nsu,
-                recebido_em, {campos_nota}
-            FROM manifestacoes WHERE id IN (
-                {prefixo}SELECT id FROM {fonte} WHERE {consulta_where}
-                ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC
-                LIMIT ? OFFSET ?
-            )
-            ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC""",
-            [*parametros, por_pagina, offset],
-        ).fetchall()
-        keys = list(dict.fromkeys(line[0] for line in linhas))
-        xml_keys = frozenset()
-        if keys and conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='xml_documentos'").fetchone():
-            marks = ','.join('?' for _ in keys)
-            xml_keys = frozenset(row[0] for row in conexao.execute(
-                f'SELECT chave FROM xml_documentos WHERE cnpj=? AND chave IN ({marks})', (cnpj, *keys)))
-        cartas = _cartas_por_nota(conexao, cnpj, [line[0] for line in linhas]) if agrupar_cartas else {}
-        primarias = _linhas_primarias(conexao, cnpj, [line[0] for line in linhas if line[1] == '110110']) if agrupar_cartas else {}
-        ctes = linked_ctes(conexao, cnpj, [line[0] for line in linhas])
-        cancelled = cancelled_keys(conexao, cnpj, [line[0] for line in linhas])
-        cancelled_notes = lookup_cancelled(conexao, cnpj, key=filtros.chave, number=filtros.numero, series=filtros.serie) if filtros.situacao != 'autorizada' else ()
+        return consultar_eventos_na_conexao(conexao, cnpj, filtros, pagina=pagina,
+                                           por_pagina=por_pagina, agrupar_cartas=agrupar_cartas)
     finally:
         conexao.close()
+
+
+def consultar_eventos_na_conexao(
+    conexao,
+    cnpj: str,
+    filtros: FiltrosEventos,
+    *,
+    pagina: int = 1,
+    por_pagina: int = 100,
+    agrupar_cartas: bool = False,
+) -> ResultadoEventos:
+    """Consulta usando a conexão do chamador, sem abri-la ou fechá-la."""
+    if pagina < 1:
+        raise ValueError("Página inválida.")
+    if not 1 <= por_pagina <= 500:
+        raise ValueError("Quantidade por página inválida.")
+
+    tem_informacoes = _tem_informacoes_nfe(conexao)
+    where, parametros = _where_eventos(cnpj, filtros, tem_informacoes, cancellation_condition(conexao, 'manifestacoes'))
+    campos_nota = _campos_nota(tem_informacoes) + ", " + _campos_correcao(conexao)
+    prefixo = ""
+    fonte = "manifestacoes"
+    if agrupar_cartas:
+        # Filtrar e agrupar antes de contar/paginar evita linhas vazias e totais inflados.
+        prefixo = f"""WITH filtrados AS (SELECT * FROM manifestacoes WHERE {where}),
+            visiveis AS (SELECT * FROM filtrados WHERE codigo!='110110' OR
+            (codigo='110110' AND chave NOT IN (SELECT chave FROM filtrados WHERE codigo!='110110')
+             AND id IN (SELECT MIN(id) FROM filtrados WHERE codigo='110110' GROUP BY chave))) """
+        fonte = "visiveis AS manifestacoes"
+    consulta_where = '1=1' if agrupar_cartas else where
+    consulta_total = f"SELECT COUNT(*) FROM manifestacoes WHERE {where}"
+    if agrupar_cartas:
+        # Uma chave com manifestações contribui com todas elas; uma chave
+        # somente com CC-e contribui com uma linha. Não precisa selecionar
+        # IDs nem montar listas de exclusão para calcular esse total.
+        consulta_total = f"""SELECT COALESCE(SUM(
+            CASE WHEN principais > 0 THEN principais ELSE 1 END), 0)
+            FROM (SELECT SUM(codigo != '110110') AS principais
+                  FROM manifestacoes WHERE {where} GROUP BY chave)"""
+    total = int(
+        conexao.execute(
+            consulta_total,
+            parametros,
+        ).fetchone()[0]
+    )
+
+    paginas = ceil(total / por_pagina) if total else 0
+    pagina_efetiva = min(pagina, paginas) if paginas else 1
+    offset = (pagina_efetiva - 1) * por_pagina
+
+    # Limitar IDs antes dos subselects de emitente/CC-e evita enriquecimento
+    # de todas as linhas que o SQLite precisa ordenar para achar a página.
+    linhas = conexao.execute(
+        f"""SELECT chave, codigo, descricao, data_evento, protocolo, nsu,
+            recebido_em, {campos_nota}
+        FROM manifestacoes WHERE id IN (
+            {prefixo}SELECT id FROM {fonte} WHERE {consulta_where}
+            ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC
+            LIMIT ? OFFSET ?
+        )
+        ORDER BY data_evento DESC, CAST(nsu AS INTEGER) DESC, id DESC""",
+        [*parametros, por_pagina, offset],
+    ).fetchall()
+    keys = list(dict.fromkeys(line[0] for line in linhas))
+    xml_keys = frozenset()
+    if keys and conexao.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='xml_documentos'").fetchone():
+        marks = ','.join('?' for _ in keys)
+        xml_keys = frozenset(row[0] for row in conexao.execute(
+            f'SELECT chave FROM xml_documentos WHERE cnpj=? AND chave IN ({marks})', (cnpj, *keys)))
+    cartas = _cartas_por_nota(conexao, cnpj, [line[0] for line in linhas]) if agrupar_cartas else {}
+    primarias = _linhas_primarias(conexao, cnpj, [line[0] for line in linhas if line[1] == '110110']) if agrupar_cartas else {}
+    ctes = linked_ctes(conexao, cnpj, [line[0] for line in linhas])
+    cancelled = cancelled_keys(conexao, cnpj, [line[0] for line in linhas])
+    cancelled_notes = lookup_cancelled(conexao, cnpj, key=filtros.chave, number=filtros.numero, series=filtros.serie) if filtros.situacao != 'autorizada' else ()
 
     return ResultadoEventos(
         eventos=tuple(replace(_linha_visivel(linha, primarias) if agrupar_cartas else _evento_da_linha(linha), cartas_correcao=cartas.get(linha[0], ()), ctes=ctes.get(linha[0], ()), cancelada=linha[0] in cancelled) for linha in cancellable_rows(linhas)),

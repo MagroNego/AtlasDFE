@@ -19,6 +19,7 @@ from nfe_consulta.cte import spreadsheet_label
 from nfe_consulta.xlsx_style import configure_sheet, style_cell, text_row_height
 
 from nfe_consulta.seguranca_banco import abrir_banco
+from nfe_consulta.indices_consulta import criar_indices_manifestacoes
 from nfe_consulta.cte import linked_ctes, export_label
 from nfe_consulta.cancelamento import SCHEMA as CANCELLATION_SCHEMA, read_cancellation, save_cancellation, cancelled_keys, status_label, cancellation_condition
 from nfe_consulta.xml_reader import parse_nfe_xml, emission_metadata, decimal_value, FIELDS_ITENS, FIELDS_RETIDO
@@ -60,6 +61,7 @@ def _schema(conn):
             criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, resultado TEXT NOT NULL
         );
     """)
+    criar_indices_manifestacoes(conn)
 
 
 def _has_table(conn, table):
@@ -279,73 +281,86 @@ def existing_keys(database_path, cnpj, keys, *, password=None):
         conn.close()
 
 
-def query_report(database_path, cnpj, *, password=None, kind="notas", query="", inicio=None, fim=None, page=1, export=False, situacao="", item_query="", note_key=""):
+def _empty_report(kind, query, page, situacao, item_query, note_key):
     if kind not in ("notas", "itens", "retencoes") or page < 1 or len(query) > 200 or situacao not in ('', 'autorizada', 'cancelada') or len(item_query) > 200 or (note_key and not re.fullmatch(r'[0-9]{44}', note_key)):
         raise ValueError("Filtro do leitor inválido.")
     fields = FIELDS_ITENS if kind == "itens" else FIELDS_RETIDO if kind == "retencoes" else FIELDS_NOTAS
     columns = [*fields, "Situação", "CT-e vinculado"]
     empty = dict(rows=[], columns=columns, total=0, page=1, pages=0, notas=0)
+    return empty
+
+
+def query_report(database_path, cnpj, *, password=None, kind="notas", query="", inicio=None, fim=None, page=1, export=False, situacao="", item_query="", note_key=""):
+    empty = _empty_report(kind, query, page, situacao, item_query, note_key)
     if not Path(database_path).is_file():
         return empty
     conn = abrir_banco(database_path, password, somente_leitura=True)
     try:
-        if not _has_table(conn, "xml_documentos"):
-            return empty
-        params = [cnpj]
-        clauses = ["d.cnpj=?"]
-        if note_key:
-            clauses.append('d.chave=?')
-            params.append(note_key)
-        if item_query.strip():
-            def item_matches(data, needle):
-                row = json.loads(data)
-                return int(any(needle in str(row.get(field, '')).casefold() for field in ('Codigo', 'Descricao', 'NCM')))
-            conn.create_function('item_matches', 2, item_matches)
-            needle = item_query.strip().casefold()
-            if kind == 'itens':
-                clauses.append('item_matches(r.dados, ?)=1')
-            else:
-                clauses.append("EXISTS (SELECT 1 FROM xml_relatorio item WHERE item.cnpj=d.cnpj AND item.chave=d.chave AND item.tipo='itens' AND item_matches(item.dados, ?)=1)")
-            params.append(needle)
-        if situacao:
-            cancelled = cancellation_condition(conn, 'd')
-            clauses.append(cancelled if situacao == 'cancelada' else f'NOT ({cancelled})')
-        for field, value in (("d.emissao>=?", inicio), ("d.emissao<=?", fim)):
-            if value:
-                clauses.append(field)
-                params.append(value.isoformat())
-        source = "xml_documentos d"
-        if kind != "notas":
-            source += " JOIN xml_relatorio r ON r.cnpj=d.cnpj AND r.chave=d.chave"
-            clauses.append("r.tipo=?")
-            params.append(kind)
-        if query.strip():
-            if kind == "notas":
-                clauses.append("(d.chave LIKE ? OR d.numero LIKE ? OR LOWER(d.destinatario) LIKE ? OR LOWER(d.emitente) LIKE ?)")
-                params.extend(["%" + query.strip().casefold() + "%"] * 4)
-            else:
-                clauses.append("r.busca LIKE ?")
-                params.append("%" + query.strip().casefold() + "%")
-        where = " AND ".join(clauses)
-        total = conn.execute(f"SELECT COUNT(*) FROM {source} WHERE {where}", params).fetchone()[0]
-        if export and total > MAX_EXPORT_ROWS:
-            raise ValueError("Relatório excede 100.000 linhas. Refine os filtros.")
-        pages = (total + 99) // 100
-        page = min(page, max(1, pages))
-        select = "d.chave,d.numero,d.serie,d.emissao,d.emitente,d.destinatario,d.valor,d.itens" if kind == "notas" else "r.dados"
-        suffix = " ORDER BY d.emissao DESC,d.chave" + (",r.linha" if kind != "notas" else "")
-        if not export:
-            suffix += " LIMIT 100 OFFSET ?"
-        lines = conn.execute(f"SELECT {select} FROM {source} WHERE {where}" + suffix, params if export else [*params, (page - 1) * 100])
-        rows = [dict(zip(FIELDS_NOTAS, row)) for row in cancellable_rows(lines)] if kind == "notas" else [json.loads(row[0]) for row in cancellable_rows(lines)]
-        ctes = linked_ctes(conn, cnpj, [row.get("Chave Acesso", "") for row in rows])
-        cancelled = cancelled_keys(conn, cnpj, [row.get('Chave Acesso', '') for row in rows])
-        for row in cancellable_rows(rows):
-            row['Situação'] = status_label(row.get('Chave Acesso', '') in cancelled)
-            row["CT-e vinculado"] = export_label(ctes.get(row.get("Chave Acesso", ""), ()))
-        return dict(rows=rows, ctes=ctes if not export else {}, columns=columns, total=total, page=page, pages=pages, notas=conn.execute("SELECT COUNT(*) FROM xml_documentos WHERE cnpj=?", (cnpj,)).fetchone()[0])
+        return query_report_na_conexao(conn, cnpj, kind=kind, query=query, inicio=inicio,
+            fim=fim, page=page, export=export, situacao=situacao, item_query=item_query, note_key=note_key)
     finally:
         conn.close()
+
+
+def query_report_na_conexao(conn, cnpj, *, kind="notas", query="", inicio=None, fim=None, page=1, export=False, situacao="", item_query="", note_key=""):
+    """Lê o relatório com a conexão do chamador, sem abri-la ou fechá-la."""
+    empty = _empty_report(kind, query, page, situacao, item_query, note_key)
+    columns = empty['columns']
+    if not _has_table(conn, "xml_documentos"):
+        return empty
+    params = [cnpj]
+    clauses = ["d.cnpj=?"]
+    if note_key:
+        clauses.append('d.chave=?')
+        params.append(note_key)
+    if item_query.strip():
+        def item_matches(data, needle):
+            row = json.loads(data)
+            return int(any(needle in str(row.get(field, '')).casefold() for field in ('Codigo', 'Descricao', 'NCM')))
+        conn.create_function('item_matches', 2, item_matches)
+        needle = item_query.strip().casefold()
+        if kind == 'itens':
+            clauses.append('item_matches(r.dados, ?)=1')
+        else:
+            clauses.append("EXISTS (SELECT 1 FROM xml_relatorio item WHERE item.cnpj=d.cnpj AND item.chave=d.chave AND item.tipo='itens' AND item_matches(item.dados, ?)=1)")
+        params.append(needle)
+    if situacao:
+        cancelled = cancellation_condition(conn, 'd')
+        clauses.append(cancelled if situacao == 'cancelada' else f'NOT ({cancelled})')
+    for field, value in (("d.emissao>=?", inicio), ("d.emissao<=?", fim)):
+        if value:
+            clauses.append(field)
+            params.append(value.isoformat())
+    source = "xml_documentos d"
+    if kind != "notas":
+        source += " JOIN xml_relatorio r ON r.cnpj=d.cnpj AND r.chave=d.chave"
+        clauses.append("r.tipo=?")
+        params.append(kind)
+    if query.strip():
+        if kind == "notas":
+            clauses.append("(d.chave LIKE ? OR d.numero LIKE ? OR LOWER(d.destinatario) LIKE ? OR LOWER(d.emitente) LIKE ?)")
+            params.extend(["%" + query.strip().casefold() + "%"] * 4)
+        else:
+            clauses.append("r.busca LIKE ?")
+            params.append("%" + query.strip().casefold() + "%")
+    where = " AND ".join(clauses)
+    total = conn.execute(f"SELECT COUNT(*) FROM {source} WHERE {where}", params).fetchone()[0]
+    if export and total > MAX_EXPORT_ROWS:
+        raise ValueError("Relatório excede 100.000 linhas. Refine os filtros.")
+    pages = (total + 99) // 100
+    page = min(page, max(1, pages))
+    select = "d.chave,d.numero,d.serie,d.emissao,d.emitente,d.destinatario,d.valor,d.itens" if kind == "notas" else "r.dados"
+    suffix = " ORDER BY d.emissao DESC,d.chave" + (",r.linha" if kind != "notas" else "")
+    if not export:
+        suffix += " LIMIT 100 OFFSET ?"
+    lines = conn.execute(f"SELECT {select} FROM {source} WHERE {where}" + suffix, params if export else [*params, (page - 1) * 100])
+    rows = [dict(zip(FIELDS_NOTAS, row)) for row in cancellable_rows(lines)] if kind == "notas" else [json.loads(row[0]) for row in cancellable_rows(lines)]
+    ctes = linked_ctes(conn, cnpj, [row.get("Chave Acesso", "") for row in rows])
+    cancelled = cancelled_keys(conn, cnpj, [row.get('Chave Acesso', '') for row in rows])
+    for row in cancellable_rows(rows):
+        row['Situação'] = status_label(row.get('Chave Acesso', '') in cancelled)
+        row["CT-e vinculado"] = export_label(ctes.get(row.get("Chave Acesso", ""), ()))
+    return dict(rows=rows, ctes=ctes if not export else {}, columns=columns, total=total, page=page, pages=pages, notas=conn.execute("SELECT COUNT(*) FROM xml_documentos WHERE cnpj=?", (cnpj,)).fetchone()[0])
 
 
 def import_history(database_path, *, password=None, batch_id=None):

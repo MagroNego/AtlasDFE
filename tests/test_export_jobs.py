@@ -79,7 +79,7 @@ def test_real_csv_background_export_and_error(tmp_path):
             assert {job['status'] for job in state['jobs']} == {'complete', 'error'}
             assert 'Erro na geração' in state['html']
             archive = app.state.downloads.list()[0]
-            assert archive['filename'] == 'Leitor_XML.csv' and archive['documents'] == 1
+            assert archive['filename'] == 'emissao_2026-10-01-2026-10-01.csv' and archive['documents'] == 1
             assert (await client.get('/downloads/' + archive['id'])).status_code == 200
         await app.state.export_jobs.close()
     asyncio.run(scenario())

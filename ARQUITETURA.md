@@ -7,6 +7,8 @@
 | `web/app.py` | Rotas, middleware, autorização e coordenação |
 | `web/auth.py`, `web/admin_accounts.py` | Acesso público, login administrativo, sessões, permissões e CSRF |
 | `web/consulta_local.py`, `consulta_numeros.py` | Consultas locais, filtros e correspondência por números de notas |
+| `web/consulta_data.py` | Disponibilidade do banco e dados da página de Consulta na mesma conexão por pedido |
+| `web/emissao_data.py` | Listagem de Emissão, itens e manifestações com uma conexão por pedido |
 | `web/scheduler.py`, `web/auto_sync_config.py`, `web/sync_runtime.py` | Agendamento, trava, cooldown e configuração |
 | `janela_consulta.py` | Restrição de horário antes das chamadas externas |
 | `sincronizacao.py`, `distribuicao.py` | Fluxo distNSU e transporte SOAP/PowerShell |
@@ -29,6 +31,8 @@ Respostas `distNSU` são persistidas antes do parser. A confirmação de process
 
 Importação usa a trava compartilhada com sincronização e não altera cursor. Cancelamentos homologados e marcações administrativas alimentam a situação local; remoção de marcação manual não desfaz evento da SEFAZ. CT-e é armazenado em `eventos_cte`, separado de manifestações. A ausência de vínculo não prova inexistência de conhecimento.
 
+`indices_consulta.py` concentra os índices de manifestações para ordenação por data/NSU e busca por número. A preparação do banco para sincronização e a importação criam os índices ausentes, inclusive em bancos existentes. Navegação e consultas permanecem somente leitura; não executam migração de esquema. Medições reproduzíveis e custos de armazenamento/escrita estão em [Desempenho das consultas](https://github.com/MagroNego/ConsultaManifestacao_DFE/blob/main/docs/desempenho-consultas.md).
+
 Por padrão, `current_user` retorna a identidade administrativa compartilhada `acesso-rede`, sem cookie de sessão. Todas as funções ficam acessíveis sem login. Rotas de contas respondem 404 e o banco de contas não é aberto nesse modo. CSRF permanece obrigatório. `NFE_WEB_LOCAL_AUTH=1` habilita explicitamente o modo opcional de contas locais.
 
 O modo corporativo opcional (`NFE_WEB_CORPORATE_AUTH=1`) exige um gateway autenticado com segredo compartilhado e grupos autorizados. `current_user` valida os cabeçalhos atestados pelo gateway; a autorização distingue Consulta e Administrador. Configuração incompleta impede iniciar o app e requisições sem identidade autorizada recebem 401. O app não implementa OIDC/SAML diretamente. Contrato e implantação: [Servidor Web](SERVIDOR_WEB.md#preparação-para-login-corporativo).
@@ -36,6 +40,10 @@ O modo corporativo opcional (`NFE_WEB_CORPORATE_AUTH=1`) exige um gateway autent
 ## Concorrência e agendamento
 
 A implantação exige um processo/worker. As travas locais não coordenam processos separados. O banco deve permanecer preferencialmente em disco local.
+
+A página de Consulta abre uma conexão somente leitura por pedido com pesquisa, usa essa conexão para verificar a disponibilidade e buscar as linhas, e a fecha no mesmo worker. A listagem de Emissão compartilha a conexão entre relatório e CC-e; os detalhes compartilham a conexão entre cabeçalho e itens ou manifestações. Não há conexão global nem cache de resultado fiscal. As funções de leitura também permitem usar uma conexão emprestada sem fechá-la; quem a abriu mantém a responsabilidade pelo fechamento.
+
+Nas rotas HTTP, a gravação de auditoria executa em thread e continua aguardada antes da resposta. Isso evita bloquear o loop durante escrita ou rotação do log. Um pedido que precisa auditar ainda pode esperar por esse I/O; as demais requisições não precisam esperar o loop ser liberado pela gravação. O mecanismo de tratamento de falhas do log permanece o mesmo.
 
 Janela externa padrão: **22:00 inclusive a 04:00 exclusiva, UTC−3**. Disparos padrão: **22, 23, 00, 01, 02 e 03 horas**. A agenda persistida em `secrets/auto-sync.json` substitui os padrões de ativação, janela, dias e horários. A janela também é aplicada às chamadas manuais e relida entre chamadas externas. O loop permanece aguardando quando desativado e é acordado por evento após salvar no Admin; uma execução ativa termina com a trava reservada. Horários usam data civil de Brasília, ficam dentro da janela e são separados por pelo menos 60 minutos.
 

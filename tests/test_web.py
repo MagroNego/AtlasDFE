@@ -659,6 +659,7 @@ def test_exportacao_da_consulta_respeita_os_mesmos_filtros(tmp_path):
     assert resposta.content.startswith(b"PK")
     wb = load_workbook(BytesIO(resposta.content), read_only=True)
     ws = wb["Manifestacoes"]
+    assert 'manifestacao_2026-09-15-2026-09-30.xlsx' in resposta.headers['content-disposition']
     assert ws["A2"].value == 91780
     assert ws["E2"].value == "Operação não Realizada"
     assert ws["J2"].value == "Fornecedor Teste"

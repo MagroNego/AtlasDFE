@@ -89,6 +89,7 @@ def test_local_number_export_ui_csrf_and_validation(tmp_path,monkeypatch):
         assert client.post('/excel',**{**args,'data':{**args['data'],'csrf':'wrong'}}).status_code==403
         response=client.post('/excel',**args)
         assert response.status_code==200
+        assert 'manifestacao_2026-10-01-2026-10-01.xlsx' in response.headers['content-disposition']
         assert 'Numeros solicitados' in load_workbook(BytesIO(response.content)).sheetnames
         invalid=client.post('/excel',data=args['data'],files={'files':('notas.txt','Número\n123','text/plain')})
         assert invalid.status_code==400 and 'Linha 1' in invalid.text
