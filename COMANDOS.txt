@@ -1,0 +1,297 @@
+ATLASDFE - COMANDOS DO APLICATIVO
+================================
+Referência: código da main, versão declarada 2.7.5.
+Ambiente principal: Windows com Python 3.11 ou superior.
+Os comandos abaixo são para PowerShell, salvo indicação de CMD.
+Execute somente a seção necessária. Não cole o documento inteiro no terminal.
+
+1. ENTRAR NA PASTA
+------------------
+Troque C:\AtlasDFE pelo caminho real da instalação:
+
+Set-Location "C:\AtlasDFE"
+
+Nos exemplos, .venv é o ambiente Python criado por INSTALAR.cmd.
+Não é necessário ativar o ambiente nem mudar a política do PowerShell.
+
+2. INSTALAR
+-----------
+Com os arquivos do projeto já extraídos na pasta:
+
+.\INSTALAR.cmd
+
+O instalador cria .venv, instala as dependências e verifica a versão.
+Se faltar o comando py, instale o Python com o Python Launcher.
+
+Alternativa manual, caso precise acompanhar cada etapa:
+
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e .
+
+Pare se algum comando apresentar erro.
+
+3. INICIAR SOMENTE NESTE COMPUTADOR
+----------------------------------
+$env:NFE_WEB_HOST = "127.0.0.1"
+$env:NFE_WEB_PORT = "8080"
+.\INICIAR_WEB.cmd
+
+Abra no navegador: http://127.0.0.1:8080
+
+O inicializador prepara o segredo CSRF, usa o ambiente de produção e
+habilita o agendador por padrão, respeitando configurações salvas no Admin.
+Mantenha a janela aberta enquanto usar o aplicativo.
+
+4. INICIAR PARA ACESSO NA REDE
+-----------------------------
+Na pasta do repositório:
+
+.\INICIAR_REDE.bat
+
+Esse arquivo usa 0.0.0.0 e a porta 8080.
+Se ele não estiver no pacote baixado, use a alternativa equivalente:
+
+$env:NFE_WEB_HOST = "0.0.0.0"
+$env:NFE_WEB_PORT = "8080"
+.\INICIAR_WEB.cmd
+
+Para descobrir os endereços de rede do servidor:
+
+ipconfig
+
+Neste computador: http://127.0.0.1:8080
+Nos outros computadores: http://IP-DO-SERVIDOR:8080
+Substitua IP-DO-SERVIDOR pelo IPv4 correto do servidor.
+0.0.0.0 é o endereço de escuta; não é o endereço para abrir no navegador.
+O acesso depende da rede e das regras de firewall existentes.
+
+ATENÇÃO: por padrão, o aplicativo dispensa login, inclusive no Admin.
+Abrir para a rede permite acesso a quem conseguir alcançar essa porta.
+A versão consultada não possui uma lista de IPs de clientes autorizados.
+NFE_WEB_FORWARDED_ALLOW_IPS trata confiança no proxy, não bloqueio de clientes.
+
+5. PARAR E REINICIAR
+--------------------
+Na janela que está executando o servidor:
+
+Ctrl+C
+
+Depois, execute novamente o comando de inicialização escolhido.
+Para atualizar a página e seus arquivos no navegador: Ctrl+F5.
+Não inicie duas instâncias apontando para a mesma instalação.
+
+6. PORTA PERSONALIZADA
+----------------------
+Exemplo na porta 8090:
+
+$env:NFE_WEB_HOST = "0.0.0.0"
+$env:NFE_WEB_PORT = "8090"
+.\INICIAR_WEB.cmd
+
+Abra http://IP-DO-SERVIDOR:8090.
+Use INICIAR_WEB.cmd neste caso: INICIAR_REDE.bat redefine a porta para 8080.
+
+As variáveis $env: valem para o PowerShell atual e seus processos filhos.
+Mudanças de ambiente exigem reiniciar o aplicativo.
+WEB_CONFIG.example é uma referência; não é carregado automaticamente.
+
+Se estiver editando um arquivo .cmd ou .bat, a sintaxe equivalente é:
+
+set "NFE_WEB_HOST=0.0.0.0"
+set "NFE_WEB_PORT=8090"
+call INICIAR_WEB.cmd
+
+Não use essa sintaxe de CMD diretamente no PowerShell.
+
+7. LOGIN LOCAL OPCIONAL
+-----------------------
+O modo padrão não exige conta. Para configurar uma conta administrativa:
+
+.\CONFIGURAR_ADMIN.cmd
+
+O configurador solicita usuário e senha sem mostrar a senha digitada.
+A senha precisa ter pelo menos 12 caracteres.
+Criar a conta não ativa a exigência de login por si só.
+
+Para iniciar exigindo login local:
+
+$env:NFE_WEB_LOCAL_AUTH = "1"
+$env:NFE_WEB_CORPORATE_AUTH = "0"
+.\INICIAR_WEB.cmd
+
+Configure também HOST/PORT se precisar de acesso pela rede.
+Para voltar ao modo padrão em uma nova inicialização:
+
+$env:NFE_WEB_LOCAL_AUTH = "0"
+
+A configuração de login corporativo exige gateway, grupos e segredo próprios.
+Consulte SERVIDOR_WEB.md antes de habilitar esse modo.
+
+8. ROTINAS AUTOMÁTICAS
+----------------------
+Ajuste ativação, dias e horários em Admin > Disparos automáticos.
+O agendador só funciona enquanto o processo Web estiver aberto.
+A configuração salva em secrets/auto-sync.json prevalece sobre os padrões
+de ativação/dias informados pelo ambiente.
+
+Exemplos de padrões de ambiente, antes da inicialização:
+
+$env:NFE_AUTO_SYNC_ENABLED = "1"
+$env:NFE_AUTO_SYNC_WEEKDAYS = "0,1,2,3,4,5,6"
+$env:NFE_AUTO_SYNC_MAX_LOTES = "50"
+$env:NFE_RECOVERY_ENABLED = "0"
+.\INICIAR_WEB.cmd
+
+Dias: 0 = segunda-feira; 6 = domingo.
+Para desligar a rotina em uma instalação já configurada, use o Admin.
+Não habilite recuperação pontual apenas para tentar acelerar consultas.
+
+9. VERSÃO E DIAGNÓSTICO
+-----------------------
+Verificar Python e versão do aplicativo:
+
+.\.venv\Scripts\python.exe --version
+.\.venv\Scripts\python.exe -c "import nfe_consulta; print(nfe_consulta.__version__)"
+
+Verificar dependências instaladas:
+
+.\.venv\Scripts\python.exe -m pip check
+
+Testar a resposta do servidor, com o aplicativo aberto:
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8080/healthz"
+
+Ajuste a porta se tiver alterado NFE_WEB_PORT.
+O healthz confirma a resposta HTTP; não comprova consulta à SEFAZ,
+validade do certificado ou execução completa das rotinas.
+
+Ver quem está escutando na porta 8080:
+
+Get-NetTCPConnection -LocalPort 8080 -State Listen
+
+Ver os últimos registros de auditoria:
+
+Get-Content ".\logs\web_audit.log" -Tail 50
+
+Acompanhar novos registros em tempo real:
+
+Get-Content ".\logs\web_audit.log" -Tail 50 -Wait
+
+Ctrl+C encerra o acompanhamento do log nessa janela.
+O arquivo precisa existir; o caminho acima é o padrão da aplicação.
+
+10. BACKUP ANTES DE ATUALIZAR
+-----------------------------
+Pare o aplicativo com Ctrl+C antes de copiar banco e configurações.
+Exemplo de backup em pasta privada do usuário, fora do repositório:
+
+$destinoBackup = Join-Path $env:USERPROFILE ("AtlasDFE-backups\" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+New-Item -ItemType Directory -Path $destinoBackup -Force
+Copy-Item -Path ".\dados", ".\secrets" -Destination $destinoBackup -Recurse
+Write-Output $destinoBackup
+
+Esse exemplo copia os dados e segredos que estão dentro da instalação.
+Se o banco ou certificado estiverem em caminho externo, inclua esses arquivos
+no backup separadamente. Inclua entrada/saidas/logs se precisar preservá-los.
+Proteja o backup: secrets pode conter senhas e referências ao certificado.
+Não envie banco, certificado, senhas ou backup para o GitHub.
+Para restauração e SQLCipher, consulte SEGURANCA_BANCO.md.
+
+11. ATUALIZAR UMA INSTALAÇÃO CLONADA COM GIT
+------------------------------------------
+Requer Git, acesso ao repositório e instalação realmente clonada.
+Pare o aplicativo e faça o backup antes.
+
+git status --short
+git branch --show-current
+
+Se houver alterações locais, preserve-as antes de continuar.
+Os comandos seguintes pressupõem uma cópia limpa usando a branch main:
+
+git switch main
+git pull --ff-only origin main
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip check
+
+Confira o resultado de cada etapa. Se o Git falhar, resolva antes de seguir.
+Depois, inicie pelo comando local ou de rede.
+Não use git reset --hard para resolver diferenças sem analisar os arquivos.
+
+12. ATUALIZAR UMA INSTALAÇÃO BAIXADA EM ZIP
+------------------------------------------
+Git pull não se aplica a uma pasta extraída de ZIP.
+Pare o aplicativo e faça backup.
+Extraia a versão desejada em uma nova pasta e execute INSTALAR.cmd nela.
+Configure o banco existente e o certificado pelo Admin, seguindo
+MANUAL_DE_INSTALACAO.md. Preserve as configurações e segredos necessários.
+Nunca execute simultaneamente as duas instalações sobre o mesmo banco.
+
+Um commit novo na main não garante que o ZIP de uma release anterior mudou.
+
+13. DESENVOLVIMENTO E TESTES
+----------------------------
+Requer o código completo do repositório, incluindo tests e scripts.
+Execute em uma cópia de desenvolvimento.
+
+Instalar dependências de desenvolvimento:
+
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+
+Conferir compilação Python:
+
+.\.venv\Scripts\python.exe -m compileall -q nfe_consulta
+
+Executar os testes Python:
+
+.\.venv\Scripts\python.exe -m pytest -q
+
+Testes JavaScript, com Node.js instalado:
+
+node --test tests/test_download_form.js tests/test_download_progress.js tests/test_generation_notifications.js tests/test_items_navigation.js
+
+14. BENCHMARKS DE DESENVOLVIMENTO
+--------------------------------
+Esses scripts medem cenários de teste; não executam a operação fiscal real.
+Exemplos menores, com 10 mil registros:
+
+.\.venv\Scripts\python.exe scripts/benchmark_queries.py --sizes 10000 --repeats 3
+.\.venv\Scripts\python.exe scripts/benchmark_web_response.py --sizes 10000 --repeats 3
+.\.venv\Scripts\python.exe scripts/benchmark_web_response.py --sizes 10000 --repeats 3 --encrypted
+.\.venv\Scripts\python.exe scripts/benchmark_grouped_count.py --sizes 10000 --repeats 3
+.\.venv\Scripts\python.exe scripts/benchmark_emissao_response.py --size 10000 --repeats 3 --engine plain
+.\.venv\Scripts\python.exe scripts/benchmark_emissao_response.py --size 10000 --repeats 3 --engine cipher
+
+Os comparativos grouped_count e emissao precisam do histórico Git da referência.
+SQLCipher precisa estar instalado para os cenários criptografados.
+Consulte as opções disponíveis de qualquer benchmark com --help.
+
+15. GERAR PACOTE DE DISTRIBUIÇÃO
+-------------------------------
+Na cópia de desenvolvimento, após conferir versões e testes:
+
+.\.venv\Scripts\python.exe scripts/package_release.py
+
+O script grava ZIP e checksum SHA-256 em dist/.
+Ele usa a versão declarada no projeto e valida a consistência dessa versão.
+Esse comando não publica release nem envia arquivos para o GitHub.
+O empacotador atual usa uma lista explícita de arquivos; arquivos extras
+da raiz, como este TXT e INICIAR_REDE.bat, não entram automaticamente no ZIP.
+
+16. OPERAÇÕES FEITAS PELA INTERFACE
+----------------------------------
+Consulta, emissão, manifestação, exportação de planilhas, importação,
+certificado, banco e disparos são operados pela interface Web.
+Não há uma CLI fiscal de consulta ativa para substituir essas telas.
+Não existem comandos de bloqueio por IP implementados nesta versão.
+Senhas de banco, certificado e SMTP devem seguir o fluxo do Admin e os
+manuais; evite colocá-las diretamente em comandos ou no histórico do terminal.
+
+REFERÊNCIAS NA RAIZ
+------------------
+MANUAL_DE_INSTALACAO.md
+MANUAL_DE_USO.md
+SERVIDOR_WEB.md
+SEGURANCA_BANCO.md
+WEB_CONFIG.example
+DISTRIBUICAO_DFE_QIVE.md
