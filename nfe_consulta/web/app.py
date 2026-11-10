@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import shutil
 import tempfile
@@ -15,13 +16,15 @@ from typing import Annotated
 
 import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from nfe_consulta import __version__
+from nfe_consulta.aging_list import MAX_AGING_UPLOAD
+from nfe_consulta.aging_xlsx import convert_aging_xlsx
 from nfe_consulta.cancelamento import change_manual_status
 from nfe_consulta.banco_config import carregar_caminho_banco, salvar_caminho_banco
 from nfe_consulta.config import CNPJ_PADRAO, UF_PADRAO
@@ -357,12 +360,14 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
                     headers={"Cache-Control": "no-store"})
             return JSONResponse({"detail": "Entre para acessar o AtlasDFE."}, status_code=401,
                 headers={"Cache-Control": "no-store"})
-        if path in {"/excel", "/xml/importar", "/admin/login", "/login", "/cadastro", "/admin/contas", "/admin/notas/situacao"} and request.method == "POST":
+        if path in {"/aging", "/excel", "/xml/importar", "/admin/login", "/login", "/cadastro", "/admin/contas", "/admin/notas/situacao"} and request.method == "POST":
             try:
                 size = int(request.headers.get("content-length", "0"))
             except ValueError:
                 return JSONResponse({"detail": "Tamanho da requisição inválido."}, status_code=400)
             maximum = MAX_UPLOAD + 2 * 1024 * 1024 if path == "/xml/importar" else settings.max_upload_bytes + 65536 if path == "/excel" else 65536 if path == "/admin/notas/situacao" else 8192
+            if path == "/aging":
+                maximum = MAX_AGING_UPLOAD + 65536
             if size > maximum:
                 return JSONResponse({"detail": "Requisição excede o limite."}, status_code=413)
 
@@ -464,6 +469,42 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             "status": "ok",
             "version": __version__,
         }
+
+    @app.get("/aging", response_class=HTMLResponse)
+    async def aging_page(request: Request, user: Annotated[WebUser, Depends(require_export)]):
+        return _render(request, "aging.html", user)
+
+    @app.post("/aging")
+    async def aging_export(
+        request: Request,
+        user: Annotated[WebUser, Depends(require_export)],
+        csrf: str = Form(...),
+        files: UploadFile = File(...),
+    ):
+        validate_csrf(csrf, user, settings)
+        if Path(files.filename or "").suffix.lower() != ".xlsx":
+            return _render(request, "aging.html", user, status_code=400,
+                           error="Selecione o relatório de Aging em formato .xlsx.")
+        payload = await files.read(MAX_AGING_UPLOAD + 1)
+        if len(payload) > MAX_AGING_UPLOAD:
+            return _render(request, "aging.html", user, status_code=413,
+                           error="O relatório excede o limite de 5 MiB.")
+        try:
+            output = await run_in_threadpool(convert_aging_xlsx, payload)
+        except ValueError as exc:
+            report = ("AtlasDFE · Aging List · Relatório de erros\n\n" + str(exc) + "\n").encode("utf-8-sig")
+            return _render(
+                request, "aging.html", user, status_code=422,
+                error="A conversão encontrou erros. Confira o relatório.",
+                error_report=base64.b64encode(report).decode("ascii"),
+                error_preview=str(exc).splitlines()[:5],
+            )
+        return Response(
+            content=output.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="aging_list.xlsx"',
+                     "Cache-Control": "no-store"},
+        )
 
     @app.get("/downloads", response_class=HTMLResponse)
     async def downloads_page(request: Request, user: Annotated[WebUser, Depends(current_user)]):
