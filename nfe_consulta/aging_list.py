@@ -55,7 +55,7 @@ def _append(sheet, values, row):
             cell.number_format = MONEY_FORMAT
 
 
-def convert_aging(payload: bytes) -> BytesIO:
+def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
     try:
         report = payload.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -166,7 +166,7 @@ def convert_aging(payload: bytes) -> BytesIO:
     _append(checks, ["Total", title_row - 1, *comparison, observation], check_row + 1)
     notes = workbook.create_sheet("Notas da conversão")
     notes.append(["Observação"])
-    notes.append(["Datas de dois dígitos e identificadores são preservados como no TXT."])
+    notes.append([source_note or "Datas de dois dígitos e identificadores são preservados como no TXT."])
     notes.append(["As linhas auxiliares de recebimento e ajuste estão em Linhas originais."])
 
     for sheet, widths in (

@@ -4,11 +4,12 @@ from collections import Counter, defaultdict
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+from itertools import chain
 from zipfile import ZipFile
 
 from openpyxl import Workbook, load_workbook
 
-from nfe_consulta.aging_list import HEADERS, SUBTOTAL, _amount, _append
+from nfe_consulta.aging_list import HEADERS, SUBTOTAL, _amount, _append, convert_aging
 from nfe_consulta.xlsx_style import configure_sheet
 
 TITLE = re.compile(r"^([A-Z0-9]+)\s+(\d+)\s+")
@@ -62,9 +63,42 @@ def _original_titles(rows):
     return originals, totals
 
 
+def _convert_ln_sheet(rows):
+    lines = []
+    for index, row in enumerate(rows, 1):
+        fields = []
+        for value in row:
+            if value is None:
+                fields.append("")
+            elif isinstance(value, date):
+                fields.append(value.strftime("%d/%m/%Y"))
+            elif type(value) in (int, float):
+                number = Decimal(str(value))
+                if not number.is_finite() or number != round(number, 2):
+                    raise ValueError(f"Linha {index}: valor numérico inválido.")
+                fields.append(f"{number:.2f}".replace(".", ","))
+            else:
+                field = str(value)
+                if any(char in field for char in "|\r\n"):
+                    raise ValueError(f"Linha {index}: separador inesperado no XLSX.")
+                fields.append(field)
+        lines.append("|".join(fields) + "|")
+    return convert_aging(
+        "\n".join(lines).encode(),
+        source_note=("Confira datas e documentos na origem: este layout pode trazer anos "
+                     "convertidos incorretamente pelo Excel e números de documento truncados. "
+                     "O Atlas preserva os dados recebidos."),
+    )
+
+
 def convert_aging_xlsx(payload: bytes) -> BytesIO:
     source = _read(payload)
     try:
+        if len(source.worksheets) == 1:
+            rows = source.worksheets[0].values
+            first = next(rows, ())
+            if first and "Análise por vencimento classificada por parceiro" in str(first[0]):
+                return _convert_ln_sheet(chain((first,), rows))
         if any(name not in source.sheetnames for name in SHEETS):
             raise ValueError("O XLSX deve conter Lancamentos, Linhas originais e Totais originais.")
         titles = source[SHEETS[0]].values
