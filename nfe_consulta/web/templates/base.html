@@ -29,6 +29,7 @@
       <a href="{{ url_for('consulta_page') }}" class="{% if request.url.path == '/' or request.url.path.startswith('/consulta') %}active{% endif %}">Consulta</a>
       <a href="{{ url_for('status_page') }}" class="{% if request.url.path.startswith('/status') %}active{% endif %}">Status</a>
       <a href="{{ url_for('xml_page') }}" class="{% if request.url.path.startswith('/xml') %}active{% endif %}">Emissão</a>
+      <a href="{{ url_for('aging_page') }}" class="{% if request.url.path == '/aging' %}active{% endif %}">Aging List</a>
       <a href="{{ url_for('downloads_page') }}" class="{% if request.url.path.startswith('/downloads') %}active{% endif %}">Downloads</a>
       {% if user.is_admin or not user.authenticated %}
       <a href="{{ url_for('atualizar_page') }}" class="{% if request.url.path.startswith('/atualizar') or request.url.path.startswith('/admin/login') %}active{% endif %}">Admin</a>
