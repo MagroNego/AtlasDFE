@@ -1680,3 +1680,169 @@ html[data-theme="dark"] .brand-logo-dark {
     grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(220px, 1.6fr) repeat(2, minmax(0, 1fr));
   }
 }
+
+.aging-page {
+  width: min(100%, 860px);
+  margin: 12px auto 36px;
+  display: grid;
+  gap: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.aging-heading h1 {
+  margin: 2px 0 4px;
+  font-size: clamp(25px, 3vw, 32px);
+  letter-spacing: -.025em;
+  line-height: 1.2;
+}
+
+.aging-page p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.aging-heading .aging-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+
+.aging-page h2 {
+  margin: 0 0 3px;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.aging-alert,
+.aging-upload-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.aging-section-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.aging-section-icon svg,
+.aging-report-link svg {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+}
+
+.aging-alert {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--danger);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.aging-alert h2,
+.aging-error-icon {
+  color: var(--danger);
+}
+
+.aging-error-icon {
+  background: var(--danger-soft);
+}
+
+.aging-alert-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.aging-errors {
+  margin: 12px 0 14px;
+  padding: 9px 12px 9px 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  overflow-wrap: anywhere;
+}
+
+.aging-errors li + li {
+  margin-top: 5px;
+}
+
+.aging-page .aging-report-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: normal;
+}
+
+.aging-page .aging-upload {
+  padding: clamp(16px, 3vw, 24px);
+}
+
+.aging-page .aging-file {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel-soft);
+  font-size: 13px;
+}
+
+.aging-page .aging-file > span {
+  font-size: inherit;
+  color: var(--text);
+}
+
+.aging-file small {
+  color: var(--muted);
+}
+
+.aging-page input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  padding: 5px;
+  font-size: 13px;
+}
+
+.aging-file input::file-selector-button {
+  margin-inline-end: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.aging-upload-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.aging-upload-footer p {
+  flex: 1 1 240px;
+  font-size: 13px;
+}
+
+@media (max-width: 540px) {
+  .aging-alert {
+    padding: 13px;
+    gap: 10px;
+  }
+
+  .aging-upload-footer .button {
+    width: 100%;
+  }
+}
