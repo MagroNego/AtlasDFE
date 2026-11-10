@@ -19,8 +19,8 @@
   <form action="{{ url_for('aging_export') }}" method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label class="field">
-      <span>Relatório do LN (.txt ou .txt2, até 5 MiB)</span>
-      <input type="file" name="files" accept=".txt,.txt2" required>
+      <span>Relatório do LN (.xlsx, até 5 MiB)</span>
+      <input type="file" name="files" accept=".xlsx" required>
     </label>
     <div class="actions"><button class="button primary" type="submit">Baixar Excel</button></div>
   </form>
