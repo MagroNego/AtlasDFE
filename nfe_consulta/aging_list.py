@@ -68,10 +68,15 @@ def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
                      r"\s*120 Dias\s*\|\s*180 Dias\s*\|", report, re.I):
         raise ValueError("Cabeçalho de faixas do Aging List do LN não localizado.")
 
+    return _export_aging(((line, line) for line in report.splitlines()), source_note=source_note)
+
+
+def _export_aging(lines, *, source_note=None, source_format="TXT"):
+    from_pdf = source_format == "PDF"
     workbook = Workbook()
     titles = workbook.active
     titles.title = "Lançamentos"
-    titles.append(HEADERS)
+    titles.append([*HEADERS, "Linha do PDF"] if from_pdf else HEADERS)
     checks = workbook.create_sheet("Conferência")
     checks.append([
         "PN", "Títulos", "Fatura dos títulos", "Fatura no LN", "Dif. fatura",
@@ -87,13 +92,13 @@ def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
     total = None
     title_row = 1
     errors = []
-    for index, line in enumerate(report.splitlines(), 1):
+    for index, (line, original_line) in enumerate(lines, 1):
         if match := PAGE.search(line):
             page = int(match[1])
         try:
-            _append(original, [index, page, line], index + 1)
+            _append(original, [index, page, original_line], index + 1)
         except IllegalCharacterError:
-            errors.append(f"Linha {index}: caractere inválido no TXT.")
+            errors.append(f"Linha {index}: caractere inválido no {source_format}.")
             continue
         if match := PARTNER.match(line):
             pn, partner = match.groups()
@@ -104,9 +109,11 @@ def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
                 subtotal_pn = match[1]
                 if subtotal_pn in subtotals:
                     raise ValueError("Subtotal por parceiro duplicado.")
-                subtotals[subtotal_pn] = tuple(_amount(field) for field in fields[3:6])
+                subtotals[subtotal_pn] = tuple(_amount(field) for field in (fields[3:] if from_pdf else fields[3:6]))
             elif line.startswith("Resultado cumulativo"):
-                total = tuple(_amount(field) for field in fields[1:4])
+                if from_pdf and total is not None:
+                    raise ValueError("Resultado cumulativo duplicado.")
+                total = tuple(_amount(field) for field in (fields[1:] if from_pdf else fields[1:4]))
             elif match := INVOICE.fullmatch(fields[0]):
                 if line[0].isspace():
                     continue
@@ -121,6 +128,7 @@ def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
                 _append(titles, [
                     page, pn, partner, kind, invoice, fields[1], fields[2],
                     invoice_date, due_date, fields[6], *amounts,
+                    *([index] if from_pdf else []),
                 ], title_row)
                 values_by_pn[pn].append(amounts)
         except (ValueError, IndexError) as exc:
@@ -131,36 +139,41 @@ def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
     for partner_code in sorted(values_by_pn.keys() ^ subtotals.keys()):
         errors.append(f"Parceiro {partner_code}: títulos ou subtotal ausentes.")
 
-    grand_sums = [Decimal(0)] * 3
+    checked_columns = 9 if from_pdf else 3
+    grand_sums = [Decimal(0)] * checked_columns
     check_row = 1
     for pn, rows in values_by_pn.items():
         sums = tuple(sum((row[column] or Decimal(0) for row in rows), Decimal(0))
-                     for column in range(3))
+                     for column in range(checked_columns))
         grand_sums = [total_value + subtotal for total_value, subtotal in zip(grand_sums, sums)]
         reported = subtotals.get(pn)
         if reported is None:
             continue
-        if len(reported) != 3 or reported[2] is None:
+        if len(reported) != checked_columns or reported[2] is None:
             errors.append(f"Parceiro {pn}: subtotal do LN incompleto.")
             continue
         if sums[2] != reported[2]:
             errors.append(f"Parceiro {pn}: saldo dos títulos {sums[2]:.2f} e subtotal no LN {reported[2]:.2f}.")
-        comparison = [value for actual, expected in zip(sums, reported)
+        if from_pdf and sums[3:] != tuple(value or 0 for value in reported[3:]):
+            errors.append(f"Parceiro {pn}: as faixas de aging divergem do subtotal no LN.")
+        comparison = [value for actual, expected in zip(sums[:3], reported[:3])
                       for value in (actual, expected, actual - (expected or Decimal(0)))]
         observation = ("Revisar fatura/recebimento nas linhas originais."
                        if any(comparison[i] for i in (2, 5)) else "OK")
         check_row += 1
         _append(checks, [pn, len(rows), *comparison, observation], check_row)
     if total is None:
-        errors.append("Resultado cumulativo ausente no TXT.")
-    elif len(total) != 3 or total[2] is None:
-        errors.append("Resultado cumulativo incompleto no TXT.")
+        errors.append(f"Resultado cumulativo ausente no {source_format}.")
+    elif len(total) != checked_columns or total[2] is None:
+        errors.append(f"Resultado cumulativo incompleto no {source_format}.")
     elif grand_sums[2] != total[2]:
         errors.append(f"Saldo dos títulos {grand_sums[2]:.2f} e resultado cumulativo no LN {total[2]}.")
+    elif from_pdf and tuple(grand_sums[3:]) != tuple(value or 0 for value in total[3:]):
+        errors.append("As faixas de aging divergem do resultado cumulativo no LN.")
     if errors:
         raise ValueError("\n".join(errors))
 
-    comparison = [value for actual, expected in zip(grand_sums, total)
+    comparison = [value for actual, expected in zip(grand_sums[:3], total[:3])
                   for value in (actual, expected, actual - (expected or Decimal(0)))]
     observation = "Revisar fatura/recebimento." if any(comparison[i] for i in (2, 5)) else "OK"
     _append(checks, ["Total", title_row - 1, *comparison, observation], check_row + 1)
@@ -170,7 +183,7 @@ def convert_aging(payload: bytes, *, source_note: str | None = None) -> BytesIO:
     notes.append(["As linhas auxiliares de recebimento e ajuste estão em Linhas originais."])
 
     for sheet, widths in (
-        (titles, [9, 15, 36, 10, 12, 18, 10, 15, 16, 9] + [17] * 9),
+        (titles, [9, 15, 36, 10, 12, 18, 10, 15, 16, 9] + [17] * (10 if from_pdf else 9)),
         (checks, [18, 12] + [20] * 9 + [55]),
         (notes, [90]),
         (original, [10, 10, 110]),

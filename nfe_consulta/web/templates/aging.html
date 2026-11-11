@@ -36,15 +36,15 @@
       </div>
       <div>
         <h2 id="aging-upload-title">Exportar análise de vencimentos</h2>
-        <p>Use o relatório de aging por parceiro de negócios.</p>
+        <p>Envie o PDF da análise por vencimento por parceiro de negócios, exportado pelo Infor LN.</p>
       </div>
     </div>
     <form action="{{ url_for('aging_export') }}" method="post" enctype="multipart/form-data">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <label class="field aging-file">
-        <span>Planilha de origem</span>
-        <input type="file" name="files" accept=".xlsx" aria-describedby="aging-file-hint" required>
-        <small id="aging-file-hint">Excel (.xlsx) de até 5 MiB</small>
+        <span>Relatório do Infor LN</span>
+        <input type="file" name="files" accept=".pdf,.xlsx" aria-describedby="aging-file-hint" required>
+        <small id="aging-file-hint">PDF ou Excel compatível de até 5 MiB</small>
       </label>
       <div class="aging-upload-footer">
         <p>O Excel de saída inclui lançamentos, conferência de saldos e linhas originais.</p>
