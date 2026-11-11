@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import date, datetime
 from functools import lru_cache
+from io import BytesIO
 from pathlib import Path
 from typing import Annotated
 
@@ -24,7 +25,6 @@ from starlette.concurrency import run_in_threadpool
 
 from nfe_consulta import __version__
 from nfe_consulta.aging_list import MAX_AGING_UPLOAD
-from nfe_consulta.aging_pdf import convert_aging_pdf
 from nfe_consulta.aging_xlsx import convert_aging_xlsx
 from nfe_consulta.cancelamento import change_manual_status
 from nfe_consulta.banco_config import carregar_caminho_banco, salvar_caminho_banco
@@ -253,6 +253,16 @@ def _certificado_web(settings: WebSettings) -> dict:
         "ready": True,
         "error": None,
     }
+
+
+def _convert_aging_pdf(payload: bytes) -> BytesIO:
+    try:
+        from nfe_consulta.aging_pdf import convert_aging_pdf
+    except (ImportError, OSError) as exc:
+        raise ValueError(
+            "A leitura de PDF está indisponível neste ambiente. Use um relatório XLSX compatível do Infor LN."
+        ) from exc
+    return convert_aging_pdf(payload)
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -484,7 +494,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     ):
         validate_csrf(csrf, user, settings)
         extension = Path(files.filename or "").suffix.lower()
-        converter = {".pdf": convert_aging_pdf, ".xlsx": convert_aging_xlsx}.get(extension)
+        converter = {".pdf": _convert_aging_pdf, ".xlsx": convert_aging_xlsx}.get(extension)
         if converter is None:
             return _render(request, "aging.html", user, status_code=400,
                            error="Selecione o PDF do Infor LN ou uma planilha .xlsx compatível.")
