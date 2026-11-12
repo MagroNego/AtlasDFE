@@ -139,6 +139,67 @@
   </form>
 </section>
 
+  <section class="card accounts-section">
+    <div class="card-title">
+      <h2>Consultas pontuais por NSU</h2>
+      {% call guide('Fila de consultas consNSU') %}
+        <p>Adicione apenas NSUs conhecidos, não números de NF-e ou chaves. Prioridade alta passa na frente das lacunas automáticas; prioridade normal vem depois.</p>
+        <p>A fila não consulta a SEFAZ imediatamente, não altera o cursor distNSU e não ignora janela, pausa ou limite preventivo de 20 consultas pontuais por hora.</p>
+      {% endcall %}
+    </div>
+    {% if request.query_params.get('nsu_queue') == 'added' %}
+      <div class="alert success" role="status">NSU incluído na fila para a próxima sincronização permitida.</div>
+    {% elif request.query_params.get('nsu_queue') == 'cancelled' %}
+      <div class="alert success" role="status">Consulta pendente cancelada.</div>
+    {% endif %}
+    {% if not request.app.state.scheduler_settings.recovery_enabled %}
+      <div class="alert">A recuperação consNSU está desativada no servidor. Não é possível adicionar NSUs até sua ativação.</div>
+    {% endif %}
+    <form action="{{ url_for('admin_nsu_priority_add') }}" method="post">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="field">
+        <span>NSU exato (não é o número da nota)</span>
+        <input name="nsu" inputmode="numeric" pattern="[0-9]{1,15}" maxlength="15"
+               placeholder="000000000566627" autocomplete="off" required
+               {% if not request.app.state.scheduler_settings.recovery_enabled %}disabled{% endif %}>
+      </label>
+      <label class="schedule-enabled">
+        <input type="checkbox" name="alta" value="true" checked>
+        <span>Prioridade alta (antes das lacunas automáticas)</span>
+      </label>
+      <p class="account-help">Esta função exige um NSU conhecido. A NF-e 94650 e o protocolo de manifestação não permitem calcular o NSU. O retorno depende da disponibilidade na SEFAZ.</p>
+      <label class="sync-confirmation">
+        <input type="checkbox" name="confirmacao" value="confirmo" required>
+        <span>Confirmo a consulta pontual do NSU informado na próxima janela permitida.</span>
+      </label>
+      <div class="actions">
+        <button class="button primary" type="submit"
+                {% if not request.app.state.scheduler_settings.recovery_enabled %}disabled{% endif %}>Adicionar à fila</button>
+      </div>
+    </form>
+    <h3>Fila e resultados recentes</h3>
+    {% if nsu_priority_items %}
+      {% for item in nsu_priority_items %}
+      <div class="meta-row">
+        <div>
+          <strong class="mono">{{ item.nsu }}</strong>
+          <div class="account-help">{{ 'Alta' if item.prioridade else 'Normal' }} · {{ item.status }} ·
+            {{ item.criado_por }} · {{ item.criado_em }}</div>
+        </div>
+        {% if item.status == 'pendente' %}
+        <form action="{{ url_for('admin_nsu_priority_cancel') }}" method="post">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="hidden" name="nsu" value="{{ item.nsu }}">
+          <button class="button secondary" type="submit">Cancelar</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Nenhuma consulta pontual enfileirada.</p>
+    {% endif %}
+  </section>
+
   <section class="card certificate-card">
   <div class="card-title">
     <div>
