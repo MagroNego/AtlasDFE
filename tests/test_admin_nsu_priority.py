@@ -7,7 +7,7 @@ from nfe_consulta.banco import BancoManifestacoes
 from nfe_consulta.modelos import RetornoDistribuicao
 from nfe_consulta.recuperacao_nsu import recuperar_intervalos
 from nfe_consulta.sincronizacao import sincronizar
-from nfe_consulta.web.nsu_priority import enfileirar_nsu, cancelar_nsu, listar_fila
+from nfe_consulta.web.nsu_priority import enfileirar_nsu, cancelar_nsu, listar_fila, listar_notas_sem_manifestacao
 
 
 CNPJ = "16840128000101"
@@ -116,5 +116,29 @@ def test_indisponivel_e_bloqueio_de_reenvio_na_ultima_hora(tmp_path, monkeypatch
         assert listar_fila(settings, CNPJ)[0]["status"] == "indisponivel"
         with pytest.raises(ValueError, match="última hora"):
             enfileirar_nsu(settings, CNPJ, "15", "admin", alta=True)
+    finally:
+        banco.fechar()
+
+def test_pendencias_notas_sao_listadas_sem_duplicidade_e_saem_com_evento(tmp_path):
+    banco, settings = setup(tmp_path)
+    try:
+        with banco.conexao:
+            banco.conexao.execute("""
+                CREATE TABLE IF NOT EXISTS xml_documentos (
+                    cnpj TEXT, chave TEXT, numero TEXT, emissao TEXT
+                )
+            """)
+            banco.conexao.execute(
+                "INSERT INTO xml_documentos(cnpj, chave, numero, emissao) VALUES (?,?,?,?)",
+                (CNPJ, CHAVE, "94650", "2026-10-06T09:00:00-03:00"))
+        pendentes = listar_notas_sem_manifestacao(settings, CNPJ)
+        assert [(nota["numero"], nota["chave"]) for nota in pendentes] == [("94650", CHAVE)]
+        with banco.conexao:
+            banco.conexao.execute("""
+                INSERT INTO manifestacoes
+                (cnpj,chave,codigo,descricao,data_evento,protocolo,nsu,schema_xml)
+                VALUES (?,?,'210210','Ciência da Operação','2026-10-06','591265122637397','000000000000015','resEvento')
+            """, (CNPJ, CHAVE))
+        assert listar_notas_sem_manifestacao(settings, CNPJ) == []
     finally:
         banco.fechar()
