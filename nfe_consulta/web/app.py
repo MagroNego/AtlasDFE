@@ -75,6 +75,7 @@ from nfe_consulta.web.email_alerts import (
     contar_pendentes, enviar_pendentes, cancelar_pendentes_removidos, enviar_teste, remetente_atual, salvar_remetente,
 )
 from nfe_consulta.web.sync_runtime import sincronizar_configurado
+from nfe_consulta.web.nsu_priority import listar_fila, enfileirar_nsu, cancelar_nsu
 from nfe_consulta.web.sync_diagnostics import detalhes_erro, mensagem_erro
 from nfe_consulta import janela_consulta
 from nfe_consulta.web.uploads import consolidar_txts
@@ -748,6 +749,62 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         clear_admin_cookie(response, settings, secure=request.url.scheme == "https")
         return response
 
+
+    @app.post("/admin/nsu-prioridade", name="admin_nsu_priority_add")
+    async def admin_nsu_priority_add(
+        request: Request, user: Annotated[WebUser, Depends(require_admin)],
+        csrf: str = Form(...), nsu: str = Form(...),
+        alta: bool = Form(False), confirmacao: str = Form(...),
+    ):
+        validate_csrf(csrf, user, settings)
+        if confirmacao != "confirmo":
+            raise HTTPException(400, "Confirme a inclusão na fila de consultas SEFAZ.")
+        if not app.state.scheduler_settings.recovery_enabled:
+            raise HTTPException(409, "Ative a recuperação consNSU antes de adicionar consultas.")
+        lock = app.state.sync_lock
+        if not lock.acquire(blocking=False):
+            raise HTTPException(409, "Sincronização em andamento. Tente novamente após a conclusão.")
+        try:
+            try:
+                nsu_normalizado = await run_in_threadpool(
+                    enfileirar_nsu, settings, CNPJ_PADRAO, nsu, user.username, alta=alta)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        finally:
+            lock.release()
+        await run_in_threadpool(app.state.audit.write, request, user,
+                                "consnsu_priority", "enfileirado",
+                                nsu=nsu_normalizado, prioridade_alta=alta)
+        return RedirectResponse(
+            str(request.url_for("atualizar_page")) + "?nsu_queue=added",
+            status_code=303,
+        )
+
+    @app.post("/admin/nsu-prioridade/cancelar", name="admin_nsu_priority_cancel")
+    async def admin_nsu_priority_cancel(
+        request: Request, user: Annotated[WebUser, Depends(require_admin)],
+        csrf: str = Form(...), nsu: str = Form(...),
+    ):
+        validate_csrf(csrf, user, settings)
+        lock = app.state.sync_lock
+        if not lock.acquire(blocking=False):
+            raise HTTPException(409, "Sincronização em andamento. Aguarde a conclusão.")
+        try:
+            try:
+                cancelado = await run_in_threadpool(cancelar_nsu, settings, CNPJ_PADRAO, nsu)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        finally:
+            lock.release()
+        if not cancelado:
+            raise HTTPException(409, "A consulta não está mais pendente na fila.")
+        await run_in_threadpool(app.state.audit.write, request, user,
+                                "consnsu_priority", "cancelado", nsu=nsu.zfill(15))
+        return RedirectResponse(
+            str(request.url_for("atualizar_page")) + "?nsu_queue=cancelled",
+            status_code=303,
+        )
+
     @app.post("/admin/agendamento", name="admin_schedule_update")
     async def admin_schedule_update(
         request: Request, user: Annotated[WebUser, Depends(require_admin)],
@@ -1275,10 +1332,17 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             except Exception:
                 erro = "Não foi possível consultar o resultado da importação."
 
+        try:
+            nsu_priority_items = await run_in_threadpool(listar_fila, settings, CNPJ_PADRAO) if status_web.database_ready else []
+        except Exception:
+            nsu_priority_items = []
+            erro = erro or "Não foi possível ler a fila de consultas por NSU."
+
         return _render(
             request,
             "sefaz.html",
             user,
+            nsu_priority_items=nsu_priority_items,
             batch=batch,
             status_web=status_web,
             success=(
