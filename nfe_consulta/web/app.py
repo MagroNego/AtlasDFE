@@ -75,7 +75,7 @@ from nfe_consulta.web.email_alerts import (
     contar_pendentes, enviar_pendentes, cancelar_pendentes_removidos, enviar_teste, remetente_atual, salvar_remetente,
 )
 from nfe_consulta.web.sync_runtime import sincronizar_configurado
-from nfe_consulta.web.nsu_priority import listar_fila, enfileirar_nsu, cancelar_nsu
+from nfe_consulta.web.nsu_priority import listar_fila, enfileirar_nsu, cancelar_nsu, listar_notas_sem_manifestacao
 from nfe_consulta.web.sync_diagnostics import detalhes_erro, mensagem_erro
 from nfe_consulta import janela_consulta
 from nfe_consulta.web.uploads import consolidar_txts
@@ -1334,15 +1334,18 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
         try:
             nsu_priority_items = await run_in_threadpool(listar_fila, settings, CNPJ_PADRAO) if status_web.database_ready else []
+            nsu_missing_notes = await run_in_threadpool(listar_notas_sem_manifestacao, settings, CNPJ_PADRAO) if status_web.database_ready else []
         except Exception:
             nsu_priority_items = []
-            erro = erro or "Não foi possível ler a fila de consultas por NSU."
+            nsu_missing_notes = []
+            erro = erro or "Não foi possível ler as pendências de manifestação."
 
         return _render(
             request,
             "sefaz.html",
             user,
             nsu_priority_items=nsu_priority_items,
+            nsu_missing_notes=nsu_missing_notes,
             batch=batch,
             status_web=status_web,
             success=(
