@@ -39,6 +39,27 @@ def listar_fila(settings, cnpj: str, limite: int = 30) -> list[dict]:
         conexao.close()
 
 
+def listar_notas_sem_manifestacao(settings, cnpj: str, *, emissao: str = "2026-10-06", limite: int = 100) -> list[dict]:
+    """Lista apenas as notas sem evento local, sem pressupor evento existente na SEFAZ."""
+    conexao = abrir_banco(caminho_banco_configurado(settings),
+                         settings.current_database_password(), somente_leitura=True)
+    try:
+        linhas = conexao.execute("""
+            SELECT d.numero, d.chave, d.emissao
+            FROM xml_documentos d
+            WHERE d.cnpj=? AND substr(d.emissao,1,10)=?
+              AND NOT EXISTS (
+                  SELECT 1 FROM manifestacoes m WHERE m.cnpj=d.cnpj AND m.chave=d.chave
+              )
+            GROUP BY d.chave
+            ORDER BY CAST(d.numero AS INTEGER), d.chave
+            LIMIT ?
+        """, (cnpj, emissao, limite)).fetchall()
+        return [dict(numero=numero, chave=chave, emissao=data) for numero, chave, data in linhas]
+    finally:
+        conexao.close()
+
+
 def enfileirar_nsu(settings, cnpj: str, valor: str, autor: str, *, alta: bool) -> str:
     nsu = _normalizar_nsu(valor)
     banco = BancoManifestacoes(str(caminho_banco_configurado(settings)),
