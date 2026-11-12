@@ -77,7 +77,8 @@ def sincronizar(
         raise NfeErroComunicacao(pausa)
     # Isola a recuperação: uma nova divergência no distNSU não deve impedir
     # o recebimento das pendências. O cursor de distribuição permanece intacto.
-    if recuperar_lacunas and (banco.proximo_nsu_faltante(cnpj) is not None
+    if recuperar_lacunas and (banco.proximo_nsu_prioritario(cnpj) is not None
+            or banco.proximo_nsu_faltante(cnpj) is not None
             or banco.conexao.execute(
                 "SELECT 1 FROM consultas_nsu WHERE cnpj=? AND resultado='pendente' LIMIT 1",
                 (cnpj,)).fetchone()):
