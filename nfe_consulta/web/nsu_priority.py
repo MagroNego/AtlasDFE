@@ -76,6 +76,19 @@ def enfileirar_nsu(settings, cnpj: str, valor: str, autor: str, *, alta: bool) -
         """, (cnpj, nsu)).fetchone()
         if usado:
             raise ValueError("Este NSU já foi consultado na última hora. Aguarde antes de reenfileirar.")
+        if banco.conexao.execute(
+            "SELECT 1 FROM documentos_nsu WHERE cnpj=? AND nsu=? LIMIT 1", (cnpj, nsu)
+        ).fetchone():
+            raise ValueError("NSU já presente no banco. Nova consulta desnecessária.")
+        if banco.conexao.execute(
+            "SELECT 1 FROM manifestacoes WHERE cnpj=? AND nsu=? LIMIT 1", (cnpj, nsu)
+        ).fetchone():
+            raise ValueError("NSU de manifestação já registrado no banco.")
+        if banco.conexao.execute(
+            "SELECT 1 FROM consultas_nsu WHERE cnpj=? AND nsu=? AND resultado IN ('recebido','indisponivel') LIMIT 1",
+            (cnpj, nsu)
+        ).fetchone():
+            raise ValueError("NSU já consultado com resultado definitivo. Não será reenviado.")
         with banco.conexao:
             pendentes = banco.conexao.execute("""
                 SELECT COUNT(*) FROM fila_nsu_prioridade
