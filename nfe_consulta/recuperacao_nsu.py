@@ -17,6 +17,16 @@ def recuperar_intervalos(banco, cnpj, uf, certificado, destinatarios=(), limite=
     # Uma reserva sem resposta pode sobreviver à interrupção do processo.
     with banco.conexao:
         banco.conexao.execute("UPDATE consultas_nsu SET resultado='repetir' WHERE cnpj=? AND resultado='pendente' AND resposta_xml IS NULL AND tentado_em<datetime('now','-1 hour')", (cnpj,))
+        banco.conexao.execute(
+            "UPDATE fila_nsu_prioridade SET status='pendente', atualizado_em=CURRENT_TIMESTAMP "
+            "WHERE cnpj=? AND status='consultando' AND atualizado_em<datetime('now','-1 hour')", (cnpj,))
+
+    def finalizar_prioridade(nsu, status):
+        with banco.conexao:
+            banco.conexao.execute(
+                "UPDATE fila_nsu_prioridade SET status=?, atualizado_em=CURRENT_TIMESTAMP "
+                "WHERE cnpj=? AND nsu=? AND status IN ('consultando','pendente','erro')",
+                (status, cnpj, nsu))
 
     def processar(identificador, nsu, retorno):
         nonlocal inseridos
@@ -25,12 +35,14 @@ def recuperar_intervalos(banco, cnpj, uf, certificado, destinatarios=(), limite=
             banco.pausar_distribuicao(cnpj, str(exc))
             with banco.conexao:
                 banco.conexao.execute("UPDATE consultas_nsu SET resultado='repetir',resposta_xml=NULL WHERE id=?", (identificador,))
+            finalizar_prioridade(nsu, 'erro')
             raise exc
         if retorno.status_codigo == 137:
             if retorno.documentos:
                 raise NfeErroResposta('Resposta 137 com documentos; intervalo permanece pendente')
             with banco.conexao:
                 banco.conexao.execute("UPDATE consultas_nsu SET resultado='indisponivel',resposta_xml=NULL WHERE id=?", (identificador,))
+            finalizar_prioridade(nsu, 'indisponivel')
             return
         if retorno.status_codigo != 138 or len(retorno.documentos) != 1 or retorno.documentos[0][0] != nsu:
             raise NfeErroResposta('Resposta consNSU inesperada; intervalo permanece pendente')
@@ -40,6 +52,7 @@ def recuperar_intervalos(banco, cnpj, uf, certificado, destinatarios=(), limite=
                                          destinatarios, atualizar_estado=False, consulta_nsu_id=identificador)
         estatisticas['documentos'] += len(retorno.documentos)
         estatisticas['manifestacoes'] += inseridos - antes
+        finalizar_prioridade(nsu, 'recebido')
 
     for identificador, nsu, xml in banco.conexao.execute(
         "SELECT id,nsu,resposta_xml FROM consultas_nsu WHERE cnpj=? AND resultado='pendente' AND resposta_xml IS NOT NULL ORDER BY id",
@@ -55,10 +68,16 @@ def recuperar_intervalos(banco, cnpj, uf, certificado, destinatarios=(), limite=
             if usadas + banco.consultas_na_ultima_hora(cnpj) >= 20:
                 banco.conexao.rollback()
                 break
-            nsu = banco.proximo_nsu_faltante(cnpj)
+            # A fila alta passa à frente das lacunas; a normal vem depois.
+            nsu_alto = banco.proximo_nsu_prioritario(cnpj, alta=True)
+            nsu = nsu_alto or banco.proximo_nsu_faltante(cnpj)
+            nsu = nsu or banco.proximo_nsu_prioritario(cnpj, alta=False)
             if nsu is None:
                 banco.conexao.rollback()
                 break
+            banco.conexao.execute(
+                "UPDATE fila_nsu_prioridade SET status='consultando', atualizado_em=CURRENT_TIMESTAMP "
+                "WHERE cnpj=? AND nsu=? AND status='pendente'", (cnpj, nsu))
             identificador = banco.conexao.execute(
                 'INSERT INTO consultas_nsu(cnpj,nsu) VALUES (?,?)', (cnpj,nsu)).lastrowid
             banco.conexao.commit()
@@ -76,6 +95,7 @@ def recuperar_intervalos(banco, cnpj, uf, certificado, destinatarios=(), limite=
         except Exception:
             with banco.conexao:
                 banco.conexao.execute("UPDATE consultas_nsu SET resultado='repetir' WHERE id=? AND resposta_xml IS NULL", (identificador,))
+            finalizar_prioridade(nsu, 'erro')
             raise
         processar(identificador, nsu, retorno)
     return inseridos
