@@ -177,6 +177,22 @@
                 {% if not request.app.state.scheduler_settings.recovery_enabled %}disabled{% endif %}>Adicionar à fila</button>
       </div>
     </form>
+    <h3>NF-e de 06/10/2026 sem manifestação local</h3>
+    <p class="account-help">Lista de acompanhamento automático, não uma fila de consultas à SEFAZ. A ausência no banco não comprova que o destinatário manifestou. As notas desaparecem desta lista quando o evento válido é gravado pelo Atlas.</p>
+    {% if nsu_missing_notes %}
+      <div class="meta-row"><span>Pendências identificadas</span><strong>{{ nsu_missing_notes|length }}</strong></div>
+      {% for nota in nsu_missing_notes %}
+      <div class="meta-row">
+        <div>
+          <strong>NF-e {{ nota.numero }}</strong>
+          <div class="account-help mono">{{ nota.chave }}</div>
+        </div>
+        <span class="muted">Sem evento local</span>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Nenhuma NF-e sem manifestação local encontrada nesta data.</p>
+    {% endif %}
     <h3>Fila e resultados recentes</h3>
     {% if nsu_priority_items %}
       {% for item in nsu_priority_items %}
