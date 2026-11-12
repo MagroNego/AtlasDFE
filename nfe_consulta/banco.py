@@ -42,6 +42,18 @@ class BancoManifestacoes:
                 resposta_xml TEXT, resultado TEXT NOT NULL DEFAULT 'pendente'
             );
             CREATE INDEX IF NOT EXISTS idx_consultas_nsu ON consultas_nsu(cnpj, nsu);
+            CREATE TABLE IF NOT EXISTS fila_nsu_prioridade (
+                cnpj TEXT NOT NULL,
+                nsu TEXT NOT NULL,
+                prioridade INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'pendente',
+                criado_por TEXT NOT NULL,
+                criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                atualizado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(cnpj, nsu)
+            );
+            CREATE INDEX IF NOT EXISTS idx_fila_nsu_prioridade
+                ON fila_nsu_prioridade(cnpj, status, prioridade, criado_em);
             CREATE TABLE IF NOT EXISTS estado_distribuicao (
                 cnpj TEXT PRIMARY KEY,
                 ult_nsu TEXT NOT NULL,
@@ -192,6 +204,16 @@ class BancoManifestacoes:
     def nsu_para_consulta(self, cnpj: str) -> str:
         # O NSU retornado numa rejeição é diagnóstico, não confirmação de leitura.
         return self.obter_estado(cnpj)[0]
+
+    def proximo_nsu_prioritario(self, cnpj: str, *, alta: bool | None = None) -> str | None:
+        """Consulta a fila do Admin, sem transformar número de NF-e em NSU."""
+        filtro = "" if alta is None else " AND prioridade=?"
+        parametros = (cnpj,) if alta is None else (cnpj, int(alta))
+        linha = self.conexao.execute(
+            "SELECT nsu FROM fila_nsu_prioridade WHERE cnpj=? AND status='pendente'"
+            + filtro + " ORDER BY prioridade DESC, criado_em, nsu LIMIT 1", parametros
+        ).fetchone()
+        return linha[0] if linha else None
 
     def proximo_nsu_faltante(self, cnpj: str) -> str | None:
         linha = self.conexao.execute("""
