@@ -1,0 +1,90 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Xml.Linq;
+using Atlas.Domain;
+using Npgsql;
+using NpgsqlTypes;
+
+namespace Atlas.Infrastructure;
+
+internal static class SefazConsulta
+{
+    private static readonly XNamespace Nfe = "http://www.portalfiscal.inf.br/nfe";
+
+    public static async Task PublishAsync(NpgsqlConnection db, NpgsqlTransaction tx, string cnpj,
+        SefazDocument document, CancellationToken token)
+    {
+        var root = SefazDistribution.ReadXml(document.Xml, 8 * 1024 * 1024);
+        if (root.Name.Namespace != Nfe)
+            return;
+
+        var request = root.Name == Nfe + "procEventoNFe" ? root.Element(Nfe + "evento")?.Element(Nfe + "infEvento") : root;
+        var receipt = root.Element(Nfe + "retEvento")?.Element(Nfe + "infEvento");
+        var note = root.Element(Nfe + "NFe")?.Element(Nfe + "infNFe");
+        string key = ((string?)note?.Attribute("Id")) is { } id && id.StartsWith("NFe", StringComparison.Ordinal)
+            ? id[3..] : Value(request, "chNFe");
+        if (IdentificadorNota.Parse(key)?.Chave != key || key.Length != 44)
+            return;
+
+        string code = Value(request, "tpEvento");
+        string description = code switch
+        {
+            "210200" => "Confirmação da Operação",
+            "210210" => "Ciência da Operação",
+            "210220" => "Desconhecimento da Operação",
+            "210240" => "Operação não Realizada",
+            "110110" => "Carta de Correção",
+            _ => "",
+        };
+        bool fullEvent = root.Name == Nfe + "procEventoNFe";
+        bool linked = !fullEvent || (Value(receipt, "chNFe") == key &&
+            Value(receipt, "tpEvento") == code && Value(receipt, "tpAmb") == "1" &&
+            Value(request, "tpAmb") == "1" && Value(receipt, "nSeqEvento") == Value(request, "nSeqEvento"));
+        string status = Value(receipt, "cStat");
+        bool canceled = root.Name == Nfe + "resNFe" && Value(root, "cSitNFe") == "3"
+            || root.Name == Nfe + "resEvento" && code == "110111"
+            || fullEvent && linked && code == "110111" && status is ("135" or "155");
+        bool acceptedEvent = linked && description.Length > 0 &&
+            (root.Name == Nfe + "resEvento" || fullEvent && status is ("135" or "136" or "155"));
+        if (!acceptedEvent && !canceled && root.Name != Nfe + "resNFe" && note is null)
+            return;
+
+        var events = new List<object>();
+        if (acceptedEvent)
+            events.Add(new
+            {
+                codigo = code, descricao = description,
+                data = First(Value(receipt, "dhRegEvento"), Value(request, "dhEvento")),
+                protocolo = First(Value(receipt, "nProt"), Value(request, "nProt")),
+                nsu = document.Nsu.ToString("D15", CultureInfo.InvariantCulture),
+                schema = document.Schema,
+                correcao = code == "110110" ? Value(request?.Element(Nfe + "detEvento"), "xCorrecao") : "",
+                sequencia = Value(request, "nSeqEvento"),
+            });
+
+        await using var command = new NpgsqlCommand("""
+            INSERT INTO consulta_notas(cnpj,chave,numero,serie,detalhe)
+            VALUES ($1,$2,$3,$4,$5)
+            ON CONFLICT (cnpj,chave) DO UPDATE SET detalhe = consulta_notas.detalhe ||
+                jsonb_build_object('cancelada', (consulta_notas.detalhe->>'cancelada')::boolean
+                    OR (excluded.detalhe->>'cancelada')::boolean,
+                    'eventos', CASE WHEN jsonb_array_length(excluded.detalhe->'eventos') = 0
+                        OR EXISTS (SELECT 1 FROM jsonb_array_elements(consulta_notas.detalhe->'eventos') e
+                            WHERE e->>'nsu'=excluded.detalhe->'eventos'->0->>'nsu'
+                              AND e->>'codigo'=excluded.detalhe->'eventos'->0->>'codigo')
+                        THEN consulta_notas.detalhe->'eventos'
+                        ELSE (consulta_notas.detalhe->'eventos') || (excluded.detalhe->'eventos') END)
+            """, db, tx);
+        command.Parameters.AddWithValue(cnpj);
+        command.Parameters.AddWithValue(key);
+        command.Parameters.AddWithValue(int.Parse(key.AsSpan(25, 9), CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue(int.Parse(key.AsSpan(22, 3), CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue(NpgsqlDbType.Jsonb,
+            JsonSerializer.Serialize(new { cancelada = canceled, eventos = events, ctes = Array.Empty<object>() }));
+        await command.ExecuteNonQueryAsync(token);
+
+        static string First(string value, string fallback) => value.Length > 0 ? value : fallback;
+    }
+
+    private static string Value(XElement? node, string name) => node?.Element(Nfe + name)?.Value.Trim() ?? "";
+}

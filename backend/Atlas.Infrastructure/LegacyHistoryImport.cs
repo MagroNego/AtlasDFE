@@ -27,10 +27,18 @@ public static class LegacyHistoryImport
 
         await using var prepare = new NpgsqlCommand("""
             SELECT pg_advisory_xact_lock(718320, hashtext(@cnpj));
-            DELETE FROM consulta_notas WHERE cnpj=@cnpj;
+            DELETE FROM consulta_notas WHERE cnpj=@cnpj
+            AND NOT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj);
             """, destination, write);
         prepare.Parameters.AddWithValue("cnpj", cnpj);
         await prepare.ExecuteNonQueryAsync(cancellationToken);
+        await using (var active = new NpgsqlCommand(
+            "SELECT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj)", destination, write))
+        {
+            active.Parameters.AddWithValue("cnpj", cnpj);
+            if ((bool?)await active.ExecuteScalarAsync(cancellationToken) == true)
+                throw new InvalidDataException("Importe o histórico antes de ativar a sincronização C# deste CNPJ.");
+        }
 
         using var read = source.BeginTransaction(deferred: true);
         var history = new LegacyHistory(read, cnpj);

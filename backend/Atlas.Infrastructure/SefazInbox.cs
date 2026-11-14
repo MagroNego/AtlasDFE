@@ -8,7 +8,7 @@ public sealed record SefazReplayResult(int Status, long Cursor, int Documents, b
 public sealed class SefazInbox(string connectionString)
 {
     public async Task<SefazReplayResult> ReplayAsync(
-        string cnpj, long sentNsu, bool recovery, byte[] xml, CancellationToken token)
+        string cnpj, long sentNsu, bool recovery, byte[] xml, CancellationToken token, bool publish = false)
     {
         if (cnpj.Length != 14 || !cnpj.All(char.IsAsciiDigit))
             throw new ArgumentException("Informe os 14 dígitos do CNPJ.", nameof(cnpj));
@@ -44,7 +44,15 @@ public sealed class SefazInbox(string connectionString)
 
         var (status, savedCursor, savedCount, receivedAt) = await ResponseAsync();
         if (status.HasValue)
+        {
+            if (publish)
+            {
+                foreach (var document in SefazDistribution.Parse(xml).Documents)
+                    await SefazConsulta.PublishAsync(db, transaction, cnpj, document, token);
+                await transaction.CommitAsync(token);
+            }
             return new(status.Value, savedCursor, savedCount, true);
+        }
 
         var batch = SefazDistribution.Parse(xml);
         long? current;
@@ -78,6 +86,8 @@ public sealed class SefazInbox(string connectionString)
             insert.Parameters.AddWithValue(document.Xml);
             if (await insert.ExecuteNonQueryAsync(token) == 0)
                 throw new InvalidDataException("O NSU já tem um documento diferente gravado.");
+            if (publish)
+                await SefazConsulta.PublishAsync(db, transaction, cnpj, document, token);
         }
 
         DateTime? retry = (recovery && batch.Status != 656 ? null : batch.RetryAt(receivedAt))?.UtcDateTime;

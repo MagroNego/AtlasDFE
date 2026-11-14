@@ -118,8 +118,8 @@ export default function Consulta() {
       {resultado && <div className="resultado">
         <p role="status">{resultado.importadoEm
           ? `Histórico importado em ${dataBR.format(new Date(resultado.importadoEm))}`
-          : "Nenhum histórico foi importado para esta empresa."}</p>
-        {resultado.importadoEm && !resultado.notas.length && <p>Nenhuma NF-e localizada nesta cópia.</p>}
+          : "Consulta de documentos recebidos pela SEFAZ."}</p>
+        {!resultado.notas.length && <p>Nenhuma NF-e localizada nesta cópia.</p>}
         {resultado.notas.map(nota => <article key={nota.chave} className="nota">
           <h2>NF-e {nota.numero} <small>Série {nota.serie}</small></h2>
           <code>{nota.chave}</code>

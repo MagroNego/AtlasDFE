@@ -145,7 +145,7 @@ public static class SefazDistribution
         return candidates.FirstOrDefault();
     }
 
-    private static XElement ReadXml(byte[] xml, int limit)
+    internal static XElement ReadXml(byte[] xml, int limit)
     {
         if (xml.Length == 0 || xml.Length > limit)
             throw new InvalidDataException("O XML está vazio ou excede o tamanho máximo.");

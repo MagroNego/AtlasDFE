@@ -10,7 +10,8 @@ using Npgsql;
 
 var importacaoLegada = args is ["--importar-historico", _];
 var replaySefaz = args is ["--reprocessar-sefaz", _, _, _];
-var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz ? [] : args);
+var syncSefaz = args is ["--sincronizar-sefaz"] or ["--recuperar-nsu", _];
+var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz || syncSefaz ? [] : args);
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("Database");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -121,6 +122,12 @@ if (importacaoLegada)
     return;
 }
 
+if (syncSefaz)
+{
+    Environment.ExitCode = await SefazCommand.RunAsync(args, configuration, connectionString, cnpj);
+    return;
+}
+
 if (replaySefaz)
 {
     try
@@ -201,8 +208,6 @@ app.MapGet("/api/consulta", async (
     await using var leitura = await banco.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancelamento);
     var importacao = await banco.Importacoes.AsNoTracking()
         .SingleOrDefaultAsync(i => i.Cnpj == cnpj, cancelamento);
-    if (importacao is null)
-        return Results.Ok(new { importadoEm = (DateTime?)null, notas = Array.Empty<object>(), mais = false });
 
     const int tamanho = 25;
     var consulta = banco.Notas.AsNoTracking().Where(n => n.Cnpj == cnpj);
@@ -214,7 +219,7 @@ app.MapGet("/api/consulta", async (
         .Select(n => new { n.Chave, n.Numero, n.Serie, n.Detalhe })
         .ToListAsync(cancelamento);
 
-    return Results.Ok(new { importacao.ImportadoEm, notas = linhas.Take(tamanho), mais = linhas.Count > tamanho });
+    return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho), mais = linhas.Count > tamanho });
 }).RequireAuthorization();
 
 await app.RunAsync();

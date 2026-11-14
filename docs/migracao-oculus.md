@@ -87,6 +87,22 @@ dotnet run --project backend/Atlas.Api -- --migrate
 dotnet run --project backend/Atlas.Api -- --reprocessar-sefaz distNSU 000000000000041 /caminho/resposta.xml
 ```
 
-Informe o NSU enviado na requisição original. Para `consNSU`, carregue primeiro uma resposta `distNSU` que estabeleça o cursor. O replay guarda o XML bruto antes de validar, grava os documentos e o cursor juntos e ignora a reaplicação da mesma resposta. O processamento de `consNSU` e a rejeição 656 preservam o cursor. A Consulta continua lendo a cópia importada. A integração com certificado, as chamadas ao vivo, a fila prioritária, o agendamento e a atualização da Consulta a partir dos documentos recebidos ficam no fluxo Python nesta etapa.
+Informe o NSU enviado na requisição original. Para `consNSU`, carregue primeiro uma resposta `distNSU` que estabeleça o cursor. O replay guarda o XML bruto antes de validar, grava os documentos e o cursor juntos e ignora a reaplicação da mesma resposta. O processamento de `consNSU` e a rejeição 656 preservam o cursor. O replay preserva os documentos para verificação. Para consultar a SEFAZ com certificado e publicar na Consulta, use os comandos de sincronização manual.
 
 O teste de protocolo roda com `dotnet run --project tests/Atlas.Sefaz.Checks`. Para executar também a integração, configure `ATLAS_TEST_DATABASE` apontando para um PostgreSQL de teste vazio cujo nome comece por `atlas_test_` e aplique as migrações nele antes de executar.
+
+## Sincronização manual em C#
+
+O comando processa um lote por execução. Ele retoma primeiro uma resposta pendente, respeita a janela configurada em horário de Brasília e consulta o PostgreSQL para verificar a pausa e o limite de recuperação. Novas NF-e, manifestações, CC-e e cancelamentos reconhecidos aparecem na Consulta. Os documentos completos ficam gravados no PostgreSQL.
+
+Para a primeira execução, importe o histórico, pare a coleta Python do CNPJ e informe o cursor atual do Atlas antigo em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
+
+Para A1, informe `Sefaz__CertificatePath` e `Sefaz__CertificatePasswordFile`, com o caminho de um arquivo privado contendo a senha. No Windows, também é possível informar `Sefaz__CertificateThumbprint` de um certificado no repositório Pessoal do usuário que executa o comando. Valide o acesso à chave privada e o dispositivo no ambiente da TI.
+
+```bash
+dotnet run --project backend/Atlas.Api -- --migrate
+dotnet run --project backend/Atlas.Api -- --sincronizar-sefaz
+dotnet run --project backend/Atlas.Api -- --recuperar-nsu 000000000000042
+```
+
+A recuperação manual aceita um NSU por comando e preserva o cursor de distribuição. A fila prioritária, o agendamento interno e a exibição de vínculos de novos CT-e ainda precisam ser migrados. A atualização da cópia histórica deve ocorrer antes da primeira tentativa de sincronização C#.

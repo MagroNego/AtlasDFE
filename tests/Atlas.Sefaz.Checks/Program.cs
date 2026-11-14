@@ -59,6 +59,25 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     }
     catch (InvalidDataException) { }
 
+    const string liveCnpj = "12345678000270";
+    const string key = "33261112345678000270550010000962031000000000";
+    using var fake = new FakeSefaz($"<loteDistDFeInt>{EventDocument(91, key)}</loteDistDFeInt>");
+    using var client = new HttpClient(fake);
+    var live = new SefazSync(connection, client);
+    var instant = DateTimeOffset.Parse("2026-11-14T01:00:00Z");
+    var result = await live.RunAsync(liveCnpj, "33", 90, null, instant, new(22,0), new(4,0), default);
+    Check(result?.Cursor == 91 && fake.Requests == 1);
+    Check(await live.RunAsync(liveCnpj, "33", null, null, instant, new(22,0), new(4,0), default) is null);
+    Check(fake.Requests == 1);
+    await using (var visible = new NpgsqlConnection(connection))
+    {
+        await visible.OpenAsync();
+        await using var command = new NpgsqlCommand("SELECT detalhe->'eventos'->0->>'codigo' FROM consulta_notas WHERE cnpj=$1 AND chave=$2", visible);
+        command.Parameters.AddWithValue(liveCnpj);
+        command.Parameters.AddWithValue(key);
+        Check((string?)await command.ExecuteScalarAsync() == "210200");
+    }
+
     const string nsuSefaz = "<ultNSU>77</ultNSU>";
     Check((await Replay(42, false, Response(656, nsuSefaz))).Cursor == 42);
     await using var db = new NpgsqlConnection(connection);
@@ -90,4 +109,29 @@ static void Invalid(Action action)
     try { action(); }
     catch (InvalidDataException) { return; }
     throw new Exception("O protocolo deveria rejeitar a entrada.");
+}
+
+
+static string EventDocument(long nsu, string key)
+{
+    using var buffer = new MemoryStream();
+    using (var gzip = new GZipStream(buffer, CompressionMode.Compress, leaveOpen: true))
+        gzip.Write(Encoding.UTF8.GetBytes($"<resEvento xmlns=\"http://www.portalfiscal.inf.br/nfe\"><chNFe>{key}</chNFe><tpEvento>210200</tpEvento><nProt>123</nProt><dhEvento>2026-11-14T01:00:00Z</dhEvento></resEvento>"));
+    return $"<docZip NSU=\"{nsu}\" schema=\"resEvento_v1.01.xsd\">{Convert.ToBase64String(buffer.ToArray())}</docZip>";
+}
+
+sealed class FakeSefaz(string lot) : HttpMessageHandler
+{
+    public int Requests { get; private set; }
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+    {
+        Requests++;
+        string soap = await request.Content!.ReadAsStringAsync(token);
+        if (!soap.Contains("<ultNSU>000000000000090</ultNSU>"))
+            throw new InvalidOperationException("Cursor de envio inesperado.");
+        return new(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent($"<retDistDFeInt xmlns=\"http://www.portalfiscal.inf.br/nfe\"><cStat>138</cStat><ultNSU>91</ultNSU><maxNSU>91</maxNSU>{lot}</retDistDFeInt>"),
+        };
+    }
 }
