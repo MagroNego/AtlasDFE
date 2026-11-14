@@ -105,4 +105,20 @@ dotnet run --project backend/Atlas.Api -- --sincronizar-sefaz
 dotnet run --project backend/Atlas.Api -- --recuperar-nsu 000000000000042
 ```
 
-A recuperação manual aceita um NSU por comando e preserva o cursor de distribuição. A fila prioritária, o agendamento interno e a exibição de vínculos de novos CT-e ainda precisam ser migrados. A atualização da cópia histórica deve ocorrer antes da primeira tentativa de sincronização C#.
+A recuperação manual aceita um NSU por comando e preserva o cursor de distribuição. A fila prioritária e o agendamento são configurados na próxima seção. A atualização da cópia histórica deve ocorrer antes da primeira tentativa de sincronização C#.
+
+## Fila prioritária e agenda em C#
+
+Depois de aplicar a migração e estabelecer o cursor pelo comando manual, use os comandos abaixo com o mesmo CNPJ e PostgreSQL:
+
+```bash
+dotnet run --project backend/Atlas.Api -- --enfileirar-nsu 000000000000042 alta
+dotnet run --project backend/Atlas.Api -- --fila-nsu
+dotnet run --project backend/Atlas.Api -- --cancelar-nsu 000000000000042
+```
+
+A fila aceita prioridade `alta` ou `normal`, com limite de 100 pendências. Cada horário agendado processa um NSU pendente elegível, começando pela maior prioridade. Quando a fila não tem item elegível, o agendador usa a distribuição. A aplicação grava a reserva de cada horário no PostgreSQL para evitar uma segunda chamada após reinício. Um item com retorno 137 fica indisponível, e um item recebido fica concluído mesmo se chegou pela distribuição.
+
+Para ativar, inicie a API com `Sefaz__ScheduleEnabled=true`, as variáveis do certificado e da UF e o mesmo PostgreSQL. `Sefaz__ScheduleTimes` permite alterar a lista de horários, e `Sefaz__ScheduleDays` usa 0 para domingo até 6 para sábado. Por padrão a agenda fica desabilitada. Se usar Compose, configure essas variáveis e monte o certificado no serviço da API. Um certificado que depende do repositório do Windows exige execução no Windows.
+
+A fila deste incremento recebe NSUs explicitamente cadastrados. A importação das pendências do SQLite e a descoberta automática de lacunas ainda estão pendentes. A Consulta exibe também os vínculos CT-e reconhecidos nos lotes recebidos e mantém o cancelamento de uma chave de CT-e já identificada.

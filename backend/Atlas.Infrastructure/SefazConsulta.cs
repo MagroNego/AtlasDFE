@@ -46,7 +46,14 @@ internal static class SefazConsulta
             || fullEvent && linked && code == "110111" && status is ("135" or "155");
         bool acceptedEvent = linked && description.Length > 0 &&
             (root.Name == Nfe + "resEvento" || fullEvent && status is ("135" or "136" or "155"));
-        if (!acceptedEvent && !canceled && root.Name != Nfe + "resNFe" && note is null)
+        string transportKey = Value(request, "chCTe");
+        bool transportEvent = code is ("610600" or "610601") && linked
+            && (root.Name == Nfe + "resEvento" || fullEvent && status is ("135" or "136" or "155"));
+        if (transportKey.Length > 0 && (transportKey.Length != 44 || !transportKey.All(char.IsAsciiDigit)
+            || transportKey[20..22] != "57"))
+            transportEvent = false;
+
+        if (!acceptedEvent && !transportEvent && !canceled && root.Name != Nfe + "resNFe" && note is null)
             return;
 
         var events = new List<object>();
@@ -62,6 +69,22 @@ internal static class SefazConsulta
                 sequencia = Value(request, "nSeqEvento"),
             });
 
+        var links = new List<object>();
+        if (transportEvent)
+        {
+            var carrier = request?.Descendants(Nfe + "emit").FirstOrDefault();
+            string protocol = First(Value(receipt, "nProt"), Value(root, "nProt"));
+            string sequence = Value(request, "nSeqEvento");
+            string date = First(Value(request, "dhEvento"), Value(root, "dhRecbto"));
+            links.Add(new
+            {
+                chave = transportKey,
+                status = code == "610601" ? "Cancelado" : transportKey.Length > 0 ? "Autorizado" : "Vínculo identificado",
+                transportadora = Value(carrier, "xNome"), cnpj_transportadora = Value(carrier, "CNPJ"), data = date,
+                identidade = $"{code}:{First(sequence, First(protocol, date))}",
+            });
+        }
+
         await using var command = new NpgsqlCommand("""
             INSERT INTO consulta_notas(cnpj,chave,numero,serie,detalhe)
             VALUES ($1,$2,$3,$4,$5)
@@ -73,14 +96,25 @@ internal static class SefazConsulta
                             WHERE e->>'nsu'=excluded.detalhe->'eventos'->0->>'nsu'
                               AND e->>'codigo'=excluded.detalhe->'eventos'->0->>'codigo')
                         THEN consulta_notas.detalhe->'eventos'
-                        ELSE (consulta_notas.detalhe->'eventos') || (excluded.detalhe->'eventos') END)
+                        ELSE (consulta_notas.detalhe->'eventos') || (excluded.detalhe->'eventos') END,
+                    'ctes', CASE WHEN jsonb_array_length(excluded.detalhe->'ctes') = 0
+                        THEN consulta_notas.detalhe->'ctes'
+                        ELSE (SELECT coalesce(jsonb_agg(link), '[]'::jsonb) FROM (
+                            SELECT DISTINCT ON (CASE WHEN link->>'chave' <> '' THEN link->>'chave'
+                                ELSE coalesce(link->>'identidade',link::text) END) link
+                            FROM jsonb_array_elements((consulta_notas.detalhe->'ctes') || (excluded.detalhe->'ctes'))
+                                WITH ORDINALITY AS items(link, position)
+                            ORDER BY CASE WHEN link->>'chave' <> '' THEN link->>'chave'
+                                ELSE coalesce(link->>'identidade',link::text) END,
+                                (link->>'status'='Cancelado') DESC, position DESC
+                        ) AS latest) END)
             """, db, tx);
         command.Parameters.AddWithValue(cnpj);
         command.Parameters.AddWithValue(key);
         command.Parameters.AddWithValue(int.Parse(key.AsSpan(25, 9), CultureInfo.InvariantCulture));
         command.Parameters.AddWithValue(int.Parse(key.AsSpan(22, 3), CultureInfo.InvariantCulture));
         command.Parameters.AddWithValue(NpgsqlDbType.Jsonb,
-            JsonSerializer.Serialize(new { cancelada = canceled, eventos = events, ctes = Array.Empty<object>() }));
+            JsonSerializer.Serialize(new { cancelada = canceled, eventos = events, ctes = links }));
         await command.ExecuteNonQueryAsync(token);
 
         static string First(string value, string fallback) => value.Length > 0 ? value : fallback;

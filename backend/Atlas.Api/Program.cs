@@ -11,7 +11,8 @@ using Npgsql;
 var importacaoLegada = args is ["--importar-historico", _];
 var replaySefaz = args is ["--reprocessar-sefaz", _, _, _];
 var syncSefaz = args is ["--sincronizar-sefaz"] or ["--recuperar-nsu", _];
-var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz || syncSefaz ? [] : args);
+var queueSefaz = args is ["--fila-nsu"] or ["--enfileirar-nsu", _, _] or ["--cancelar-nsu", _];
+var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz || syncSefaz || queueSefaz ? [] : args);
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("Database");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -60,6 +61,15 @@ builder.Services.AddRateLimiter(options =>
 var dataProtection = builder.Services.AddDataProtection().SetApplicationName("AtlasDFE");
 if (configuration["DataProtection:Path"] is { Length: > 0 } keyPath)
     dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));
+
+if (configuration.GetValue<bool>("Sefaz:ScheduleEnabled") && !args.Any(arg => arg is
+    "--migrate" or "--bootstrap-admin" or "--importar-historico" or "--reprocessar-sefaz" or "--sincronizar-sefaz"
+    or "--recuperar-nsu" or "--fila-nsu" or "--enfileirar-nsu" or "--cancelar-nsu"))
+{
+    var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
+    builder.Services.AddHostedService(provider => new SefazScheduler(
+        configuration, connectionString, company, provider.GetRequiredService<ILogger<SefazScheduler>>()));
+}
 
 var app = builder.Build();
 if (args is ["--migrate"] or ["--bootstrap-admin"])
@@ -119,6 +129,12 @@ if (importacaoLegada)
     {
         Console.CancelKeyPress -= stop;
     }
+    return;
+}
+
+if (queueSefaz)
+{
+    Environment.ExitCode = await SefazCommand.QueueAsync(args, connectionString, cnpj);
     return;
 }
 

@@ -119,6 +119,21 @@ public sealed class SefazInbox(string connectionString)
             finish.Parameters.AddWithValue(batch.Documents.Count);
             await finish.ExecuteNonQueryAsync(token);
         }
+        if (publish && batch.Status is (137 or 138))
+        {
+            await using var queue = new NpgsqlCommand("""
+                UPDATE sefaz_fila q SET status=CASE WHEN EXISTS (
+                    SELECT 1 FROM sefaz_documentos d WHERE d.cnpj=q.cnpj AND d.nsu=q.nsu
+                ) THEN 'recebido' ELSE 'indisponivel' END
+                WHERE q.cnpj=$1 AND q.status='pendente'
+                    AND ((q.nsu=$2 AND $3) OR q.nsu=ANY($4))
+                """, db, transaction);
+            queue.Parameters.AddWithValue(cnpj);
+            queue.Parameters.AddWithValue(sentNsu);
+            queue.Parameters.AddWithValue(recovery);
+            queue.Parameters.AddWithValue(batch.Documents.Select(document => document.Nsu).ToArray());
+            await queue.ExecuteNonQueryAsync(token);
+        }
         await transaction.CommitAsync(token);
         return new(batch.Status, cursor, batch.Documents.Count, false);
 

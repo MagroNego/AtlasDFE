@@ -6,7 +6,7 @@ namespace Atlas.Infrastructure;
 public sealed class SefazSync(string connectionString, HttpClient client)
 {
     public async Task<SefazReplayResult?> RunAsync(string cnpj, string uf, long? initialCursor,
-        long? recoveryNsu, DateTimeOffset now, TimeOnly start, TimeOnly end, CancellationToken token)
+        long? recoveryNsu, DateTimeOffset now, TimeOnly start, TimeOnly end, CancellationToken token, DateTimeOffset? scheduledSlot = null)
     {
         // Validate identifiers before acquiring locks or preparing a network request.
         SefazDistribution.Request(cnpj, uf, recoveryNsu ?? initialCursor ?? 0, recoveryNsu.HasValue);
@@ -58,15 +58,29 @@ public sealed class SefazSync(string connectionString, HttpClient client)
 
         if (!SefazDistribution.InWindow(now, start, end) || retry > now)
             return null;
+        if (scheduledSlot.HasValue)
+        {
+            await using var next = new NpgsqlCommand("""
+                SELECT nsu FROM sefaz_fila AS q WHERE cnpj=$1 AND status='pendente'
+                    AND NOT EXISTS (SELECT 1 FROM sefaz_tentativas t WHERE t.cnpj=q.cnpj AND t.nsu=q.nsu
+                        AND t.recuperacao AND t.tentado_em > $2 - interval '1 hour')
+                ORDER BY alta DESC, criada_em, nsu LIMIT 1
+                """, db, run);
+            next.Parameters.AddWithValue(cnpj);
+            next.Parameters.AddWithValue(now);
+            recoveryNsu = (long?)await next.ExecuteScalarAsync(token);
+        }
+
         long sent = recoveryNsu ?? cursor;
         if (recoveryNsu.HasValue)
         {
             await using var count = new NpgsqlCommand("""
-                SELECT count(*) FROM sefaz_tentativas
+                SELECT CASE WHEN bool_or(nsu=$3) THEN 20 ELSE count(*) END FROM sefaz_tentativas
                 WHERE cnpj=$1 AND recuperacao AND tentado_em > $2 - interval '1 hour'
                 """, db, run);
             count.Parameters.AddWithValue(cnpj);
             count.Parameters.AddWithValue(now);
+            count.Parameters.AddWithValue(sent);
             if ((long?)await count.ExecuteScalarAsync(token) >= 20)
                 return null;
         }
@@ -82,12 +96,26 @@ public sealed class SefazSync(string connectionString, HttpClient client)
                 guard.Parameters.AddWithValue(cnpj);
                 await guard.ExecuteNonQueryAsync(token);
             }
+            if (scheduledSlot is { } slot)
+            {
+                await using var claim = new NpgsqlCommand("""
+                    INSERT INTO sefaz_agenda (cnpj,ultima_reserva) VALUES ($1,$2)
+                    ON CONFLICT (cnpj) DO UPDATE SET ultima_reserva=excluded.ultima_reserva
+                    WHERE sefaz_agenda.ultima_reserva < excluded.ultima_reserva
+                    """, attemptDb, reservation);
+                claim.Parameters.AddWithValue(cnpj);
+                claim.Parameters.AddWithValue(slot);
+                if (await claim.ExecuteNonQueryAsync(token) == 0)
+                    return null;
+            }
+
             await using var attempt = new NpgsqlCommand("""
-                INSERT INTO sefaz_tentativas(cnpj,recuperacao,tentado_em) VALUES ($1,$2,$3)
+                INSERT INTO sefaz_tentativas(cnpj,recuperacao,tentado_em,nsu) VALUES ($1,$2,$3,$4)
                 """, attemptDb, reservation);
             attempt.Parameters.AddWithValue(cnpj);
             attempt.Parameters.AddWithValue(recoveryNsu.HasValue);
             attempt.Parameters.AddWithValue(now);
+            attempt.Parameters.AddWithValue(sent);
             await attempt.ExecuteNonQueryAsync(token);
             await reservation.CommitAsync(token);
         }

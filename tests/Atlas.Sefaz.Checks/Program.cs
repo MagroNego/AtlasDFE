@@ -61,12 +61,15 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
 
     const string liveCnpj = "12345678000270";
     const string key = "33261112345678000270550010000962031000000000";
-    using var fake = new FakeSefaz($"<loteDistDFeInt>{EventDocument(91, key)}</loteDistDFeInt>");
+    const string cteKey = "33261112345678000270570010000962031000000000";
+    string documents = EventDocument(91, key) + EventDocument(92, key, "610600", cteKey)
+        + EventDocument(93, key, "610601", cteKey);
+    using var fake = new FakeSefaz($"<loteDistDFeInt>{documents}</loteDistDFeInt>");
     using var client = new HttpClient(fake);
     var live = new SefazSync(connection, client);
     var instant = DateTimeOffset.Parse("2026-11-14T01:00:00Z");
     var result = await live.RunAsync(liveCnpj, "33", 90, null, instant, new(22,0), new(4,0), default);
-    Check(result?.Cursor == 91 && fake.Requests == 1);
+    Check(result?.Cursor == 93 && fake.Requests == 1);
     Check(await live.RunAsync(liveCnpj, "33", null, null, instant, new(22,0), new(4,0), default) is null);
     Check(fake.Requests == 1);
     await using (var visible = new NpgsqlConnection(connection))
@@ -76,7 +79,28 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
         command.Parameters.AddWithValue(liveCnpj);
         command.Parameters.AddWithValue(key);
         Check((string?)await command.ExecuteScalarAsync() == "210200");
+        command.CommandText = "SELECT detalhe->'ctes'->0->>'status' FROM consulta_notas WHERE cnpj=$1 AND chave=$2";
+        Check((string?)await command.ExecuteScalarAsync() == "Cancelado");
+        command.CommandText = "SELECT jsonb_array_length(detalhe->'ctes') FROM consulta_notas WHERE cnpj=$1 AND chave=$2";
+        Check((int?)await command.ExecuteScalarAsync() == 1);
     }
+
+    var queue = new SefazQueue(connection);
+    await queue.EnqueueAsync(liveCnpj, 10, false, default);
+    await queue.EnqueueAsync(liveCnpj, 11, true, default);
+    var slot = new DateTimeOffset(DateTime.UtcNow.Date.AddDays(1).AddHours(3), TimeSpan.Zero);
+    using var recoveryTransport = new QueueSefaz();
+    using var recoveryClient = new HttpClient(recoveryTransport);
+    var scheduled = new SefazSync(connection, recoveryClient);
+    var recovered = await scheduled.RunAsync(liveCnpj, "33", null, null, slot, new(22,0), new(4,0), default,
+        scheduledSlot: slot);
+    Check(recovered?.Cursor == 93 && recoveryTransport.LastNsu == 11);
+    Check(await scheduled.RunAsync(liveCnpj, "33", null, null, slot, new(22,0), new(4,0), default,
+        scheduledSlot: slot) is null);
+    var queueItems = await queue.ListAsync(liveCnpj, default);
+    Check(queueItems.Single(row => row.Nsu == 11).Status == "indisponivel");
+    Check(queueItems.Single(row => row.Nsu == 10).Status == "pendente");
+    Check(await queue.CancelAsync(liveCnpj, 10, default));
 
     const string nsuSefaz = "<ultNSU>77</ultNSU>";
     Check((await Replay(42, false, Response(656, nsuSefaz))).Cursor == 42);
@@ -112,11 +136,11 @@ static void Invalid(Action action)
 }
 
 
-static string EventDocument(long nsu, string key)
+static string EventDocument(long nsu, string key, string code = "210200", string cteKey = "")
 {
     using var buffer = new MemoryStream();
     using (var gzip = new GZipStream(buffer, CompressionMode.Compress, leaveOpen: true))
-        gzip.Write(Encoding.UTF8.GetBytes($"<resEvento xmlns=\"http://www.portalfiscal.inf.br/nfe\"><chNFe>{key}</chNFe><tpEvento>210200</tpEvento><nProt>123</nProt><dhEvento>2026-11-14T01:00:00Z</dhEvento></resEvento>"));
+        gzip.Write(Encoding.UTF8.GetBytes($"<resEvento xmlns=\"http://www.portalfiscal.inf.br/nfe\"><chNFe>{key}</chNFe><tpEvento>{code}</tpEvento><chCTe>{cteKey}</chCTe><nProt>123</nProt><dhEvento>2026-11-14T01:00:00Z</dhEvento></resEvento>"));
     return $"<docZip NSU=\"{nsu}\" schema=\"resEvento_v1.01.xsd\">{Convert.ToBase64String(buffer.ToArray())}</docZip>";
 }
 
@@ -131,7 +155,23 @@ sealed class FakeSefaz(string lot) : HttpMessageHandler
             throw new InvalidOperationException("Cursor de envio inesperado.");
         return new(System.Net.HttpStatusCode.OK)
         {
-            Content = new StringContent($"<retDistDFeInt xmlns=\"http://www.portalfiscal.inf.br/nfe\"><cStat>138</cStat><ultNSU>91</ultNSU><maxNSU>91</maxNSU>{lot}</retDistDFeInt>"),
+            Content = new StringContent($"<retDistDFeInt xmlns=\"http://www.portalfiscal.inf.br/nfe\"><cStat>138</cStat><ultNSU>93</ultNSU><maxNSU>93</maxNSU>{lot}</retDistDFeInt>"),
+        };
+    }
+}
+
+sealed class QueueSefaz : HttpMessageHandler
+{
+    public long LastNsu { get; private set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+    {
+        string soap = await request.Content!.ReadAsStringAsync(token);
+        var xml = System.Xml.Linq.XElement.Parse(soap);
+        LastNsu = long.Parse(xml.Descendants().Single(e => e.Name.LocalName == "NSU").Value);
+        return new(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("<retDistDFeInt xmlns=\"http://www.portalfiscal.inf.br/nfe\"><cStat>137</cStat><ultNSU>0</ultNSU><maxNSU>0</maxNSU></retDistDFeInt>"),
         };
     }
 }

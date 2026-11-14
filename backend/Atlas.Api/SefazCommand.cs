@@ -47,6 +47,42 @@ internal static class SefazCommand
         }
     }
 
+    public static async Task<int> QueueAsync(string[] args, string connection, string cnpj)
+    {
+        var queue = new SefazQueue(connection);
+        try
+        {
+            if (args[0] == "--fila-nsu")
+            {
+                foreach (var item in await queue.ListAsync(cnpj, default))
+                    Console.WriteLine($"{item.Nsu:D15} | {(item.High ? "alta" : "normal")} | {item.Status}");
+                return 0;
+            }
+            long nsu = ParseNsu(args[1])!.Value;
+            if (args[0] == "--cancelar-nsu")
+            {
+                bool canceled = await queue.CancelAsync(cnpj, nsu, default);
+                Console.WriteLine(canceled ? "NSU removido da fila." : "NSU sem recuperação pendente.");
+                return canceled ? 0 : 1;
+            }
+            if (args[2] is not ("alta" or "normal"))
+                throw new ArgumentException("Informe a prioridade alta ou normal.");
+            await queue.EnqueueAsync(cnpj, nsu, args[2] == "alta", default);
+            Console.WriteLine($"NSU {nsu:D15} enfileirado.");
+            return 0;
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidDataException)
+        {
+            Console.Error.WriteLine(error.Message);
+            return 1;
+        }
+        catch (NpgsqlException)
+        {
+            Console.Error.WriteLine("Não foi possível acessar a fila no PostgreSQL.");
+            return 1;
+        }
+    }
+
     private static long? ParseNsu(string? text)
     {
         if (text is null)
@@ -56,7 +92,7 @@ internal static class SefazCommand
         return long.Parse(text, CultureInfo.InvariantCulture);
     }
 
-    private static X509Certificate2 Certificate(IConfiguration settings)
+    internal static X509Certificate2 Certificate(IConfiguration settings)
     {
         if (settings["Sefaz:CertificatePath"] is { Length: > 0 } path)
         {
