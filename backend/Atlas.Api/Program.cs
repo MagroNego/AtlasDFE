@@ -9,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 var importacaoLegada = args is ["--importar-historico", _];
-var builder = WebApplication.CreateBuilder(importacaoLegada ? [] : args);
+var replaySefaz = args is ["--reprocessar-sefaz", _, _, _];
+var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz ? [] : args);
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("Database");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -116,6 +117,39 @@ if (importacaoLegada)
     finally
     {
         Console.CancelKeyPress -= stop;
+    }
+    return;
+}
+
+if (replaySefaz)
+{
+    try
+    {
+        if (args[1] is not ("distNSU" or "consNSU") ||
+            !long.TryParse(args[2], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out long nsu))
+            throw new ArgumentException("Use --reprocessar-sefaz distNSU|consNSU NSU arquivo.xml.");
+
+        var arquivo = new FileInfo(args[3]);
+        if (arquivo.Length is 0 or > 32 * 1024 * 1024)
+            throw new InvalidDataException("O arquivo de resposta está vazio ou excede 32 MiB.");
+        await using var leitura = arquivo.OpenRead();
+        var dados = new byte[(int)leitura.Length];
+        await leitura.ReadExactlyAsync(dados);
+        var resultado = await new SefazInbox(connectionString).ReplayAsync(
+            cnpj, nsu, args[1] == "consNSU", dados, CancellationToken.None);
+        Console.WriteLine($"cStat {resultado.Status} | cursor {resultado.Cursor:D15} | documentos {resultado.Documents}");
+        Environment.ExitCode = resultado.Status is 137 or 138 ? 0 : 1;
+    }
+    catch (Exception error) when (error is InvalidDataException or IOException or ArgumentException)
+    {
+        Console.Error.WriteLine(error.Message);
+        Environment.ExitCode = 1;
+    }
+    catch (NpgsqlException)
+    {
+        Console.Error.WriteLine("Não foi possível gravar a resposta. Verifique a conexão e as migrações do PostgreSQL.");
+        Environment.ExitCode = 1;
     }
     return;
 }

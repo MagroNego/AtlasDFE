@@ -77,3 +77,16 @@ ConnectionStrings__Database="Host=127.0.0.1;Port=${ATLAS_DB_PORT:-55432};Databas
   dotnet run --project backend/Atlas.Api -- --importar-historico /caminho/nfe_manifestacoes_seguro.db
 unset Atlas__LegacyPassword
 ```
+
+## Reprocessar respostas SEFAZ em ambiente de teste
+
+A implementação em C# monta SOAP para `distNSU` e `consNSU`, lê os retornos compactados e valida os NSUs. O replay usa o arquivo bruto de uma consulta já realizada e as tabelas `sefaz_*` do PostgreSQL. Use um banco separado para validar a sequência histórica. Rode a migração antes do replay e configure `Atlas__Cnpj` e `ConnectionStrings__Database`.
+
+```bash
+dotnet run --project backend/Atlas.Api -- --migrate
+dotnet run --project backend/Atlas.Api -- --reprocessar-sefaz distNSU 000000000000041 /caminho/resposta.xml
+```
+
+Informe o NSU enviado na requisição original. Para `consNSU`, carregue primeiro uma resposta `distNSU` que estabeleça o cursor. O replay guarda o XML bruto antes de validar, grava os documentos e o cursor juntos e ignora a reaplicação da mesma resposta. O processamento de `consNSU` e a rejeição 656 preservam o cursor. A Consulta continua lendo a cópia importada. A integração com certificado, as chamadas ao vivo, a fila prioritária, o agendamento e a atualização da Consulta a partir dos documentos recebidos ficam no fluxo Python nesta etapa.
+
+O teste de protocolo roda com `dotnet run --project tests/Atlas.Sefaz.Checks`. Para executar também a integração, configure `ATLAS_TEST_DATABASE` apontando para um PostgreSQL de teste vazio cujo nome comece por `atlas_test_` e aplique as migrações nele antes de executar.
