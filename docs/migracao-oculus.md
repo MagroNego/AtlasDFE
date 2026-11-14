@@ -135,6 +135,16 @@ Entre no Atlas e abra **Emissão**. A tela importa XMLs ou ZIPs de NF-e do CNPJ 
 
 O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
 
-As telas administrativas de contas, SMTP e auditoria ainda estão no aplicativo Python. A nova versão tem telas para a fila de NSU e para registrar ou remover marcação local de cancelamento. O histórico registra usuário, motivo e data. A remoção de marcação local preserva cancelamentos reconhecidos pela SEFAZ.
+A nova versão tem telas para a fila de NSU e para registrar ou remover marcação local de cancelamento. O histórico registra usuário, motivo e data. A remoção de marcação local preserva cancelamentos reconhecidos pela SEFAZ.
 
 Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.
+
+## Contas e auditoria
+
+A conta criada por `--bootstrap-admin` recebe o perfil Administrador. Se a conta já foi criada em uma revisão anterior do Atlas C#, aplique as migrações e execute `dotnet run --project backend/Atlas.Api -- --promover-admin email@empresa.com` para o e-mail escolhido. Use o painel **Administração → Contas e auditoria** para cadastrar usuários, trocar senhas e bloquear ou liberar acessos. As contas antigas do Python precisam ser cadastradas novamente.
+
+## Alertas por e-mail
+
+Configure `Smtp__Enabled=true`, `Smtp__Host`, `Smtp__From` e `Smtp__Recipients` (e-mails separados por vírgula). Use `Smtp__Security=starttls` ou `ssl`, com portas padrão 587 e 465 respectivamente. Para autenticação, use `Smtp__User` e `Smtp__PasswordFile` apontando para um arquivo privado. Em Docker, monte o arquivo como segredo no serviço da API. A fila de alertas de Operação não Realizada fica no PostgreSQL. A API tenta novamente após 15 minutos em caso de erro. Configure os destinatários usando o ambiente da API.
+
+Os alertas anteriores ao corte continuam no histórico legado. A transferência do banco fiscal não reenvia e-mails históricos. Após o SMTP aceitar uma mensagem, uma interrupção antes de confirmar a entrega no banco pode levar a uma nova tentativa.

@@ -40,7 +40,8 @@ internal static class FiscalEndpoints
         }).RequireAuthorization();
 
         var queue = new SefazQueue(connection);
-        var admin = app.MapGroup("/api/admin").RequireAuthorization();
+        var admin = app.MapGroup("/api/admin").RequireAuthorization(policy => policy.RequireRole(Administration.Role));
+        admin.MapAccounts(cnpj);
         var corrections = new ManualStatus(connection);
         admin.MapGet("/situacao", async (CancellationToken token) => Results.Ok(await corrections.HistoryAsync(cnpj, token)));
         admin.MapPost("/situacao", async (ManualInput input, HttpContext http, IAntiforgery csrf, CancellationToken token) =>
@@ -108,7 +109,7 @@ internal static class FiscalEndpoints
                 foreach (var (_, stream) in streams)
                     await stream.DisposeAsync();
             }
-        });
+        }).RequireAuthorization(policy => policy.RequireRole(Administration.Role));
 
         group.MapGet("", async (string? busca, DateOnly? inicio, DateOnly? fim, string? situacao, int? pagina, CancellationToken token) =>
         {

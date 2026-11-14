@@ -7,6 +7,7 @@ type Report = { notas: Note[]; mais: boolean };
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function Emissao() {
+  const [administrator, setAdministrator] = useState(false);
   const [report, setReport] = useState<Report>();
   const [filters, setFilters] = useState("");
   const [page, setPage] = useState(1);
@@ -30,6 +31,8 @@ export default function Emissao() {
   }
 
   useEffect(() => {
+    void fetch("/api/sessao").then(response => response.json())
+      .then(session => setAdministrator(session.administrador === true)).catch(() => undefined);
     void read("", 1).catch(() => setMessage("Não foi possível carregar a Emissão."));
   }, []);
 
@@ -74,10 +77,10 @@ export default function Emissao() {
     <header><a className="marca" href="/">Atlas <span>DFE</span></a><a href="/">Consulta</a></header>
     <section className="painel">
       <h1>Emissão</h1>
-      <form onSubmit={upload}>
+      {administrator && <form onSubmit={upload}>
         <label>Importar XML ou ZIP<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
         <button disabled={busy}>Importar</button>
-      </form>
+      </form>}
       <form onSubmit={search}>
         <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} /></label>
         <div className="emissao-filtros">

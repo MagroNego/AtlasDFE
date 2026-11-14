@@ -12,7 +12,8 @@ var importacaoLegada = args is ["--importar-historico", _];
 var replaySefaz = args is ["--reprocessar-sefaz", _, _, _];
 var syncSefaz = args is ["--sincronizar-sefaz"] or ["--recuperar-nsu", _];
 var queueSefaz = args is ["--fila-nsu"] or ["--enfileirar-nsu", _, _] or ["--cancelar-nsu", _];
-var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz || syncSefaz || queueSefaz ? [] : args);
+var promoteAdmin = args is ["--promover-admin", _];
+var builder = WebApplication.CreateBuilder(importacaoLegada || replaySefaz || syncSefaz || queueSefaz || promoteAdmin ? [] : args);
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("Database");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -36,6 +37,7 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<AtlasDbContext>();
 builder.Services.AddAuthorization();
+builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -44,6 +46,11 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Events.OnRedirectToLogin = context =>
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
         return Task.CompletedTask;
     };
     options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
@@ -62,21 +69,40 @@ var dataProtection = builder.Services.AddDataProtection().SetApplicationName("At
 if (configuration["DataProtection:Path"] is { Length: > 0 } keyPath)
     dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keyPath));
 
-if (configuration.GetValue<bool>("Sefaz:ScheduleEnabled") && !args.Any(arg => arg is
-    "--migrate" or "--bootstrap-admin" or "--importar-historico" or "--reprocessar-sefaz" or "--sincronizar-sefaz"
-    or "--recuperar-nsu" or "--fila-nsu" or "--enfileirar-nsu" or "--cancelar-nsu"))
+var serviceMode = !args.Any(arg => arg is
+    "--migrate" or "--bootstrap-admin" or "--promover-admin" or "--importar-historico" or "--reprocessar-sefaz" or "--sincronizar-sefaz"
+    or "--recuperar-nsu" or "--fila-nsu" or "--enfileirar-nsu" or "--cancelar-nsu");
+if (serviceMode && configuration.GetValue<bool>("Sefaz:ScheduleEnabled"))
 {
     var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
     builder.Services.AddHostedService(provider => new SefazScheduler(
         configuration, connectionString, company, provider.GetRequiredService<ILogger<SefazScheduler>>()));
 }
 
+if (serviceMode && SmtpAlerts.Enabled(configuration))
+{
+    var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
+    builder.Services.AddHostedService(provider => new SmtpAlerts(
+        connectionString, company, configuration, provider.GetRequiredService<ILogger<SmtpAlerts>>()));
+}
+
 var app = builder.Build();
-if (args is ["--migrate"] or ["--bootstrap-admin"])
+if (promoteAdmin || args is ["--migrate"] or ["--bootstrap-admin"])
 {
     await using var scope = app.Services.CreateAsyncScope();
     if (args[0] == "--migrate")
         await scope.ServiceProvider.GetRequiredService<AtlasDbContext>().Database.MigrateAsync();
+    else if (promoteAdmin)
+    {
+        var provider = scope.ServiceProvider;
+        var db = provider.GetRequiredService<AtlasDbContext>();
+        await using var tx = await db.Database.BeginTransactionAsync();
+        await Administration.LockAsync(db, default);
+        var user = await provider.GetRequiredService<UserManager<IdentityUser>>().FindByEmailAsync(args[1])
+            ?? throw new InvalidOperationException("Conta não encontrada.");
+        await Administration.AssignAdminAsync(provider, user);
+        await tx.CommitAsync();
+    }
     else
         await CriarAdministrador(scope.ServiceProvider, configuration);
     return;
@@ -193,7 +219,7 @@ app.UseRateLimiter();
 app.Map("/erro", () => Results.Problem());
 app.MapGet("/health", () => Results.Ok()).AllowAnonymous();
 app.MapGet("/api/sessao", (HttpContext http, IAntiforgery csrf) =>
-    Results.Ok(new { autenticado = http.User.Identity?.IsAuthenticated == true,
+    Results.Ok(new { autenticado = http.User.Identity?.IsAuthenticated == true, administrador = http.User.IsInRole(Administration.Role),
         token = csrf.GetAndStoreTokens(http).RequestToken })).AllowAnonymous();
 app.MapPost("/api/login", async (
     Credenciais input, HttpContext http, IAntiforgery csrf, SignInManager<IdentityUser> login) =>
@@ -255,9 +281,9 @@ static async Task CriarAdministrador(IServiceProvider services, IConfiguration c
     var senha = configuration["Bootstrap:Password"];
     if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(senha))
         throw new InvalidOperationException("Configure Bootstrap__Email e Bootstrap__Password.");
-    var resultado = await users.CreateAsync(new IdentityUser { UserName = email, Email = email }, senha);
-    if (!resultado.Succeeded)
-        throw new InvalidOperationException(string.Join(" ", resultado.Errors.Select(e => e.Description)));
+    var user = new IdentityUser { UserName = email, Email = email, LockoutEnabled = true };
+    Administration.Ensure(await users.CreateAsync(user, senha));
+    await Administration.AssignAdminAsync(services, user);
     await transaction.CommitAsync();
 }
 

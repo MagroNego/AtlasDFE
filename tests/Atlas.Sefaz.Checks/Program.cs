@@ -63,13 +63,13 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     const string key = "33261112345678000270550010000962031000000000";
     const string cteKey = "33261112345678000270570010000962031000000000";
     string documents = EventDocument(91, key) + EventDocument(92, key, "610600", cteKey)
-        + EventDocument(93, key, "610601", cteKey);
+        + EventDocument(93, key, "610601", cteKey) + EventDocument(94, key, "210240");
     using var fake = new FakeSefaz($"<loteDistDFeInt>{documents}</loteDistDFeInt>");
     using var client = new HttpClient(fake);
     var live = new SefazSync(connection, client);
     var instant = DateTimeOffset.Parse("2026-11-14T01:00:00Z");
     var result = await live.RunAsync(liveCnpj, "33", 90, null, instant, new(22,0), new(4,0), default);
-    Check(result?.Cursor == 93 && fake.Requests == 1);
+    Check(result?.Cursor == 94 && fake.Requests == 1);
     Check(await live.RunAsync(liveCnpj, "33", null, null, instant, new(22,0), new(4,0), default) is null);
     Check(fake.Requests == 1);
     await using (var visible = new NpgsqlConnection(connection))
@@ -83,6 +83,8 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
         Check((string?)await command.ExecuteScalarAsync() == "Cancelado");
         command.CommandText = "SELECT jsonb_array_length(detalhe->'ctes') FROM consulta_notas WHERE cnpj=$1 AND chave=$2";
         Check((int?)await command.ExecuteScalarAsync() == 1);
+        command.CommandText = "SELECT count(*) FROM atlas_alertas WHERE cnpj=$1 AND chave=$2 AND nsu=94";
+        Check((long?)await command.ExecuteScalarAsync() == 1);
     }
 
     var queue = new SefazQueue(connection);
@@ -94,7 +96,7 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     var scheduled = new SefazSync(connection, recoveryClient);
     var recovered = await scheduled.RunAsync(liveCnpj, "33", null, null, slot, new(22,0), new(4,0), default,
         scheduledSlot: slot);
-    Check(recovered?.Cursor == 93 && recoveryTransport.LastNsu == 11);
+    Check(recovered?.Cursor == 94 && recoveryTransport.LastNsu == 11);
     Check(await scheduled.RunAsync(liveCnpj, "33", null, null, slot, new(22,0), new(4,0), default,
         scheduledSlot: slot) is null);
     var queueItems = await queue.ListAsync(liveCnpj, default);
@@ -110,7 +112,7 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     var nextSlot = slot.AddHours(1);
     var gapResult = await scheduled.RunAsync(liveCnpj, "33", null, null, nextSlot, new(22,0), new(5,0), default,
         scheduledSlot: nextSlot);
-    Check(gapResult?.Cursor == 93 && recoveryTransport.LastNsu == 12);
+    Check(gapResult?.Cursor == 94 && recoveryTransport.LastNsu == 12);
     Check(await queue.CancelAsync(liveCnpj, 10, default));
 
     const string nsuSefaz = "<ultNSU>77</ultNSU>";
@@ -166,7 +168,7 @@ sealed class FakeSefaz(string lot) : HttpMessageHandler
             throw new InvalidOperationException("Cursor de envio inesperado.");
         return new(System.Net.HttpStatusCode.OK)
         {
-            Content = new StringContent($"<retDistDFeInt xmlns=\"http://www.portalfiscal.inf.br/nfe\"><cStat>138</cStat><ultNSU>93</ultNSU><maxNSU>93</maxNSU>{lot}</retDistDFeInt>"),
+            Content = new StringContent($"<retDistDFeInt xmlns=\"http://www.portalfiscal.inf.br/nfe\"><cStat>138</cStat><ultNSU>94</ultNSU><maxNSU>94</maxNSU>{lot}</retDistDFeInt>"),
         };
     }
 }

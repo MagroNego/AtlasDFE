@@ -130,6 +130,21 @@ internal static class SefazConsulta
         command.Parameters.AddWithValue(NpgsqlDbType.Jsonb,
             JsonSerializer.Serialize(new { cancelada = canceled, eventos = events, ctes = links }));
         await command.ExecuteNonQueryAsync(token);
+        if (acceptedEvent && code == "210240" && !imported)
+        {
+            await using var alert = new NpgsqlCommand("""
+                INSERT INTO atlas_alertas(cnpj,nsu,chave)
+                SELECT $1,$2,$3 WHERE EXISTS (
+                    SELECT 1 FROM consulta_notas n, jsonb_array_elements(n.detalhe->'eventos') e
+                    WHERE n.cnpj=$1 AND n.chave=$3 AND e->>'codigo'='210240' AND e->>'nsu'=$4
+                ) ON CONFLICT DO NOTHING
+                """, db, tx);
+            alert.Parameters.AddWithValue(cnpj);
+            alert.Parameters.AddWithValue(document.Nsu);
+            alert.Parameters.AddWithValue(key);
+            alert.Parameters.AddWithValue(document.Nsu.ToString("D15", CultureInfo.InvariantCulture));
+            await alert.ExecuteNonQueryAsync(token);
+        }
 
         static string First(string value, string fallback) => value.Length > 0 ? value : fallback;
     }

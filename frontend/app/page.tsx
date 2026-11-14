@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Sessao = { autenticado: boolean; token: string };
+type Sessao = { autenticado: boolean; administrador: boolean; token: string };
 type Evento = { codigo: string; descricao: string; data: string; protocolo: string; nsu: string; correcao: string };
 type Cte = { chave: string; status: string; transportadora: string; data: string };
 type Nota = { chave: string; numero: number; serie: number; detalhe: { cancelada: boolean; eventos: Evento[]; ctes: Cte[] } };
@@ -93,7 +93,7 @@ export default function Consulta() {
   return <main>
     <header>
       <a href="/" className="marca">Atlas <span>DFE</span></a>
-      {sessao?.autenticado && <nav><a href="/emissao">Emissão</a><a href="/aging">Aging</a><a href="/admin">Fila NSU</a><button className="secundario" disabled={ocupado} onClick={() => void autenticar("logout")}>Sair</button></nav>}
+      {sessao?.autenticado && <nav><a href="/emissao">Emissão</a><a href="/aging">Aging</a>{sessao.administrador && <a href="/admin">Administração</a>}<button className="secundario" disabled={ocupado} onClick={() => void autenticar("logout")}>Sair</button></nav>}
     </header>
     {erro && <p role="alert" className="erro">{erro}</p>}
     {!sessao && !erro && <p role="status">Carregando…</p>}

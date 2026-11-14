@@ -110,3 +110,21 @@ def test_fiscal_http():
         assert change.status_code == 204, change.text
         assert not client.get("/api/consulta", params={"busca": key}).json()["notas"][0]["detalhe"]["cancelada"]
         assert [item["cancelada"] for item in client.get("/api/admin/situacao").json()] == [False, True]
+        created = client.post("/api/admin/contas", json={
+            "email": "consulta@example.com", "acao": "criar", "senha": "Atlas-Consulta-2026!",
+        }, headers=h)
+        assert created.status_code == 204, created.text
+        assert any(entry["acao"] == "conta.criar" for entry in client.get("/api/admin/auditoria").json())
+        with httpx.Client(base_url=os.environ["ATLAS_TEST_FISCAL_URL"], trust_env=False) as viewer:
+            token = viewer.get("/api/sessao").json()["token"]
+            assert viewer.post("/api/login", json={
+                "email": "consulta@example.com", "senha": "Atlas-Consulta-2026!",
+            }, headers={"X-CSRF-TOKEN": token}).status_code == 204
+            assert viewer.get("/api/emissao").status_code == 200
+            assert viewer.get("/api/admin/contas").status_code == 403
+            assert viewer.get("/api/admin/fila-nsu").status_code == 403
+            disabled = client.post("/api/admin/contas", json={
+                "email": "consulta@example.com", "acao": "bloquear",
+            }, headers=h)
+            assert disabled.status_code == 204, disabled.text
+            assert viewer.get("/api/emissao").status_code == 401
