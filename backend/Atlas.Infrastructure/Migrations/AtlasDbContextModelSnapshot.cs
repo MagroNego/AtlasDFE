@@ -74,6 +74,27 @@ namespace Atlas.Infrastructure.Migrations
                     b.ToTable("consulta_notas", (string)null);
                 });
 
+            modelBuilder.Entity("Atlas.Infrastructure.SituacaoManual", b =>
+                {
+                    b.Property<bool>("Cancelada")
+                        .HasColumnType("boolean")
+                        .HasColumnName("cancelada");
+
+                    b.Property<string>("Chave")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("chave");
+
+                    b.Property<string>("Cnpj")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("cnpj");
+
+                    b.ToTable((string)null);
+
+                    b.ToView("atlas_situacao_atual", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")

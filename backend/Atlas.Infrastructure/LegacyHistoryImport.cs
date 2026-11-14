@@ -79,6 +79,7 @@ public static class LegacyHistoryImport
         finish.Parameters.AddWithValue("total", count);
         if (await finish.ExecuteNonQueryAsync(cancellationToken) == 0)
             throw new InvalidDataException("A origem não tem notas deste CNPJ. A cópia anterior foi preservada.");
+        await ManualStatus.ImportAsync(read, write, cnpj, cancellationToken);
         await LegacyEmissionImport.RunAsync(read, write, cnpj, cancellationToken);
         await new LegacySefazImport(read, write, cnpj).RunAsync(cancellationToken);
         await write.CommitAsync(cancellationToken);
@@ -139,7 +140,7 @@ public static class LegacyHistoryImport
 
         private bool Cancelled(string key)
         {
-            return Exists("informacoes_nfe", "AND cancelada=1") || Exists("cancelamentos_manuais", "");
+            return Exists("informacoes_nfe", "AND cancelada=1");
 
             bool Exists(string table, string condition)
             {

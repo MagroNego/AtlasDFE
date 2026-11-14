@@ -21,15 +21,31 @@ public sealed class ImportacaoConsulta
     public DateTime ImportadoEm { get; init; }
 }
 
+public sealed class SituacaoManual
+{
+    public required string Cnpj { get; init; }
+    public required string Chave { get; init; }
+    public bool Cancelada { get; init; }
+}
+
 public sealed class AtlasDbContext(DbContextOptions<AtlasDbContext> options)
     : IdentityDbContext<IdentityUser>(options)
 {
     public DbSet<NotaConsulta> Notas => Set<NotaConsulta>();
     public DbSet<ImportacaoConsulta> Importacoes => Set<ImportacaoConsulta>();
 
+    public DbSet<SituacaoManual> Situacoes => Set<SituacaoManual>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<SituacaoManual>(status =>
+        {
+            status.ToView("atlas_situacao_atual").HasNoKey();
+            status.Property(s => s.Cnpj).HasColumnName("cnpj");
+            status.Property(s => s.Chave).HasColumnName("chave");
+            status.Property(s => s.Cancelada).HasColumnName("cancelada");
+        });
         builder.Entity<NotaConsulta>(nota =>
         {
             nota.ToTable("consulta_notas");

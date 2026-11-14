@@ -41,6 +41,23 @@ internal static class FiscalEndpoints
 
         var queue = new SefazQueue(connection);
         var admin = app.MapGroup("/api/admin").RequireAuthorization();
+        var corrections = new ManualStatus(connection);
+        admin.MapGet("/situacao", async (CancellationToken token) => Results.Ok(await corrections.HistoryAsync(cnpj, token)));
+        admin.MapPost("/situacao", async (ManualInput input, HttpContext http, IAntiforgery csrf, CancellationToken token) =>
+        {
+            if (!await csrf.IsRequestValidAsync(http))
+                return Results.BadRequest(new { erro = "Sessão expirada." });
+            try
+            {
+                await corrections.ApplyAsync(cnpj, input.Nota ?? "", input.Cancelada,
+                    http.User.Identity?.Name ?? "", input.Motivo ?? "", token);
+                return Results.NoContent();
+            }
+            catch (InvalidDataException error)
+            {
+                return Results.BadRequest(new { erro = error.Message });
+            }
+        });
         admin.MapGet("/fila-nsu", async (CancellationToken token) => Results.Ok(await queue.ListAsync(cnpj, token)));
         admin.MapPost("/fila-nsu", async (QueueInput input, HttpContext http, IAntiforgery csrf,
             CancellationToken token) =>
@@ -158,13 +175,16 @@ internal static class FiscalEndpoints
             var query = db.Notas.AsNoTracking().Where(note => note.Cnpj == cnpj);
             query = id.Chave is not null ? query.Where(note => note.Chave == id.Chave)
                 : query.Where(note => note.Numero == id.Numero);
-            var notes = await query.OrderBy(note => note.Chave).Take(1001).ToListAsync(token);
+            var notes = await query.OrderBy(note => note.Chave).Take(1001)
+                .Select(note => new { note.Chave, note.Numero, note.Serie, note.Detalhe,
+                    Manual = db.Situacoes.Any(s => s.Cnpj == note.Cnpj && s.Chave == note.Chave && s.Cancelada) })
+                .ToListAsync(token);
             if (notes.Count > 1000)
                 return Results.BadRequest(new { erro = "Use a chave para restringir a busca." });
             var rows = new List<object[]>();
             foreach (var note in notes)
             {
-                bool canceled = note.Detalhe.GetProperty("cancelada").GetBoolean();
+                bool canceled = note.Manual || note.Detalhe.GetProperty("cancelada").GetBoolean();
                 string status = canceled ? "Cancelada" : "Autorizada";
                 var events = note.Detalhe.GetProperty("eventos");
                 if (events.GetArrayLength() == 0)
@@ -182,6 +202,11 @@ internal static class FiscalEndpoints
         }).RequireAuthorization();
     }
 
+    internal static JsonElement MergeStatus(JsonElement details, bool manual) => manual
+        ? JsonSerializer.SerializeToElement(new { cancelada = true, eventos = details.GetProperty("eventos"), ctes = details.GetProperty("ctes") })
+        : details;
+
+    private sealed record ManualInput(string? Nota, bool Cancelada, string? Motivo);
     private sealed record QueueInput(string? Nsu, bool Alta, bool Cancelar);
 
     private static bool Valid(string? query, DateOnly? start, DateOnly? end, string? status) =>

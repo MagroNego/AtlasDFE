@@ -99,3 +99,14 @@ def test_fiscal_http():
         assert any(item["nsu"] == 55 and item["high"] for item in client.get("/api/admin/fila-nsu").json())
         canceled = client.post("/api/admin/fila-nsu", json={"nsu": "55", "cancelar": True}, headers=h)
         assert canceled.status_code == 204, canceled.text
+        marking = {"nota": key, "cancelada": True, "motivo": "Conferência interna"}
+        assert client.post("/api/admin/situacao", json=marking).status_code == 400
+        change = client.post("/api/admin/situacao", json=marking, headers=h)
+        assert change.status_code == 204, change.text
+        assert client.get("/api/emissao", params={"situacao": "cancelada"}).json()["notas"][0]["chave"] == key
+        assert client.get("/api/consulta", params={"busca": key}).json()["notas"][0]["detalhe"]["cancelada"]
+        marking["cancelada"] = False
+        change = client.post("/api/admin/situacao", json=marking, headers=h)
+        assert change.status_code == 204, change.text
+        assert not client.get("/api/consulta", params={"busca": key}).json()["notas"][0]["detalhe"]["cancelada"]
+        assert [item["cancelada"] for item in client.get("/api/admin/situacao").json()] == [False, True]

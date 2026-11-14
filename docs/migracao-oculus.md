@@ -135,6 +135,6 @@ Entre no Atlas e abra **Emissão**. A tela importa XMLs ou ZIPs de NF-e do CNPJ 
 
 O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
 
-As telas administrativas de contas, SMTP e auditoria ainda estão no aplicativo Python. A fila de NSU possui uma tela própria na nova versão.
+As telas administrativas de contas, SMTP e auditoria ainda estão no aplicativo Python. A nova versão tem telas para a fila de NSU e para registrar ou remover marcação local de cancelamento. O histórico registra usuário, motivo e data. A remoção de marcação local preserva cancelamentos reconhecidos pela SEFAZ.
 
 Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.

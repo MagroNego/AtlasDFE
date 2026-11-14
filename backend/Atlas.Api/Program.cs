@@ -232,10 +232,11 @@ app.MapGet("/api/consulta", async (
         : consulta.Where(n => n.Numero == nota.Numero);
     var linhas = await consulta.OrderBy(n => n.Chave)
         .Skip(((pagina ?? 1) - 1) * tamanho).Take(tamanho + 1)
-        .Select(n => new { n.Chave, n.Numero, n.Serie, n.Detalhe })
+        .Select(n => new { n.Chave, n.Numero, n.Serie, n.Detalhe, Manual = banco.Situacoes.Any(s => s.Cnpj == n.Cnpj && s.Chave == n.Chave && s.Cancelada) })
         .ToListAsync(cancelamento);
 
-    return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho), mais = linhas.Count > tamanho });
+    return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho).Select(n => new { n.Chave, n.Numero, n.Serie,
+        Detalhe = FiscalEndpoints.MergeStatus(n.Detalhe, n.Manual) }), mais = linhas.Count > tamanho });
 }).RequireAuthorization();
 
 app.MapFiscal(connectionString, cnpj);

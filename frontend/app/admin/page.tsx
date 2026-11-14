@@ -47,7 +47,7 @@ export default function Admin() {
   }
 
   return <main>
-    <header><a className="marca" href="/">Atlas <span>DFE</span></a><a href="/">Consulta</a></header>
+    <header><a className="marca" href="/">Atlas <span>DFE</span></a><nav><a href="/admin/situacao">Situação manual</a><a href="/">Consulta</a></nav></header>
     <section className="painel">
       <h1>Fila de recuperação NSU</h1>
       <form onSubmit={add}>

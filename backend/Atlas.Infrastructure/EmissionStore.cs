@@ -174,13 +174,14 @@ public sealed class EmissionStore(string connection)
         await db.OpenAsync(token);
         await using var command = new NpgsqlCommand("""
             SELECT e.chave,e.numero,e.serie,e.emissao,e.emitente,e.destinatario,e.valor,jsonb_array_length(e.itens),
-                coalesce((n.detalhe->>'cancelada')::boolean,false) AS cancelada,e.pis_retido,e.cofins_retido
+                (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false)) AS cancelada,e.pis_retido,e.cofins_retido
             FROM emissao_notas e LEFT JOIN consulta_notas n USING (cnpj,chave)
+            LEFT JOIN atlas_situacao_atual m USING (cnpj,chave)
             WHERE e.cnpj=$1 AND ($2='' OR strpos(lower(concat_ws(' ',e.chave,e.numero,e.emitente,e.destinatario)),lower($2))>0
                 OR EXISTS (SELECT 1 FROM jsonb_array_elements(e.itens) AS i
                     WHERE strpos(lower(concat_ws(' ',i->>'Codigo',i->>'Descricao',i->>'NCM')),lower($2))>0))
                 AND ($3 IS NULL OR e.emissao >= $3) AND ($4 IS NULL OR e.emissao <= $4)
-                AND ($5='' OR coalesce((n.detalhe->>'cancelada')::boolean,false)=($5='cancelada'))
+                AND ($5='' OR (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false))=($5='cancelada'))
             ORDER BY e.emissao DESC,e.chave LIMIT $6 OFFSET $7
             """, db);
         command.Parameters.AddWithValue(cnpj);
