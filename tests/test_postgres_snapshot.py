@@ -2,11 +2,13 @@ import os
 import subprocess
 from contextlib import closing
 from pathlib import Path
+from decimal import Decimal
 
 import pytest
 
 from nfe_consulta.banco import BancoManifestacoes
 from nfe_consulta.seguranca_banco import abrir_banco, migrar_banco
+from nfe_consulta.web.xml_store import _schema
 
 
 CNPJ = "12345678000350"
@@ -67,6 +69,20 @@ def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
         "INSERT INTO documentos_nsu(cnpj,nsu,schema_xml,xml,classificacao) VALUES (?,?,?,?,?)",
         (CNPJ, "000000000000043", "schema", b"<documento />", "ignorado"),
     )
+    _schema(banco.conexao)
+    banco.conexao.execute(
+        "INSERT INTO xml_documentos VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (CNPJ, CHAVE, "96203", "1", "2026-11-13", "Emitente", "Cliente", "31.00", 1,
+         "nota.xml", "hash", b"", "2026-11-13 12:00:00"),
+    )
+    banco.conexao.execute(
+        "INSERT INTO xml_relatorio VALUES (?,?,?,?,?,?)",
+        (CNPJ, CHAVE, "itens", 1, '{"Codigo":"ABC"}', "abc"),
+    )
+    banco.conexao.execute(
+        "INSERT INTO xml_relatorio VALUES (?,?,?,?,?,?)",
+        (CNPJ, CHAVE, "retencoes", 1, '{"Vl. PIS Retido":"0,31","Vl. COFINS Retido":"1,55"}', "pcc"),
+    )
     banco.conexao.commit()
     banco.fechar()
 
@@ -92,6 +108,10 @@ def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
         assert pg.execute("SELECT inicio,fim FROM sefaz_lacunas WHERE cnpj=%s", (CNPJ,)).fetchone() == (42, 48)
         assert pg.execute("SELECT nsu FROM sefaz_cobertura WHERE cnpj=%s", (CNPJ,)).fetchone() == (43,)
         assert pg.execute("SELECT nsu FROM sefaz_tentativas WHERE cnpj=%s AND legada", (CNPJ,)).fetchone() == (44,)
+        assert pg.execute("SELECT numero,itens FROM emissao_notas WHERE cnpj=%s", (CNPJ,)).fetchone() == (96203, [{"Codigo": "ABC"}])
+        assert pg.execute("SELECT pis_retido,cofins_retido FROM emissao_notas WHERE cnpj=%s", (CNPJ,)).fetchone() == (
+            Decimal("0.31"), Decimal("1.55"),
+        )
         numero, serie, detalhe = pg.execute(
             "SELECT numero, serie, detalhe FROM consulta_notas WHERE cnpj=%s AND chave=%s", (CNPJ, CHAVE)
         ).fetchone()

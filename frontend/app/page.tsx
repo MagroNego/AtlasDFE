@@ -93,7 +93,7 @@ export default function Consulta() {
   return <main>
     <header>
       <a href="/" className="marca">Atlas <span>DFE</span></a>
-      {sessao?.autenticado && <button className="secundario" disabled={ocupado} onClick={() => void autenticar("logout")}>Sair</button>}
+      {sessao?.autenticado && <nav><a href="/emissao">Emissão</a><a href="/aging">Aging</a><a href="/admin">Fila NSU</a><button className="secundario" disabled={ocupado} onClick={() => void autenticar("logout")}>Sair</button></nav>}
     </header>
     {erro && <p role="alert" className="erro">{erro}</p>}
     {!sessao && !erro && <p role="status">Carregando…</p>}
@@ -116,6 +116,7 @@ export default function Consulta() {
         </div>
       </form>
       {resultado && <div className="resultado">
+        {resultado.notas.length > 0 && <a href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Excel</a>}
         <p role="status">{resultado.importadoEm
           ? `Histórico importado em ${dataBR.format(new Date(resultado.importadoEm))}`
           : "Consulta de documentos recebidos pela SEFAZ."}</p>

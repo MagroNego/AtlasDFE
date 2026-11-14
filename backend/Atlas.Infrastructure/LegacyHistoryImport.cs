@@ -79,6 +79,7 @@ public static class LegacyHistoryImport
         finish.Parameters.AddWithValue("total", count);
         if (await finish.ExecuteNonQueryAsync(cancellationToken) == 0)
             throw new InvalidDataException("A origem não tem notas deste CNPJ. A cópia anterior foi preservada.");
+        await LegacyEmissionImport.RunAsync(read, write, cnpj, cancellationToken);
         await new LegacySefazImport(read, write, cnpj).RunAsync(cancellationToken);
         await write.CommitAsync(cancellationToken);
         return count;

@@ -4,7 +4,7 @@ A nova Consulta usa Next.js e TypeScript no frontend. O backend usa ASP.NET Core
 
 A busca aceita número da NF-e ou chave de acesso. Ela mostra eventos, CC-e, vínculos CT-e e a situação de cancelamento da cópia local. A tela informa quando houve a última importação. Várias notas com o mesmo número aparecem como resultados separados.
 
-O importador lê um snapshot consistente do SQLite ou SQLCipher e substitui, em uma transação, a cópia de Consulta daquele CNPJ no PostgreSQL. O comando em C# preserva os eventos, os vínculos CT-e, as CC-e e a situação de cancelamento da origem. A origem continua sendo o banco operacional, com seu próprio cursor, fila, respostas pendentes e agendamento. Sincronização SEFAZ, Emissão, Excel, importação operacional de XML e demais rotinas continuam no aplicativo Python nesta etapa.
+O importador lê um snapshot consistente do SQLite ou SQLCipher e substitui, em uma transação, a cópia de Consulta daquele CNPJ no PostgreSQL. O comando em C# preserva os eventos, os vínculos CT-e, as CC-e e a situação de cancelamento da origem. A origem continua sendo o banco operacional, com seu próprio cursor, fila, respostas pendentes e agendamento. A nova versão já oferece sincronização SEFAZ, Emissão, importação de XML e exportações de Emissão e Manifestação. A virada operacional ainda depende da validação com a base e o certificado da empresa.
 
 ## Executar localmente no Windows
 
@@ -128,3 +128,13 @@ A fila pode ser preenchida pelos comandos ou pela importação descrita abaixo. 
 Antes de ativar o C#, pare a coleta legada e execute novamente `--importar-historico` com a cópia final do banco. A importação inclui o cursor, o máximo conhecido, as pausas, as respostas ainda pendentes, a fila e os intervalos de recuperação. O arquivo de origem permanece em modo leitura. Se já houver tentativas do C# ou respostas processadas no PostgreSQL do mesmo CNPJ, o comando recusa a substituição. Use um banco novo para ensaiar a migração.
 
 A agenda tenta primeiro os NSUs de prioridade alta, depois os primeiros NSUs faltantes dos intervalos conhecidos e por fim a fila normal. Os documentos já registrados e as consultas concluídas ficam fora da recuperação. A rejeição 656 com `ultNSU` superior registra um intervalo e preserva o cursor confirmado. A recuperação mantém o cursor de distribuição.
+
+## Emissão, XML e Excel
+
+Entre no Atlas e abra **Emissão**. A tela importa XMLs ou ZIPs de NF-e do CNPJ configurado e mostra notas e itens. Os filtros aceitam período, situação, número, chave, empresas e código, descrição ou NCM do item. O botão **Excel** gera a planilha de Emissão com os filtros aplicados, incluindo retenções de PIS e COFINS registradas no XML. A Consulta gera a planilha de Manifestação para o número ou a chave pesquisada.
+
+O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
+
+As telas administrativas de contas, SMTP e auditoria ainda estão no aplicativo Python. A fila de NSU possui uma tela própria na nova versão.
+
+Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.

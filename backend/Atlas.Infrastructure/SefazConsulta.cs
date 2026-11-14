@@ -12,7 +12,7 @@ internal static class SefazConsulta
     private static readonly XNamespace Nfe = "http://www.portalfiscal.inf.br/nfe";
 
     public static async Task PublishAsync(NpgsqlConnection db, NpgsqlTransaction tx, string cnpj,
-        SefazDocument document, CancellationToken token)
+        SefazDocument document, CancellationToken token, bool imported = false)
     {
         var root = SefazDistribution.ReadXml(document.Xml, 8 * 1024 * 1024);
         if (root.Name.Namespace != Nfe)
@@ -24,8 +24,14 @@ internal static class SefazConsulta
         string key = ((string?)note?.Attribute("Id")) is { } id && id.StartsWith("NFe", StringComparison.Ordinal)
             ? id[3..] : Value(request, "chNFe");
         if (IdentificadorNota.Parse(key)?.Chave != key || key.Length != 44)
+        {
+            if (imported)
+                throw new InvalidDataException("Chave de NF-e inválida no evento.");
             return;
+        }
 
+        if (imported && key[6..20] != cnpj)
+            throw new InvalidDataException("O evento pertence a outro emitente.");
         string code = Value(request, "tpEvento");
         string description = code switch
         {
@@ -44,6 +50,13 @@ internal static class SefazConsulta
         bool canceled = root.Name == Nfe + "resNFe" && Value(root, "cSitNFe") == "3"
             || root.Name == Nfe + "resEvento" && code == "110111"
             || fullEvent && linked && code == "110111" && status is ("135" or "155");
+        string protocol = First(Value(receipt, "nProt"), Value(request, "nProt"));
+        string correction = Value(request?.Element(Nfe + "detEvento"), "xCorrecao");
+        if (imported && (code is not ("110110" or "110111") || !linked ||
+            Value(request, "CNPJ") != cnpj || protocol.Length != 15 || !protocol.All(char.IsAsciiDigit) ||
+            (code == "110110" && (status != "135" || correction.Length is < 15 or > 1000)) ||
+            (code == "110111" && !canceled)))
+            throw new InvalidDataException("Envie um cancelamento ou uma CC-e vinculada pela SEFAZ.");
         bool acceptedEvent = linked && description.Length > 0 &&
             (root.Name == Nfe + "resEvento" || fullEvent && status is ("135" or "136" or "155"));
         string transportKey = Value(request, "chCTe");
@@ -62,10 +75,10 @@ internal static class SefazConsulta
             {
                 codigo = code, descricao = description,
                 data = First(Value(receipt, "dhRegEvento"), Value(request, "dhEvento")),
-                protocolo = First(Value(receipt, "nProt"), Value(request, "nProt")),
-                nsu = document.Nsu.ToString("D15", CultureInfo.InvariantCulture),
+                protocolo = protocol,
+                nsu = imported ? "" : document.Nsu.ToString("D15", CultureInfo.InvariantCulture),
                 schema = document.Schema,
-                correcao = code == "110110" ? Value(request?.Element(Nfe + "detEvento"), "xCorrecao") : "",
+                correcao = code == "110110" ? correction : "",
                 sequencia = Value(request, "nSeqEvento"),
             });
 
@@ -73,7 +86,7 @@ internal static class SefazConsulta
         if (transportEvent)
         {
             var carrier = request?.Descendants(Nfe + "emit").FirstOrDefault();
-            string protocol = First(Value(receipt, "nProt"), Value(root, "nProt"));
+            string transportProtocol = First(Value(receipt, "nProt"), Value(root, "nProt"));
             string sequence = Value(request, "nSeqEvento");
             string date = First(Value(request, "dhEvento"), Value(root, "dhRecbto"));
             links.Add(new
@@ -81,7 +94,7 @@ internal static class SefazConsulta
                 chave = transportKey,
                 status = code == "610601" ? "Cancelado" : transportKey.Length > 0 ? "Autorizado" : "Vínculo identificado",
                 transportadora = Value(carrier, "xNome"), cnpj_transportadora = Value(carrier, "CNPJ"), data = date,
-                identidade = $"{code}:{First(sequence, First(protocol, date))}",
+                identidade = $"{code}:{First(sequence, First(transportProtocol, date))}",
             });
         }
 
@@ -93,8 +106,9 @@ internal static class SefazConsulta
                     OR (excluded.detalhe->>'cancelada')::boolean,
                     'eventos', CASE WHEN jsonb_array_length(excluded.detalhe->'eventos') = 0
                         OR EXISTS (SELECT 1 FROM jsonb_array_elements(consulta_notas.detalhe->'eventos') e
-                            WHERE e->>'nsu'=excluded.detalhe->'eventos'->0->>'nsu'
-                              AND e->>'codigo'=excluded.detalhe->'eventos'->0->>'codigo')
+                            WHERE e->>'codigo'=excluded.detalhe->'eventos'->0->>'codigo'
+                              AND (e->>'protocolo'=excluded.detalhe->'eventos'->0->>'protocolo'
+                                  OR (e->>'nsu' <> '' AND e->>'nsu'=excluded.detalhe->'eventos'->0->>'nsu')))
                         THEN consulta_notas.detalhe->'eventos'
                         ELSE (consulta_notas.detalhe->'eventos') || (excluded.detalhe->'eventos') END,
                     'ctes', CASE WHEN jsonb_array_length(excluded.detalhe->'ctes') = 0

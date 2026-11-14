@@ -238,6 +238,8 @@ app.MapGet("/api/consulta", async (
     return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho), mais = linhas.Count > tamanho });
 }).RequireAuthorization();
 
+app.MapFiscal(connectionString, cnpj);
+
 await app.RunAsync();
 
 static async Task CriarAdministrador(IServiceProvider services, IConfiguration configuration)

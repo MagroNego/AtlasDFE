@@ -26,3 +26,12 @@ summary { cursor: pointer; color: #b3e4ca; }
 li { margin: 8px 0; }
 .erro, .aviso { color: #ffb6a8; }
 nav { display: flex; align-items: center; gap: 10px; }
+
+a { color: #b3e4ca; }
+.emissao-filtros { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; }
+.emissao-filtros select { display: block; margin-top: 6px; min-height: 44px; max-width: 100%; }
+.emissao-tabela { overflow-x: auto; margin-top: 12px; }
+.emissao-tabela table { border-collapse: collapse; font-size: .9rem; }
+.emissao-tabela th, .emissao-tabela td { border-bottom: 1px solid #3a4a42; padding: 8px; text-align: left; white-space: nowrap; }
+.inline-check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.inline-check input { width: auto; min-height: auto; margin: 0; }
