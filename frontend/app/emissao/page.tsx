@@ -1,24 +1,25 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { useAtlasSession } from "../atlas-frame";
 
 type Note = { chave: string; numero: number; serie: number; emissao: string; destinatario: string; valor: number; itens: number; cancelada: boolean };
 type Report = { notas: Note[]; mais: boolean };
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function Emissao() {
-  const [administrator, setAdministrator] = useState(false);
+  const { session } = useAtlasSession();
   const [report, setReport] = useState<Report>();
   const [filters, setFilters] = useState("");
   const [page, setPage] = useState(1);
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
   const [detail, setDetail] = useState<{ chave: string; items: Record<string, string | number>[] }>();
 
-  async function read(query: string, next: number) {
+  async function read(query: string, next: number, signal?: AbortSignal) {
     const params = new URLSearchParams(query);
     params.set("pagina", String(next));
-    const response = await fetch(`/api/emissao?${params}`);
+    const response = await fetch(`/api/emissao?${params}`, { signal });
     if (response.status === 401) {
       location.href = "/";
       return;
@@ -31,12 +32,17 @@ export default function Emissao() {
   }
 
   useEffect(() => {
-    void fetch("/api/sessao").then(response => response.json())
-      .then(session => setAdministrator(session.administrador === true)).catch(() => undefined);
-    void read("", 1).catch(() => setMessage("Não foi possível carregar a Emissão."));
+    const controller = new AbortController();
+    void read("", 1, controller.signal).catch(() => {
+      if (!controller.signal.aborted) setMessage("Não foi possível carregar a Emissão.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setBusy(false);
+    });
+    return () => controller.abort();
   }, []);
 
   async function action(run: () => Promise<void>) {
+    if (busy) return;
     setMessage("");
     setBusy(true);
     try { await run(); }
@@ -57,10 +63,9 @@ export default function Emissao() {
     const form = event.currentTarget;
     const payload = new FormData(form);
     void action(async () => {
-      const session = await fetch("/api/sessao");
-      if (!session.ok) throw new Error("Sessão indisponível.");
-      const { token } = await session.json();
-      const response = await fetch("/api/emissao/xml", { method: "POST", body: payload, headers: { "X-CSRF-TOKEN": token } });
+      const response = await fetch("/api/emissao/xml", {
+        method: "POST", body: payload, headers: { "X-CSRF-TOKEN": session.token },
+      });
       if (response.status === 401) {
         location.href = "/";
         return;
@@ -73,45 +78,89 @@ export default function Emissao() {
     });
   }
 
-  return <main>
-    <header><a className="marca" href="/">Atlas <span>DFE</span></a><a href="/">Consulta</a></header>
-    <section className="painel">
-      <h1>Emissão</h1>
-      {administrator && <form onSubmit={upload}>
-        <label>Importar XML ou ZIP<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
+  function openItems(chave: string) {
+    if (detail?.chave === chave) {
+      setDetail(undefined);
+      return;
+    }
+    void action(async () => {
+      const response = await fetch(`/api/emissao/${chave}/itens`);
+      if (response.status === 401) {
+        location.href = "/";
+        return;
+      }
+      if (!response.ok) throw new Error("Não foi possível abrir os itens.");
+      setDetail({ chave, items: await response.json() });
+    });
+  }
+
+  const columns = Object.keys(detail?.items[0] ?? {});
+
+  return <section className="painel">
+    <h1>Emissão</h1>
+    <form onSubmit={search}>
+      <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} /></label>
+      <div className="emissao-filtros">
+        <label>Emissão de<input type="date" name="inicio" /></label>
+        <label>Até<input type="date" name="fim" /></label>
+        <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
+      </div>
+      <div className="form-acoes">
+        <button disabled={busy}>Pesquisar</button>
+        <a className="acao" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
+      </div>
+    </form>
+    {session.administrador && <details className="form-importacao">
+      <summary>Importar XML ou ZIP</summary>
+      <form onSubmit={upload}>
+        <label>Arquivos de emissão<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
         <button disabled={busy}>Importar</button>
-      </form>}
-      <form onSubmit={search}>
-        <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} /></label>
-        <div className="emissao-filtros">
-          <label>Emissão de<input type="date" name="inicio" /></label>
-          <label>Até<input type="date" name="fim" /></label>
-          <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
-        </div>
-        <button disabled={busy}>Pesquisar</button> <a href={`/api/emissao/excel?${filters}`}>Excel</a>
       </form>
-      {message && <p role="status">{message}</p>}
-      {report?.notas.length === 0 && <p>Nenhuma NF-e encontrada.</p>}
-      {report?.notas.map(note => <article className="nota" key={note.chave}>
-        <h2>NF-e {note.numero} <small>Série {note.serie}</small></h2>
-        <code>{note.chave}</code>
-        <p>{note.emissao.split("-").reverse().join("/")} · {note.destinatario} · {currency.format(note.valor)} · {note.cancelada ? "Cancelada" : "Autorizada"}</p>
-        <button className="secundario" disabled={busy} onClick={() => void action(async () => {
-          const response = await fetch(`/api/emissao/${note.chave}/itens`);
-          if (!response.ok) throw new Error("Não foi possível abrir os itens.");
-          setDetail({ chave: note.chave, items: await response.json() });
-        })}>Itens ({note.itens})</button>
-        {detail?.chave === note.chave && <div className="emissao-tabela">
-          <a href={`/api/emissao/${note.chave}/itens/excel`}>Excel dos itens</a>
-          <table><thead><tr>{Object.keys(detail.items[0] ?? {}).map(field => <th key={field}>{field}</th>)}</tr></thead>
-            <tbody>{detail.items.map((item, index) => <tr key={index}>{Object.keys(detail.items[0] ?? {}).map(field => <td key={field}>{item[field]}</td>)}</tr>)}</tbody></table>
+    </details>}
+    {busy && <p className={report ? "sr-only" : "mensagem"} role="status">Processando Emissão…</p>}
+    {message && <p className="mensagem" role="status">{message}</p>}
+    {report && <div className="resultado" aria-busy={busy}>
+      {report.notas.length === 0 ? <p className="mensagem">Nenhuma NF-e encontrada.</p>
+        : <div key={`${filters}:${page}`} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Notas de emissão">
+          <table className="tabela tabela-emissao" role="table">
+            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
+              <th scope="col" role="columnheader">Destinatário</th><th scope="col" role="columnheader">Valor</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Itens</th></tr></thead>
+            <tbody role="rowgroup">{report.notas.map(note => {
+              const expanded = detail?.chave === note.chave;
+              return <Fragment key={note.chave}>
+                <tr role="row">
+                  <th scope="row" role="rowheader">{note.numero}<small>Série {note.serie}</small></th>
+                  <td role="cell"><code>{note.chave}</code></td>
+                  <td role="cell" className="numero">{note.emissao.split("-").reverse().join("/")}</td>
+                  <td role="cell">{note.destinatario}</td>
+                  <td role="cell" className="numero">{currency.format(note.valor)}</td>
+                  <td role="cell">{note.cancelada ? <span className="selo selo-cancelado">Cancelada</span> : "Autorizada"}</td>
+                  <td role="cell"><button type="button" className="secundario compacto" disabled={busy} aria-expanded={expanded}
+                    aria-controls={expanded ? `itens-${note.chave}` : undefined}
+                    onClick={() => openItems(note.chave)}>Itens ({note.itens})</button></td>
+                </tr>
+                {detail?.chave === note.chave && <tr role="row" className="linha-detalhe" id={`itens-${note.chave}`}>
+                  <td role="cell" colSpan={7}>
+                    <a className="acao compacto" href={`/api/emissao/${note.chave}/itens/excel`}>Exportar Excel dos itens</a>
+                    {columns.length > 0 ? <div className="tabela-rolagem tabela-itens" tabIndex={0} role="region" aria-label="Itens da NF-e">
+                      <table className="tabela">
+                        <thead><tr>{columns.map(field => <th key={field} scope="col">{field}</th>)}</tr></thead>
+                        <tbody>{detail.items.map((item, index) => <tr key={index}>
+                          {columns.map(field => <td key={field}>{item[field]}</td>)}
+                        </tr>)}</tbody>
+                      </table>
+                    </div> : <p>Nenhum item encontrado.</p>}
+                  </td>
+                </tr>}
+              </Fragment>;
+            })}</tbody>
+          </table>
         </div>}
-      </article>)}
-      {report && (page > 1 || report.mais) && <nav>
-        <button disabled={busy || page === 1} onClick={() => void action(() => read(filters, page - 1))}>Anterior</button>
+      {(page > 1 || report.mais) && <nav className="paginacao" aria-label="Páginas de emissão">
+        <button className="secundario" disabled={busy || page === 1} onClick={() => void action(() => read(filters, page - 1))}>Anterior</button>
         <span>Página {page}</span>
-        <button disabled={busy || !report.mais} onClick={() => void action(() => read(filters, page + 1))}>Próxima</button>
+        <button className="secundario" disabled={busy || !report.mais} onClick={() => void action(() => read(filters, page + 1))}>Próxima</button>
       </nav>}
-    </section>
-  </main>;
+    </div>}
+  </section>;
 }
