@@ -45,3 +45,11 @@ dist/
 !/logs/.gitkeep
 
 # 2.6.0
+
+# Artefatos da arquitetura .NET e Next.js.
+[Bb]in/
+[Oo]bj/
+node_modules/
+.next/
+*.tsbuildinfo
+next-env.d.ts

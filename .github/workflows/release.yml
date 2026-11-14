@@ -1,12 +1,8 @@
-name: Release
+name: Release Atlas DFE
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - "v*.*.*"
-  workflow_dispatch:
+    tags: ["v*.*.*"]
 
 permissions:
   contents: write
@@ -17,45 +13,32 @@ concurrency:
 
 jobs:
   validate:
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci.yml
 
   package:
-    name: Publicar versão estável
+    name: Publicar pacote Docker Compose
     needs: validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Preparar versão
-        id: version
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Montar e validar o pacote
         run: |
-          VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            test "$GITHUB_REF_NAME" = "v$VERSION"
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if gh release view "v$VERSION" > /dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Montar pacote
-        if: steps.version.outputs.exists != 'true'
-        run: python scripts/package_release.py
+          set -euo pipefail
+          git archive --format=zip --prefix=AtlasDFE/ HEAD -- \
+            README.md docs/migracao-oculus.md RELEASE_NOTES.md .dockerignore .gitignore \
+            docker-compose.yml Atlas.slnx Directory.Build.props global.json backend frontend infra secrets/.gitkeep \
+            > "AtlasDFE-${GITHUB_REF_NAME}.zip"
+          unzip -q "AtlasDFE-${GITHUB_REF_NAME}.zip" -d package
+          cd package/AtlasDFE
+          docker compose config -q
+          docker compose build api frontend
+          cd ../..
+          sha256sum "AtlasDFE-${GITHUB_REF_NAME}.zip" > "AtlasDFE-${GITHUB_REF_NAME}.zip.sha256"
       - name: Publicar release
-        if: steps.version.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          PACKAGE="ConsultaManifestacao_DFE-v$RELEASE_VERSION.zip"
-          gh release create "v$RELEASE_VERSION" \
-            "dist/$PACKAGE" "dist/$PACKAGE.sha256" \
-            --target "$GITHUB_SHA" \
-            --title "AtlasDFE v$RELEASE_VERSION" \
-            --notes-file RELEASE_NOTES.md
+          gh release create "$GITHUB_REF_NAME" "AtlasDFE-${GITHUB_REF_NAME}.zip" \
+            "AtlasDFE-${GITHUB_REF_NAME}.zip.sha256" --verify-tag --generate-notes
