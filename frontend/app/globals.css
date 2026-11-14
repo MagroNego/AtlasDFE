@@ -1,16 +1,17 @@
 :root {
   color-scheme: light dark;
-  --fundo: light-dark(#f4f6f8, #0f141a);
-  --painel: light-dark(#fff, #171d24);
-  --superficie: light-dark(#f8fafc, #1d252e);
+  --fundo: light-dark(#d6e0ea, #0f141a);
+  --painel: light-dark(#e7edf4, #171d24);
+  --superficie: light-dark(#dbe5ef, #1d252e);
   --texto: light-dark(#17212b, #f2f4f7);
   --muted: light-dark(#536175, #a9b5c4);
-  --linha: light-dark(#dce3ea, #323d4a);
-  --campo: light-dark(#8998aa, #657489);
+  --linha: light-dark(#b8c7d7, #323d4a);
+  --campo: light-dark(#728397, #657489);
+  --fundo-campo: light-dark(#eff3f8, #171d24);
   --primaria: light-dark(#243b53, #d8e5f0);
   --primaria-hover: light-dark(#1b2f44, #f0f6fb);
   --sobre-primaria: light-dark(#fff, #17212b);
-  --selecao: light-dark(#e9eff6, #263443);
+  --selecao: light-dark(#c8d8e9, #263443);
   --foco: light-dark(#175ab2, #96c3ff);
   --erro: light-dark(#a01a13, #ffb1aa);
   --erro-fundo: light-dark(#fff0ee, #3a1d1b);
@@ -101,7 +102,7 @@ input, select, textarea {
   border: 1px solid var(--campo);
   border-radius: var(--raio);
   color: var(--texto);
-  background: var(--painel);
+  background: var(--fundo-campo);
 }
 input::placeholder { color: var(--muted); opacity: 1; }
 input[type="file"] { overflow: hidden; }
