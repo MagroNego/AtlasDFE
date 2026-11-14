@@ -1,0 +1,61 @@
+name: atlas-dfe
+x-atlas-api: &atlas-api
+  image: atlas-dfe-api:local
+  build:
+    context: .
+    dockerfile: infra/api.Dockerfile
+  environment:
+    ASPNETCORE_ENVIRONMENT: Development
+    ASPNETCORE_HTTP_PORTS: "8080"
+    Database__Host: db
+    Database__PasswordFile: /run/secrets/atlas_db_password
+    DataProtection__Path: /var/lib/atlas/keys
+    Atlas__Cnpj: ${ATLAS_CNPJ:-}
+  secrets: [atlas_db_password]
+
+services:
+  db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: atlas
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD_FILE: /run/secrets/atlas_db_password
+    secrets: [atlas_db_password]
+    volumes:
+      - database:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:${ATLAS_DB_PORT:-55432}:5432"
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, atlas, -d, atlas]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    <<: *atlas-api
+    command: [--migrate]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *atlas-api
+    volumes:
+      - keys:/var/lib/atlas/keys
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${ATLAS_PORT:-3001}:3000"
+    depends_on: [api]
+
+secrets:
+  atlas_db_password:
+    file: ${ATLAS_DB_PASSWORD_FILE:-./secrets/postgres-password}
+
+volumes:
+  database:
+  keys:

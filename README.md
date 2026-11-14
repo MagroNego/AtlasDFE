@@ -102,3 +102,7 @@ A exportação de Emissão inclui **Resumo**, Notas, Itens e Retencoes. A aba Re
 CC-e processadas podem ser importadas e consultadas pelas ações da nota em Consulta e Emissão. O texto fica no histórico do evento; não altera automaticamente os dados da nota.
 
 Procedimentos completos: [Resumo](MANUAL_DE_USO.md#aba-resumo-na-exportação-de-emissão) e [Carta de Correção](MANUAL_DE_USO.md#carta-de-correção-cc-e).
+
+## Refatoração para a arquitetura do Oculus
+
+Veja a [Consulta em Next.js, ASP.NET Core e PostgreSQL](docs/migracao-oculus.md) e os comandos para importar uma cópia do histórico.

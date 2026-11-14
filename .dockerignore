@@ -1,0 +1,10 @@
+**
+!Atlas.slnx
+!Directory.Build.props
+!global.json
+!backend/
+!backend/**
+backend/**/bin
+backend/**/obj
+!infra/
+!infra/api.Dockerfile
