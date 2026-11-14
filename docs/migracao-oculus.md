@@ -95,7 +95,7 @@ O teste de protocolo roda com `dotnet run --project tests/Atlas.Sefaz.Checks`. P
 
 O comando processa um lote por execução. Ele retoma primeiro uma resposta pendente, respeita a janela configurada em horário de Brasília e consulta o PostgreSQL para verificar a pausa e o limite de recuperação. Novas NF-e, manifestações, CC-e e cancelamentos reconhecidos aparecem na Consulta. Os documentos completos ficam gravados no PostgreSQL.
 
-Para a primeira execução, importe o histórico, pare a coleta Python do CNPJ e informe o cursor atual do Atlas antigo em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
+Para a primeira execução, pare a coleta Python do CNPJ e importe a cópia final do banco. Se o banco legado não tiver estado gravado, informe o cursor em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
 
 Para A1, informe `Sefaz__CertificatePath` e `Sefaz__CertificatePasswordFile`, com o caminho de um arquivo privado contendo a senha. No Windows, também é possível informar `Sefaz__CertificateThumbprint` de um certificado no repositório Pessoal do usuário que executa o comando. Valide o acesso à chave privada e o dispositivo no ambiente da TI.
 
@@ -121,4 +121,10 @@ A fila aceita prioridade `alta` ou `normal`, com limite de 100 pendências. Cada
 
 Para ativar, inicie a API com `Sefaz__ScheduleEnabled=true`, as variáveis do certificado e da UF e o mesmo PostgreSQL. `Sefaz__ScheduleTimes` permite alterar a lista de horários, e `Sefaz__ScheduleDays` usa 0 para domingo até 6 para sábado. Por padrão a agenda fica desabilitada. Se usar Compose, configure essas variáveis e monte o certificado no serviço da API. Um certificado que depende do repositório do Windows exige execução no Windows.
 
-A fila deste incremento recebe NSUs explicitamente cadastrados. A importação das pendências do SQLite e a descoberta automática de lacunas ainda estão pendentes. A Consulta exibe também os vínculos CT-e reconhecidos nos lotes recebidos e mantém o cancelamento de uma chave de CT-e já identificada.
+A fila pode ser preenchida pelos comandos ou pela importação descrita abaixo. A Consulta exibe também os vínculos CT-e reconhecidos nos lotes recebidos e mantém o cancelamento de uma chave de CT-e já identificada.
+
+### Transferir o estado da sincronização
+
+Antes de ativar o C#, pare a coleta legada e execute novamente `--importar-historico` com a cópia final do banco. A importação inclui o cursor, o máximo conhecido, as pausas, as respostas ainda pendentes, a fila e os intervalos de recuperação. O arquivo de origem permanece em modo leitura. Se já houver tentativas do C# ou respostas processadas no PostgreSQL do mesmo CNPJ, o comando recusa a substituição. Use um banco novo para ensaiar a migração.
+
+A agenda tenta primeiro os NSUs de prioridade alta, depois os primeiros NSUs faltantes dos intervalos conhecidos e por fim a fila normal. Os documentos já registrados e as consultas concluídas ficam fora da recuperação. A rejeição 656 com `ultNSU` superior registra um intervalo e preserva o cursor confirmado. A recuperação mantém o cursor de distribuição.

@@ -26,14 +26,19 @@ public static class LegacyHistoryImport
         await using var write = await destination.BeginTransactionAsync(cancellationToken);
 
         await using var prepare = new NpgsqlCommand("""
+            SELECT pg_advisory_xact_lock(718322, hashtext(@cnpj));
             SELECT pg_advisory_xact_lock(718320, hashtext(@cnpj));
             DELETE FROM consulta_notas WHERE cnpj=@cnpj
-            AND NOT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj);
+            AND NOT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj AND NOT legada)
+            AND NOT EXISTS (SELECT 1 FROM sefaz_respostas WHERE cnpj=@cnpj AND cstat IS NOT NULL);
             """, destination, write);
         prepare.Parameters.AddWithValue("cnpj", cnpj);
         await prepare.ExecuteNonQueryAsync(cancellationToken);
         await using (var active = new NpgsqlCommand(
-            "SELECT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj)", destination, write))
+            """
+            SELECT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj AND NOT legada)
+                OR EXISTS (SELECT 1 FROM sefaz_respostas WHERE cnpj=@cnpj AND cstat IS NOT NULL)
+            """, destination, write))
         {
             active.Parameters.AddWithValue("cnpj", cnpj);
             if ((bool?)await active.ExecuteScalarAsync(cancellationToken) == true)
@@ -74,6 +79,7 @@ public static class LegacyHistoryImport
         finish.Parameters.AddWithValue("total", count);
         if (await finish.ExecuteNonQueryAsync(cancellationToken) == 0)
             throw new InvalidDataException("A origem não tem notas deste CNPJ. A cópia anterior foi preservada.");
+        await new LegacySefazImport(read, write, cnpj).RunAsync(cancellationToken);
         await write.CommitAsync(cancellationToken);
         return count;
     }

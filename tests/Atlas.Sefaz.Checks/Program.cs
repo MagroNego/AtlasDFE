@@ -100,6 +100,17 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     var queueItems = await queue.ListAsync(liveCnpj, default);
     Check(queueItems.Single(row => row.Nsu == 11).Status == "indisponivel");
     Check(queueItems.Single(row => row.Nsu == 10).Status == "pendente");
+    await using (var dbGap = new NpgsqlConnection(connection))
+    {
+        await dbGap.OpenAsync();
+        await using var gap = new NpgsqlCommand("INSERT INTO sefaz_lacunas VALUES ($1,11,13)", dbGap);
+        gap.Parameters.AddWithValue(liveCnpj);
+        await gap.ExecuteNonQueryAsync();
+    }
+    var nextSlot = slot.AddHours(1);
+    var gapResult = await scheduled.RunAsync(liveCnpj, "33", null, null, nextSlot, new(22,0), new(5,0), default,
+        scheduledSlot: nextSlot);
+    Check(gapResult?.Cursor == 93 && recoveryTransport.LastNsu == 12);
     Check(await queue.CancelAsync(liveCnpj, 10, default));
 
     const string nsuSefaz = "<ultNSU>77</ultNSU>";

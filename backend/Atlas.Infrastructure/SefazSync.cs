@@ -47,7 +47,7 @@ public sealed class SefazSync(string connectionString, HttpClient client)
         var inbox = new SefazInbox(connectionString);
         await using (var pending = new NpgsqlCommand("""
             SELECT nsu_enviado, recuperacao, xml FROM sefaz_respostas
-            WHERE cnpj=$1 AND cstat IS NULL ORDER BY recebido_em, nsu_enviado, hash LIMIT 1
+            WHERE cnpj=$1 AND cstat IS NULL ORDER BY recuperacao, recebido_em, nsu_enviado, hash LIMIT 1
             """, db, run))
         {
             pending.Parameters.AddWithValue(cnpj);
@@ -61,10 +61,29 @@ public sealed class SefazSync(string connectionString, HttpClient client)
         if (scheduledSlot.HasValue)
         {
             await using var next = new NpgsqlCommand("""
-                SELECT nsu FROM sefaz_fila AS q WHERE cnpj=$1 AND status='pendente'
-                    AND NOT EXISTS (SELECT 1 FROM sefaz_tentativas t WHERE t.cnpj=q.cnpj AND t.nsu=q.nsu
-                        AND t.recuperacao AND t.tentado_em > $2 - interval '1 hour')
-                ORDER BY alta DESC, criada_em, nsu LIMIT 1
+                WITH covered(nsu) AS (
+                    SELECT nsu FROM sefaz_cobertura WHERE cnpj=$1
+                    UNION SELECT nsu FROM sefaz_documentos WHERE cnpj=$1
+                    UNION SELECT nsu_enviado FROM sefaz_respostas WHERE cnpj=$1 AND recuperacao AND cstat=137
+                ), attempts(nsu) AS (
+                    SELECT nsu FROM sefaz_tentativas WHERE cnpj=$1 AND recuperacao AND nsu IS NOT NULL
+                        AND tentado_em > $2 - interval '1 hour'
+                ), consumed(nsu) AS (
+                    SELECT nsu FROM covered UNION SELECT nsu FROM attempts
+                ), starts(nsu) AS (
+                    SELECT inicio + 1 FROM sefaz_lacunas WHERE cnpj=$1
+                    UNION SELECT nsu + 1 FROM consumed c
+                        WHERE EXISTS (SELECT 1 FROM sefaz_lacunas WHERE cnpj=$1 AND c.nsu >= inicio AND c.nsu < fim)
+                ), options AS (
+                    SELECT q.nsu, CASE WHEN q.alta THEN 0 ELSE 2 END AS priority, q.criada_em AS created
+                    FROM sefaz_fila q WHERE cnpj=$1 AND status='pendente'
+                    UNION ALL
+                    SELECT n.nsu, 1, NULL FROM starts n WHERE EXISTS (
+                        SELECT 1 FROM sefaz_lacunas WHERE cnpj=$1 AND n.nsu > inicio AND n.nsu <= fim
+                    )
+                )
+                SELECT nsu FROM options o WHERE NOT EXISTS (SELECT 1 FROM consumed c WHERE c.nsu=o.nsu)
+                ORDER BY priority, created, nsu LIMIT 1
                 """, db, run);
             next.Parameters.AddWithValue(cnpj);
             next.Parameters.AddWithValue(now);

@@ -90,6 +90,17 @@ public sealed class SefazInbox(string connectionString)
                 await SefazConsulta.PublishAsync(db, transaction, cnpj, document, token);
         }
 
+        if (!recovery && batch.Status == 656 && batch.LastNsu is long remote && remote > cursor)
+        {
+            await using var gap = new NpgsqlCommand(
+                "INSERT INTO sefaz_lacunas(cnpj,inicio,fim) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+                db, transaction);
+            gap.Parameters.AddWithValue(cnpj);
+            gap.Parameters.AddWithValue(cursor);
+            gap.Parameters.AddWithValue(remote);
+            await gap.ExecuteNonQueryAsync(token);
+        }
+
         DateTime? retry = (recovery && batch.Status != 656 ? null : batch.RetryAt(receivedAt))?.UtcDateTime;
         await using (var update = new NpgsqlCommand("""
             INSERT INTO sefaz_estado(cnpj, ult_nsu, max_nsu, proxima_tentativa)

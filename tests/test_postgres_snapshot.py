@@ -9,8 +9,8 @@ from nfe_consulta.banco import BancoManifestacoes
 from nfe_consulta.seguranca_banco import abrir_banco, migrar_banco
 
 
-CNPJ = "12345678000199"
-CHAVE = "33261112345678000199550010000962031000000000"
+CNPJ = "12345678000350"
+CHAVE = "33261112345678000350550010000962031000000000"
 
 
 @pytest.mark.parametrize("criptografado", [False, True])
@@ -54,6 +54,19 @@ def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
         "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (CNPJ, CHAVE, "", "610600", "2026-11-13", "456", "1", "Transportadora", "", "", ""),
     )
+    banco.conexao.execute("INSERT INTO recuperacoes_nsu(cnpj,nsu_local,nsu_sefaz) VALUES (?,?,?)", (CNPJ, "42", "48"))
+    banco.conexao.execute(
+        "INSERT INTO fila_nsu_prioridade(cnpj,nsu,prioridade,status,criado_por) VALUES (?,?,?,?,?)",
+        (CNPJ, "000000000000045", 1, "consultando", "teste"),
+    )
+    banco.conexao.execute(
+        "INSERT INTO consultas_nsu(cnpj,nsu,resposta_xml) VALUES (?,?,?)",
+        (CNPJ, "000000000000044", "<resposta>pendente</resposta>"),
+    )
+    banco.conexao.execute(
+        "INSERT INTO documentos_nsu(cnpj,nsu,schema_xml,xml,classificacao) VALUES (?,?,?,?,?)",
+        (CNPJ, "000000000000043", "schema", b"<documento />", "ignorado"),
+    )
     banco.conexao.commit()
     banco.fechar()
 
@@ -73,6 +86,12 @@ def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
         assert "1 notas" in resultado.stdout
     assert fonte.read_bytes() == antes
     with psycopg.connect(dsn) as pg:
+        assert pg.execute("SELECT ult_nsu,max_nsu FROM sefaz_estado WHERE cnpj=%s", (CNPJ,)).fetchone() == (42, 45)
+        assert pg.execute("SELECT nsu,alta,status FROM sefaz_fila WHERE cnpj=%s", (CNPJ,)).fetchone() == (45, True, "pendente")
+        assert pg.execute("SELECT nsu_enviado,recuperacao,xml FROM sefaz_respostas WHERE cnpj=%s", (CNPJ,)).fetchone() == (44, True, b"<resposta>pendente</resposta>")
+        assert pg.execute("SELECT inicio,fim FROM sefaz_lacunas WHERE cnpj=%s", (CNPJ,)).fetchone() == (42, 48)
+        assert pg.execute("SELECT nsu FROM sefaz_cobertura WHERE cnpj=%s", (CNPJ,)).fetchone() == (43,)
+        assert pg.execute("SELECT nsu FROM sefaz_tentativas WHERE cnpj=%s AND legada", (CNPJ,)).fetchone() == (44,)
         numero, serie, detalhe = pg.execute(
             "SELECT numero, serie, detalhe FROM consulta_notas WHERE cnpj=%s AND chave=%s", (CNPJ, CHAVE)
         ).fetchone()
