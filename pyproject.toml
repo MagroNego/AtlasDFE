@@ -22,7 +22,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27,<1"]
-postgres = ["psycopg[binary]>=3.2,<4"]
 
 [project.scripts]
 nfe-consulta-web = "nfe_consulta.web.app:main"

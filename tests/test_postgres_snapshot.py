@@ -1,10 +1,11 @@
 import os
+import subprocess
 from contextlib import closing
+from pathlib import Path
 
 import pytest
 
 from nfe_consulta.banco import BancoManifestacoes
-from nfe_consulta.postgres_snapshot import importar
 from nfe_consulta.seguranca_banco import abrir_banco, migrar_banco
 
 
@@ -13,13 +14,29 @@ CHAVE = "33261112345678000199550010000962031000000000"
 
 
 @pytest.mark.parametrize("criptografado", [False, True])
-@pytest.mark.skipif(not os.environ.get("ATLAS_TEST_POSTGRES"), reason="PostgreSQL de teste não configurado")
+@pytest.mark.skipif(not all(os.environ.get(k) for k in ("ATLAS_TEST_POSTGRES", "ATLAS_TEST_IMPORT_DLL")), reason="PostgreSQL de teste não configurado")
 def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
     import psycopg
     from psycopg.conninfo import conninfo_to_dict
 
     dsn = os.environ["ATLAS_TEST_POSTGRES"]
-    assert conninfo_to_dict(dsn).get("dbname", "").startswith("atlas_test_")
+    app = Path(os.environ["ATLAS_TEST_IMPORT_DLL"])
+    pg_config = conninfo_to_dict(dsn)
+    assert pg_config.get("dbname", "").startswith("atlas_test_")
+    connection = "Host={host};Port={port};Database={dbname};Username={user}".format(**pg_config)
+    if "password" in pg_config:
+        connection += ";Password=" + pg_config["password"]
+
+    def importar(origem, senha):
+        env = dict(os.environ, Atlas__Cnpj=CNPJ, ConnectionStrings__Database=connection)
+        if senha:
+            env["Atlas__LegacyPassword"] = senha
+        else:
+            env.pop("Atlas__LegacyPassword", None)
+        return subprocess.run(
+            ["dotnet", str(app), "--importar-historico", str(origem)],
+            env=env, capture_output=True, text=True, check=False, timeout=30,
+        )
 
     fonte = tmp_path / "origem.db"
     banco = BancoManifestacoes(str(fonte))
@@ -45,8 +62,16 @@ def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
         cifrado = tmp_path / "origem_cifrada.db"
         migrar_banco(fonte, cifrado, senha)
         fonte = cifrado
-    assert importar(fonte, CNPJ, dsn, senha) == 1
-    assert importar(fonte, CNPJ, dsn, senha) == 1
+    if senha:
+        falha = importar(fonte, "senha errada")
+        assert falha.returncode != 0
+        assert "SQLite/SQLCipher" in falha.stderr
+    antes = fonte.read_bytes()
+    for _ in range(2):
+        resultado = importar(fonte, senha)
+        assert resultado.returncode == 0, resultado.stderr
+        assert "1 notas" in resultado.stdout
+    assert fonte.read_bytes() == antes
     with psycopg.connect(dsn) as pg:
         numero, serie, detalhe = pg.execute(
             "SELECT numero, serie, detalhe FROM consulta_notas WHERE cnpj=%s AND chave=%s", (CNPJ, CHAVE)
@@ -59,7 +84,8 @@ def test_importacao_atomica_e_repetivel(tmp_path, criptografado):
     with closing(abrir_banco(fonte, senha)) as sqlite, sqlite:
         assert sqlite.execute("SELECT ult_nsu, max_nsu FROM estado_distribuicao").fetchone() == ("42", "45")
         sqlite.execute("UPDATE manifestacoes SET chave='inválida'")
-    with pytest.raises(ValueError, match="chave"):
-        importar(fonte, CNPJ, dsn, senha)
+    resultado = importar(fonte, senha)
+    assert resultado.returncode != 0
+    assert "chave" in resultado.stderr
     with psycopg.connect(dsn) as pg:
         assert pg.execute("SELECT count(*) FROM consulta_notas WHERE cnpj=%s", (CNPJ,)).fetchone()[0] == 1

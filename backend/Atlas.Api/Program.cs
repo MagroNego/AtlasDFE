@@ -8,7 +8,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-var builder = WebApplication.CreateBuilder(args);
+var importacaoLegada = args is ["--importar-historico", _];
+var builder = WebApplication.CreateBuilder(importacaoLegada ? [] : args);
 var configuration = builder.Configuration;
 var connectionString = configuration.GetConnectionString("Database");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -72,6 +73,52 @@ if (args is ["--migrate"] or ["--bootstrap-admin"])
 var cnpj = configuration["Atlas:Cnpj"];
 if (cnpj is not { Length: 14 } || !cnpj.All(char.IsAsciiDigit))
     throw new InvalidOperationException("Configure Atlas__Cnpj com os 14 dígitos do CNPJ.");
+
+if (importacaoLegada)
+{
+    using var cancellation = new CancellationTokenSource();
+    ConsoleCancelEventHandler stop = (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
+    Console.CancelKeyPress += stop;
+    try
+    {
+        var password = configuration["Atlas:LegacyPassword"];
+        var passwordFile = configuration["Atlas:LegacyPasswordFile"];
+        if (!string.IsNullOrEmpty(passwordFile))
+            password = File.ReadAllText(passwordFile).TrimEnd('\r', '\n');
+        int total = await LegacyHistoryImport.ImportAsync(connectionString, args[1], cnpj, password, cancellation.Token);
+        Console.WriteLine($"{total} notas publicadas na Consulta.");
+    }
+    catch (InvalidDataException error)
+    {
+        Console.Error.WriteLine(error.Message);
+        Environment.ExitCode = 1;
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException)
+    {
+        Console.Error.WriteLine("Não foi possível ler o SQLite/SQLCipher. Verifique a origem, a senha e o acesso ao arquivo.");
+        Environment.ExitCode = 1;
+    }
+    catch (NpgsqlException)
+    {
+        Console.Error.WriteLine("Não foi possível publicar o histórico. Verifique a conexão e as migrações do PostgreSQL.");
+        Environment.ExitCode = 1;
+    }
+    catch (IOException)
+    {
+        Console.Error.WriteLine("Não foi possível ler o arquivo da origem ou da senha.");
+        Environment.ExitCode = 1;
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("Importação cancelada.");
+        Environment.ExitCode = 1;
+    }
+    finally
+    {
+        Console.CancelKeyPress -= stop;
+    }
+    return;
+}
 
 app.UseExceptionHandler("/erro");
 app.UseStatusCodePages();

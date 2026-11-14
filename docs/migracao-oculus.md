@@ -4,11 +4,11 @@ A nova Consulta usa Next.js e TypeScript no frontend. O backend usa ASP.NET Core
 
 A busca aceita número da NF-e ou chave de acesso. Ela mostra eventos, CC-e, vínculos CT-e e a situação de cancelamento da cópia local. A tela informa quando houve a última importação. Várias notas com o mesmo número aparecem como resultados separados.
 
-O importador lê um snapshot consistente do SQLite ou SQLCipher e substitui, em uma transação, a cópia de Consulta daquele CNPJ no PostgreSQL. A operação usa o mesmo leitor de eventos e vínculos do Atlas atual. A origem continua sendo o banco operacional, com seu próprio cursor, fila, respostas pendentes e agendamento. Sincronização SEFAZ, Emissão, Excel, importação operacional de XML e demais rotinas continuam no aplicativo Python nesta etapa.
+O importador lê um snapshot consistente do SQLite ou SQLCipher e substitui, em uma transação, a cópia de Consulta daquele CNPJ no PostgreSQL. O comando em C# preserva os eventos, os vínculos CT-e, as CC-e e a situação de cancelamento da origem. A origem continua sendo o banco operacional, com seu próprio cursor, fila, respostas pendentes e agendamento. Sincronização SEFAZ, Emissão, Excel, importação operacional de XML e demais rotinas continuam no aplicativo Python nesta etapa.
 
 ## Executar localmente no Windows
 
-Requer Docker Desktop, PowerShell 7 e o ambiente Python usado pelo Atlas atual. Execute na raiz do repositório.
+Requer Docker Desktop e PowerShell 7. Execute na raiz do repositório.
 
 ```powershell
 $env:ATLAS_CNPJ = Read-Host 'CNPJ com 14 dígitos'
@@ -29,17 +29,19 @@ Abra [localhost:3001](http://localhost:3001). O administrador inicial é criado 
 
 ## Importar uma cópia do histórico
 
-No Python do Atlas, instale o extra uma vez com `python -m pip install -e ".[postgres]"`. A opção `--cnpj` deve usar o mesmo CNPJ configurado no Compose.
+O importador usa o SDK .NET 10 definido em `global.json`. Execute na raiz do repositório, com o PostgreSQL do Compose em execução. Use o mesmo `ATLAS_CNPJ` da configuração do Compose.
 
 ```powershell
+$env:Atlas__Cnpj = $env:ATLAS_CNPJ
 $senhaPg = (Get-Content -Raw secrets/postgres-password).Trim()
 $portaPg = if ($env:ATLAS_DB_PORT) { $env:ATLAS_DB_PORT } else { '55432' }
-$env:ATLAS_POSTGRES_DSN = "host=127.0.0.1 port=$portaPg dbname=atlas user=atlas password=$senhaPg"
-try { python -m nfe_consulta.postgres_snapshot 'C:\caminho\nfe_manifestacoes_seguro.db' --cnpj $env:ATLAS_CNPJ }
-finally { Remove-Item Env:ATLAS_POSTGRES_DSN; Remove-Variable senhaPg }
+$env:ConnectionStrings__Database = "Host=127.0.0.1;Port=$portaPg;Database=atlas;Username=atlas;Password=$senhaPg"
+$env:Atlas__LegacyPassword = [Net.NetworkCredential]::new('', (Read-Host 'Senha do SQLCipher (Enter para SQLite)' -AsSecureString)).Password
+try { dotnet run --project backend/Atlas.Api -- --importar-historico 'C:\caminho\nfe_manifestacoes_seguro.db' }
+finally { Remove-Item Env:ConnectionStrings__Database, Env:Atlas__LegacyPassword -ErrorAction SilentlyContinue; Remove-Variable senhaPg }
 ```
 
-O comando pede a senha do SQLCipher quando necessário. Pode ser executado de novo para atualizar a cópia. Para conferir a importação, pesquise uma NF-e com sequência de eventos conhecida, outra cancelada e um número que aparece em mais de uma série. Compare com a Consulta do Atlas atual. Vá para a migração das rotinas de escrita depois de validar a equivalência com a sua base.
+O importador recebe a senha pela variável `Atlas__LegacyPassword` ou por um arquivo privado apontado por `Atlas__LegacyPasswordFile`. Para SQLite sem criptografia, deixe ambas ausentes. Pode ser executado de novo para atualizar a cópia. Para conferir a importação, pesquise uma NF-e com sequência de eventos conhecida, outra cancelada e um número que aparece em mais de uma série. Compare com a Consulta do Atlas atual. Vá para a migração das rotinas de escrita depois de validar a equivalência com a sua base.
 
 O Compose desta etapa abre a interface e a porta de importação apenas em loopback. Para diagnosticar a inicialização, use `docker compose logs migrate api frontend`.
 
@@ -65,9 +67,13 @@ docker compose run --rm -e Bootstrap__Email -e Bootstrap__Password api --bootstr
 unset Bootstrap__Email Bootstrap__Password
 ```
 
-Para importar, use o mesmo comando Python apontando para o arquivo fiscal no Linux. Defina a variável de conexão no terminal em que rodará o importador.
+Para importar no CachyOS, instale o SDK .NET 10 indicado em `global.json` e execute:
 
 ```bash
-ATLAS_POSTGRES_DSN="host=127.0.0.1 port=${ATLAS_DB_PORT:-55432} dbname=atlas user=atlas password=$(cat secrets/postgres-password)" \\
-  python -m nfe_consulta.postgres_snapshot /caminho/nfe_manifestacoes_seguro.db --cnpj "$ATLAS_CNPJ"
+read -rsp 'Senha do SQLCipher (Enter para SQLite): ' Atlas__LegacyPassword
+printf '\n'
+Atlas__Cnpj="$ATLAS_CNPJ" Atlas__LegacyPassword="$Atlas__LegacyPassword" \
+ConnectionStrings__Database="Host=127.0.0.1;Port=${ATLAS_DB_PORT:-55432};Database=atlas;Username=atlas;Password=$(cat secrets/postgres-password)" \
+  dotnet run --project backend/Atlas.Api -- --importar-historico /caminho/nfe_manifestacoes_seguro.db
+unset Atlas__LegacyPassword
 ```
