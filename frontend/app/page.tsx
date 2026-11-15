@@ -2,11 +2,7 @@
 
 import { Fragment, useState, type FormEvent } from "react";
 import { useAtlasSession } from "./atlas-frame";
-
-type Evento = { codigo: string; descricao: string; data: string; protocolo: string; nsu: string; correcao: string };
-type Cte = { chave: string; status: string; transportadora: string; data: string };
-type Nota = { chave: string; numero: number; serie: number; detalhe: { cancelada: boolean; eventos: Evento[]; ctes: Cte[] } };
-type Resultado = { importadoEm: string | null; notas: Nota[]; mais: boolean };
+import { EventosNota, type ResultadoConsulta } from "./eventos-nota";
 
 const dataBR = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
@@ -18,7 +14,7 @@ export default function Consulta() {
   const [busca, setBusca] = useState("");
   const [termo, setTermo] = useState("");
   const [pagina, setPagina] = useState(1);
-  const [resultado, setResultado] = useState<Resultado>();
+  const [resultado, setResultado] = useState<ResultadoConsulta>();
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [copia, setCopia] = useState<{ chave: string; sucesso: boolean }>();
@@ -134,27 +130,7 @@ export default function Consulta() {
                   </tr>
                   {aberta && <tr role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
                     <td role="cell" colSpan={4}>
-                      <div className="detalhe-grid">
-                        <section>
-                          <h2>Eventos ({eventos.length})</h2>
-                          {eventos.length === 0 && <p>Sem eventos registrados.</p>}
-                          {eventos.length > 0 && <ul>{eventos.map((evento, index) => <li key={index}>
-                            <strong>{evento.descricao || evento.codigo}</strong> · {evento.data}<br />
-                            {evento.protocolo && <>Protocolo {evento.protocolo} </>}
-                            {evento.nsu && <>· NSU {evento.nsu}</>}
-                            {evento.correcao && <p className="texto-evento consulta-correcao">{evento.correcao}</p>}
-                          </li>)}</ul>}
-                        </section>
-                        <section>
-                          <h2>CT-e vinculados ({ctes.length})</h2>
-                          {ctes.length === 0 && <p>Sem vínculos no histórico local.</p>}
-                          {ctes.length > 0 && <ul>{ctes.map((cte, index) => <li key={index}>
-                            <strong>{cte.status}</strong> {cte.transportadora && `· ${cte.transportadora}`}
-                            {cte.data && ` · ${cte.data}`}
-                            {cte.chave && <><br /><code>{cte.chave}</code></>}
-                          </li>)}</ul>}
-                        </section>
-                      </div>
+                      <EventosNota detalhe={nota.detalhe} />
                     </td>
                   </tr>}
                 </Fragment>;

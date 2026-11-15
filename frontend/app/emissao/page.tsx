@@ -2,9 +2,14 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useAtlasSession } from "../atlas-frame";
+import { EventosNota, type DetalheNota, type ResultadoConsulta } from "../eventos-nota";
 
 type Note = { chave: string; numero: number; serie: number; emissao: string; destinatario: string; valor: number; itens: number; cancelada: boolean };
 type Report = { notas: Note[]; mais: boolean };
+type Detail = { chave: string } & (
+  { tipo: "itens"; items: Record<string, string | number>[] }
+  | { tipo: "eventos"; eventos: DetalheNota | null }
+);
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function Emissao() {
@@ -14,7 +19,7 @@ export default function Emissao() {
   const [page, setPage] = useState(1);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(true);
-  const [detail, setDetail] = useState<{ chave: string; items: Record<string, string | number>[] }>();
+  const [detail, setDetail] = useState<Detail>();
 
   async function read(query: string, next: number, signal?: AbortSignal) {
     const params = new URLSearchParams(query);
@@ -78,23 +83,30 @@ export default function Emissao() {
     });
   }
 
-  function openItems(chave: string) {
-    if (detail?.chave === chave) {
+  function openDetail(chave: string, tipo: Detail["tipo"]) {
+    if (detail?.chave === chave && detail.tipo === tipo) {
       setDetail(undefined);
       return;
     }
     void action(async () => {
-      const response = await fetch(`/api/emissao/${chave}/itens`);
+      const url = tipo === "itens" ? `/api/emissao/${chave}/itens`
+        : `/api/consulta?busca=${encodeURIComponent(chave)}`;
+      const response = await fetch(url);
       if (response.status === 401) {
         location.href = "/";
         return;
       }
-      if (!response.ok) throw new Error("Não foi possível abrir os itens.");
-      setDetail({ chave, items: await response.json() });
+      if (!response.ok) throw new Error(`Não foi possível abrir os ${tipo}.`);
+      if (tipo === "itens") {
+        setDetail({ chave, tipo, items: await response.json() });
+      } else {
+        const result: ResultadoConsulta = await response.json();
+        setDetail({ chave, tipo, eventos: result.notas.find(note => note.chave === chave)?.detalhe ?? null });
+      }
     });
   }
 
-  const columns = Object.keys(detail?.items[0] ?? {});
+  const columns = Object.keys(detail?.tipo === "itens" ? detail.items[0] ?? {} : {});
 
   return <section className="painel">
     <h1>Emissão</h1>
@@ -124,28 +136,43 @@ export default function Emissao() {
         : <div key={`${filters}:${page}`} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Notas de emissão">
           <table className="tabela tabela-emissao" role="table">
             <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
-              <th scope="col" role="columnheader">Destinatário</th><th scope="col" role="columnheader">Valor</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Itens</th></tr></thead>
+              <th scope="col" role="columnheader">Destinatário</th><th scope="col" role="columnheader">Valor</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Ações</th></tr></thead>
             <tbody role="rowgroup">{report.notas.map(note => {
-              const expanded = detail?.chave === note.chave;
+              const activeDetail = detail?.chave === note.chave ? detail : undefined;
+              const detailId = `emissao-detalhe-${note.chave}`;
               return <Fragment key={note.chave}>
-                <tr role="row">
+                <tr role="row" className={activeDetail ? "emissao-nota aberta" : "emissao-nota"}>
                   <th scope="row" role="rowheader">{note.numero}<small>Série {note.serie}</small></th>
                   <td role="cell"><code>{note.chave}</code></td>
                   <td role="cell" className="numero">{note.emissao.split("-").reverse().join("/")}</td>
                   <td role="cell">{note.destinatario}</td>
                   <td role="cell" className="numero">{currency.format(note.valor)}</td>
                   <td role="cell">{note.cancelada ? <span className="selo selo-cancelado">Cancelada</span> : "Autorizada"}</td>
-                  <td role="cell"><button type="button" className="secundario compacto" disabled={busy} aria-expanded={expanded}
-                    aria-controls={expanded ? `itens-${note.chave}` : undefined}
-                    onClick={() => openItems(note.chave)}>Itens ({note.itens})</button></td>
+                  <td role="cell">
+                    <div className="emissao-acoes">
+                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "itens"}
+                        aria-controls={activeDetail?.tipo === "itens" ? detailId : undefined}
+                        onClick={() => openDetail(note.chave, "itens")}>Itens ({note.itens})</button>
+                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "eventos"}
+                        aria-controls={activeDetail?.tipo === "eventos" ? detailId : undefined}
+                        aria-label={`Eventos da NF-e ${note.numero}, série ${note.serie}`}
+                        onClick={() => openDetail(note.chave, "eventos")}>Eventos</button>
+                    </div>
+                  </td>
                 </tr>
-                {detail?.chave === note.chave && <tr role="row" className="linha-detalhe" id={`itens-${note.chave}`}>
+                {activeDetail?.tipo === "eventos" && <tr role="row" className="linha-detalhe" id={detailId}>
+                  <td role="cell" colSpan={7}>
+                    {activeDetail.eventos ? <EventosNota detalhe={activeDetail.eventos} />
+                      : <p role="status">Esta NF-e ainda não consta no histórico consultado pelo Atlas.</p>}
+                  </td>
+                </tr>}
+                {activeDetail?.tipo === "itens" && <tr role="row" className="linha-detalhe" id={detailId}>
                   <td role="cell" colSpan={7}>
                     <a className="acao compacto" href={`/api/emissao/${note.chave}/itens/excel`}>Exportar Excel dos itens</a>
                     {columns.length > 0 ? <div className="tabela-rolagem tabela-itens" tabIndex={0} role="region" aria-label="Itens da NF-e">
                       <table className="tabela">
                         <thead><tr>{columns.map(field => <th key={field} scope="col">{field}</th>)}</tr></thead>
-                        <tbody>{detail.items.map((item, index) => <tr key={index}>
+                        <tbody>{activeDetail.items.map((item, index) => <tr key={index}>
                           {columns.map(field => <td key={field}>{item[field]}</td>)}
                         </tr>)}</tbody>
                       </table>
