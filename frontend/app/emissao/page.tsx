@@ -142,7 +142,7 @@ export default function Emissao() {
       {report.notas.length === 0 ? <p className="mensagem">Nenhuma NF-e encontrada.</p>
         : <div key={`${filters}:${page}`} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Notas de emissão">
           <table className="tabela tabela-emissao" role="table">
-            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
+            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
               <th scope="col" role="columnheader">Destinatário</th><th scope="col" role="columnheader">Valor</th><th scope="col" role="columnheader">Situação</th></tr></thead>
             <tbody role="rowgroup">{report.notas.map(note => {
               const activeDetail = detail?.chave === note.chave ? detail : undefined;
@@ -166,7 +166,7 @@ export default function Emissao() {
                       </button>
                     </div>
                   </td>
-                  <th scope="row" role="rowheader">{note.numero}<small>Série {note.serie}</small></th>
+                  <th scope="row" role="rowheader">{note.numero}</th>
                   <td role="cell"><code>{note.chave}</code></td>
                   <td role="cell" className="numero">{note.emissao.split("-").reverse().join("/")}</td>
                   <td role="cell">{note.destinatario}</td>

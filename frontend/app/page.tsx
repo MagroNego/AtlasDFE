@@ -4,10 +4,6 @@ import { Fragment, useState, type FormEvent } from "react";
 import { useAtlasSession } from "./atlas-frame";
 import { EventosNota, type ResultadoConsulta } from "./eventos-nota";
 
-const dataBR = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
-});
-
 export default function Consulta() {
   const { refreshSession } = useAtlasSession();
   const [detalhe, setDetalhe] = useState<string>();
@@ -98,18 +94,15 @@ export default function Consulta() {
     {erro && <p role="alert" className="erro">{erro}</p>}
     {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
     {resultado && <div className="resultado painel-fiscal" aria-busy={ocupado}>
-      <div className="resultado-barra">
-        <div className="consulta-resumo">
-          {resultado.notas.length > 0 && <p role="status">{resultado.notas.length === 1
-            ? "1 nota nesta página" : `${resultado.notas.length} notas nesta página`}</p>}
-          {resultado.importadoEm && <p className="muted">Histórico importado em {dataBR.format(new Date(resultado.importadoEm))}</p>}
-        </div>
-        {resultado.notas.length > 0 && <a className="acao" href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Exportar Excel</a>}
-      </div>
+      {resultado.notas.length > 0 && <div className="resultado-barra">
+        <strong role="status">{resultado.notas.length === 1
+          ? "1 nota nesta página" : `${resultado.notas.length} notas nesta página`}</strong>
+        <a className="acao" href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Exportar Excel</a>
+      </div>}
       {!resultado.notas.length ? <p className="mensagem" role="status">Nenhuma NF-e localizada nesta cópia.</p>
         : <div key={pagina} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Resultados da consulta">
           <table className="tabela tabela-consulta" role="table">
-            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Eventos e vínculos</th></tr></thead>
+            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Eventos e vínculos</th></tr></thead>
             <tbody role="rowgroup">
               {resultado.notas.map(nota => {
                 const aberta = detalhe === nota.chave;
@@ -119,7 +112,7 @@ export default function Consulta() {
                 const temCarta = eventos.some(evento => evento.codigo === "110110");
                 return <Fragment key={nota.chave}>
                   <tr role="row" className={aberta ? "consulta-nota aberta" : "consulta-nota"}>
-                    <th scope="row" role="rowheader">{nota.numero}<small>Série {nota.serie}</small></th>
+                    <th scope="row" role="rowheader">{nota.numero}</th>
                     <td role="cell">
                       <div className="consulta-chave">
                         <code>{nota.chave}</code>

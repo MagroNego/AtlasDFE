@@ -183,7 +183,6 @@ details[open] > form { padding-top: 12px; }
 .tabela thead th { position: sticky; top: 0; z-index: 1; background: var(--superficie); color: var(--muted); font-size: .84rem; }
 .tabela tbody tr:last-child > * { border-bottom: 0; }
 .tabela tbody tr:hover > *, .tabela tbody tr:focus-within > * { background: var(--superficie); }
-.tabela th small { display: block; }
 .tabela-consulta th:first-child, .tabela-emissao th:nth-child(2), .tabela td:last-child button, .numero { white-space: nowrap; }
 .tabela-consulta td:nth-child(2) { min-width: 18ch; }
 .tabela-emissao td:nth-child(3) { min-width: 14ch; }
@@ -192,9 +191,6 @@ details[open] > form { padding-top: 12px; }
 .detalhe-grid, .texto-evento { overflow-wrap: anywhere; }
 .texto-evento { white-space: pre-wrap; }
 .tela-consulta .resultado-barra { gap: 12px; }
-.consulta-resumo { display: grid; gap: 2px; }
-.consulta-resumo p:first-child { font-weight: 650; }
-.consulta-resumo .muted { font-size: .85rem; }
 .consulta-nota > :is(th, td) { padding-block: 6px; }
 .tabela :is(.consulta-nota, .emissao-nota).aberta > * { background: var(--selecao); }
 .consulta-chave { display: flex; align-items: center; gap: 10px; }
