@@ -14,7 +14,8 @@ public sealed record EmissionNote(string Chave, int Numero, int Serie, DateOnly 
     decimal PisRetido = 0, decimal CofinsRetido = 0);
 
 public sealed record EmissionRow(string Chave, int Numero, int Serie, DateOnly Emissao,
-    string Emitente, string Destinatario, decimal Valor, int Itens, bool Cancelada, decimal PisRetido, decimal CofinsRetido);
+    string Emitente, string Destinatario, decimal Valor, int Itens, bool Cancelada, decimal PisRetido, decimal CofinsRetido,
+    bool TemCce, bool TemCte);
 
 public sealed class EmissionStore(string connection)
 {
@@ -174,7 +175,9 @@ public sealed class EmissionStore(string connection)
         await db.OpenAsync(token);
         await using var command = new NpgsqlCommand("""
             SELECT e.chave,e.numero,e.serie,e.emissao,e.emitente,e.destinatario,e.valor,jsonb_array_length(e.itens),
-                (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false)) AS cancelada,e.pis_retido,e.cofins_retido
+                (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false)) AS cancelada,e.pis_retido,e.cofins_retido,
+                coalesce(n.detalhe->'eventos' @> '[{"codigo":"110110"}]'::jsonb,false),
+                coalesce(jsonb_array_length(n.detalhe->'ctes')>0,false)
             FROM emissao_notas e LEFT JOIN consulta_notas n USING (cnpj,chave)
             LEFT JOIN atlas_situacao_atual m USING (cnpj,chave)
             WHERE e.cnpj=$1 AND ($2='' OR strpos(lower(concat_ws(' ',e.chave,e.numero,e.emitente,e.destinatario)),lower($2))>0
@@ -195,7 +198,8 @@ public sealed class EmissionStore(string connection)
         await using var rows = await command.ExecuteReaderAsync(token);
         while (await rows.ReadAsync(token))
             result.Add(new(rows.GetString(0), rows.GetInt32(1), rows.GetInt32(2), rows.GetFieldValue<DateOnly>(3),
-                rows.GetString(4), rows.GetString(5), rows.GetDecimal(6), rows.GetInt32(7), rows.GetBoolean(8), rows.GetDecimal(9), rows.GetDecimal(10)));
+                rows.GetString(4), rows.GetString(5), rows.GetDecimal(6), rows.GetInt32(7), rows.GetBoolean(8), rows.GetDecimal(9), rows.GetDecimal(10),
+                rows.GetBoolean(11), rows.GetBoolean(12)));
         return result;
     }
 

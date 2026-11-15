@@ -2,13 +2,14 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useAtlasSession } from "../atlas-frame";
-import { EventosNota, type DetalheNota, type ResultadoConsulta } from "../eventos-nota";
+import { EventosNota, rotulosAcoes, type AcaoNota, type DetalheNota, type ResultadoConsulta } from "../eventos-nota";
+import { ItensNota, type ItemNota } from "../itens-nota";
 
-type Note = { chave: string; numero: number; serie: number; emissao: string; destinatario: string; valor: number; itens: number; cancelada: boolean };
+type Note = { chave: string; numero: number; serie: number; emissao: string; destinatario: string; valor: number; itens: number; cancelada: boolean; temCce: boolean; temCte: boolean };
 type Report = { notas: Note[]; mais: boolean };
 type Detail = { chave: string } & (
-  { tipo: "itens"; items: Record<string, string | number>[] }
-  | { tipo: "eventos"; eventos: DetalheNota | null }
+  { tipo: "itens"; items: ItemNota[] }
+  | { tipo: Exclude<AcaoNota, "itens">; eventos: DetalheNota | null }
 );
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -96,7 +97,8 @@ export default function Emissao() {
         location.href = "/";
         return;
       }
-      if (!response.ok) throw new Error(`Não foi possível abrir os ${tipo}.`);
+      if (!response.ok) throw new Error(tipo === "eventos" || tipo === "itens"
+        ? `Não foi possível abrir os ${tipo}.` : `Não foi possível abrir ${rotulosAcoes[tipo]}.`);
       if (tipo === "itens") {
         setDetail({ chave, tipo, items: await response.json() });
       } else {
@@ -106,7 +108,6 @@ export default function Emissao() {
     });
   }
 
-  const columns = Object.keys(detail?.tipo === "itens" ? detail.items[0] ?? {} : {});
   return <section className="tela-fiscal tela-emissao">
     <div className="titulo-fiscal">
       <h1>Emissão</h1>
@@ -149,7 +150,7 @@ export default function Emissao() {
               return <Fragment key={note.chave}>
                 <tr role="row" className={activeDetail ? "emissao-nota aberta" : "emissao-nota"}>
                   <td role="cell">
-                    <div className="emissao-acoes">
+                    <div className="acoes-nota emissao-acoes">
                       <button type="button" className="secundario compacto acao-nota" disabled={busy} aria-expanded={activeDetail?.tipo === "itens"}
                         aria-controls={activeDetail?.tipo === "itens" ? detailId : undefined}
                         aria-label={`Itens (${note.itens})`}
@@ -164,6 +165,12 @@ export default function Emissao() {
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3M9 2h6v4H9zM8 13l3 3 5-6" /></svg>
                         Eventos
                       </button>
+                      {(["cce", "cte"] as const).map(tipo => (tipo === "cce" ? note.temCce : note.temCte) &&
+                        <button key={tipo} type="button" className="secundario compacto acao-nota" disabled={busy}
+                          aria-expanded={activeDetail?.tipo === tipo}
+                          aria-controls={activeDetail?.tipo === tipo ? detailId : undefined}
+                          aria-label={`${rotulosAcoes[tipo]} da NF-e ${note.numero}, série ${note.serie}`}
+                          onClick={() => openDetail(note.chave, tipo)}>{rotulosAcoes[tipo]}</button>)}
                     </div>
                   </td>
                   <th scope="row" role="rowheader">{note.numero}</th>
@@ -173,23 +180,15 @@ export default function Emissao() {
                   <td role="cell" className="numero">{currency.format(note.valor)}</td>
                   <td role="cell">{note.cancelada ? <span className="selo selo-cancelado">Cancelada</span> : "Autorizada"}</td>
                 </tr>
-                {activeDetail?.tipo === "eventos" && <tr role="row" className="linha-detalhe" id={detailId}>
+                {activeDetail && activeDetail.tipo !== "itens" && <tr role="row" className="linha-detalhe" id={detailId}>
                   <td role="cell" colSpan={7}>
-                    {activeDetail.eventos ? <EventosNota detalhe={activeDetail.eventos} />
+                    {activeDetail.eventos ? <EventosNota detalhe={activeDetail.eventos} tipo={activeDetail.tipo} />
                       : <p role="status">Esta NF-e ainda não consta no histórico consultado pelo Atlas.</p>}
                   </td>
                 </tr>}
                 {activeDetail?.tipo === "itens" && <tr role="row" className="linha-detalhe" id={detailId}>
                   <td role="cell" colSpan={7}>
-                    <a className="acao compacto" href={`/api/emissao/${note.chave}/itens/excel`}>Exportar Excel dos itens</a>
-                    {columns.length > 0 ? <div className="tabela-rolagem tabela-itens" tabIndex={0} role="region" aria-label="Itens da NF-e">
-                      <table className="tabela">
-                        <thead><tr>{columns.map(field => <th key={field} scope="col">{field}</th>)}</tr></thead>
-                        <tbody>{activeDetail.items.map((item, index) => <tr key={index}>
-                          {columns.map(field => <td key={field}>{item[field]}</td>)}
-                        </tr>)}</tbody>
-                      </table>
-                    </div> : <p>Nenhum item encontrado.</p>}
+                    <ItensNota chave={note.chave} items={activeDetail.items} />
                   </td>
                 </tr>}
               </Fragment>;

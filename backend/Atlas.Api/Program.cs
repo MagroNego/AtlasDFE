@@ -261,7 +261,14 @@ app.MapGet("/api/consulta", async (
         .Select(n => new { n.Chave, n.Numero, n.Serie, n.Detalhe, Manual = banco.Situacoes.Any(s => s.Cnpj == n.Cnpj && s.Chave == n.Chave && s.Cancelada) })
         .ToListAsync(cancelamento);
 
+    var chaves = linhas.Take(tamanho).Select(n => n.Chave).ToArray();
+    var chavesComItens = chaves.Length == 0 ? [] : await banco.Database.SqlQuery<string>($"""
+        SELECT chave AS "Value" FROM emissao_notas
+        WHERE cnpj={cnpj} AND chave=ANY({chaves}) AND jsonb_array_length(itens)>0
+        """).ToListAsync(cancelamento);
+    var comItens = chavesComItens.ToHashSet(StringComparer.Ordinal);
     return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho).Select(n => new { n.Chave, n.Numero, n.Serie,
+        TemItens = comItens.Contains(n.Chave),
         Detalhe = FiscalEndpoints.MergeStatus(n.Detalhe, n.Manual) }), mais = linhas.Count > tamanho });
 }).RequireAuthorization();
 

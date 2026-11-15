@@ -2,11 +2,12 @@
 
 import { Fragment, useState, type FormEvent } from "react";
 import { useAtlasSession } from "./atlas-frame";
-import { EventosNota, type ResultadoConsulta } from "./eventos-nota";
+import { EventosNota, rotulosAcoes, type AcaoNota, type ResultadoConsulta } from "./eventos-nota";
+import { ItensNota, type ItemNota } from "./itens-nota";
 
 export default function Consulta() {
   const { refreshSession } = useAtlasSession();
-  const [detalhe, setDetalhe] = useState<string>();
+  const [detalhe, setDetalhe] = useState<{ chave: string; tipo: AcaoNota; itens?: ItemNota[] }>();
   const [termo, setTermo] = useState("");
   const [pagina, setPagina] = useState(1);
   const [resultado, setResultado] = useState<ResultadoConsulta>();
@@ -65,6 +66,34 @@ export default function Consulta() {
     setErro("");
   }
 
+  async function abrirDetalhe(chave: string, tipo: AcaoNota) {
+    if (ocupado) return;
+    if (detalhe?.chave === chave && detalhe.tipo === tipo) {
+      setDetalhe(undefined);
+      return;
+    }
+    setErro("");
+    if (tipo !== "itens") {
+      setDetalhe({ chave, tipo });
+      return;
+    }
+    setOcupado(true);
+    try {
+      const resposta = await fetch(`/api/emissao/${encodeURIComponent(chave)}/itens`);
+      if (resposta.status === 401) {
+        setResultado(undefined);
+        await refreshSession();
+        return;
+      }
+      if (!resposta.ok) throw new Error();
+      setDetalhe({ chave, tipo, itens: await resposta.json() });
+    } catch {
+      setErro("Não foi possível abrir os itens.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   async function copiarChave(chave: string) {
     try {
       await navigator.clipboard.writeText(chave);
@@ -103,20 +132,25 @@ export default function Consulta() {
             <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th></tr></thead>
             <tbody role="rowgroup">
               {resultado.notas.map(nota => {
-                const aberta = detalhe === nota.chave;
+                const detalheAberto = detalhe?.chave === nota.chave ? detalhe : undefined;
                 const estadoCopia = copia?.chave === nota.chave ? copia : undefined;
                 const { eventos, ctes, cancelada } = nota.detalhe;
                 const totalEventos = `${eventos.length} ${eventos.length === 1 ? "evento" : "eventos"}`;
                 const temCarta = eventos.some(evento => evento.codigo === "110110");
+                const acoes: AcaoNota[] = ["eventos"];
+                if (nota.temItens) acoes.unshift("itens");
+                if (temCarta) acoes.push("cce");
+                if (ctes.length > 0) acoes.push("cte");
                 return <Fragment key={nota.chave}>
-                  <tr role="row" className={aberta ? "consulta-nota aberta" : "consulta-nota"}>
+                  <tr role="row" className={detalheAberto ? "consulta-nota aberta" : "consulta-nota"}>
                     <td role="cell">
-                      <button type="button" className="secundario compacto acao-nota" aria-expanded={aberta}
-                        aria-controls={aberta ? `detalhe-${nota.chave}` : undefined}
-                        aria-label={`Eventos da NF-e ${nota.numero}, série ${nota.serie}${temCarta ? ", com Carta de Correção" : ""}. ${totalEventos} e ${ctes.length} CT-e`}
-                        onClick={() => setDetalhe(aberta ? undefined : nota.chave)}>
-                        Eventos{temCarta && <span className="selo-cce">CC-e</span>}
-                      </button>
+                      <div className="acoes-nota">
+                        {acoes.map(tipo => <button key={tipo} type="button" className="secundario compacto acao-nota"
+                          disabled={ocupado} aria-expanded={detalheAberto?.tipo === tipo}
+                          aria-controls={detalheAberto?.tipo === tipo ? `detalhe-${nota.chave}` : undefined}
+                          aria-label={`${rotulosAcoes[tipo]} da NF-e ${nota.numero}, série ${nota.serie}${tipo === "eventos" ? ` · ${totalEventos}` : ""}`}
+                          onClick={() => void abrirDetalhe(nota.chave, tipo)}>{rotulosAcoes[tipo]}</button>)}
+                      </div>
                     </td>
                     <th scope="row" role="rowheader">{nota.numero}</th>
                     <td role="cell">
@@ -139,9 +173,11 @@ export default function Consulta() {
                     </td>
                     <td role="cell">{cancelada ? <span className="selo selo-cancelado">Cancelada no histórico local</span> : <span className="sem-marcacao">—</span>}</td>
                   </tr>
-                  {aberta && <tr role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
+                  {detalheAberto && <tr role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
                     <td role="cell" colSpan={4}>
-                      <EventosNota detalhe={nota.detalhe} />
+                      {detalheAberto.tipo === "itens"
+                        ? <ItensNota chave={nota.chave} items={detalheAberto.itens ?? []} />
+                        : <EventosNota detalhe={nota.detalhe} tipo={detalheAberto.tipo} />}
                     </td>
                   </tr>}
                 </Fragment>;

@@ -166,7 +166,6 @@ details[open] > form { padding-top: 12px; }
 }
 .erro { color: var(--erro); background: var(--erro-fundo); overflow-wrap: anywhere; }
 .selo { border-radius: 4px; display: inline-block; padding: 3px 7px; font-weight: 600; font-size: .8rem; }
-.selo-cce { margin-inline-start: 7px; color: var(--primaria); font-size: .74rem; }
 .selo-cancelado { color: var(--erro); background: var(--erro-fundo); }
 
 .tabela-rolagem {
@@ -200,7 +199,7 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
 .consulta-copia-erro { margin: 4px 0 0; font-size: .8rem; color: var(--erro); }
 .evento-correcao { margin: 5px 0 0; }
 .linha-detalhe section { min-width: 0; }
-.emissao-acoes { display: flex; gap: 6px; }
+.acoes-nota { display: flex; flex-wrap: wrap; gap: 6px; }
 .emissao-acoes svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .tabela-itens { margin-top: 10px; contain: inline-size; }
 .tabela-itens :is(th, td) { white-space: nowrap; }
@@ -254,6 +253,7 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
   .tabela tbody :is(.consulta-nota, .emissao-nota).aberta > * { background: transparent; }
   .consulta-chave { justify-content: space-between; }
   .consulta-nota .copiar-chave { width: 40px; min-height: 40px; }
+  .acoes-nota { justify-content: flex-end; max-width: min(56vw, 270px); }
   button.acao-nota { min-height: 38px; }
   .tabela-emissao > tbody > tr > td:nth-child(5) { grid-row: 4; grid-column: 1 / -1; overflow-wrap: anywhere; }
   .tabela-emissao > tbody > tr > td:nth-child(7) { grid-column: 1 / -1; color: var(--muted); }
