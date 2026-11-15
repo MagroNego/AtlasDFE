@@ -65,7 +65,7 @@ export default function Consulta() {
     }
   }
 
-  return <section className="painel painel-consulta">
+  return <section className="tela-fiscal tela-consulta">
     <h1>Consulta de NF-e</h1>
     <form className="busca" onSubmit={buscar}>
       <label htmlFor="busca">Número da nota ou chave de acesso</label>

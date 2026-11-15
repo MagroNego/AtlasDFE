@@ -108,10 +108,10 @@ export default function Emissao() {
 
   const columns = Object.keys(detail?.tipo === "itens" ? detail.items[0] ?? {} : {});
 
-  return <section className="painel">
+  return <section className="tela-fiscal tela-emissao">
     <h1>Emissão</h1>
-    <form onSubmit={search}>
-      <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} /></label>
+    <form className="emissao-form" onSubmit={search}>
+      <label className="emissao-busca">Nota, chave, empresa ou item<input name="busca" maxLength={200} /></label>
       <div className="emissao-filtros">
         <label>Emissão de<input type="date" name="inicio" /></label>
         <label>Até<input type="date" name="fim" /></label>
