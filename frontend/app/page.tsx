@@ -21,11 +21,13 @@ export default function Consulta() {
   const [resultado, setResultado] = useState<Resultado>();
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [copia, setCopia] = useState<{ chave: string; sucesso: boolean }>();
 
   async function consultar(valor: string, paginaAlvo: number) {
     if (ocupado) return;
     setOcupado(true);
     setDetalhe(undefined);
+    setCopia(undefined);
     setErro("");
     if (paginaAlvo === 1) setResultado(undefined);
     try {
@@ -53,15 +55,26 @@ export default function Consulta() {
 
   function buscar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
-    void consultar(busca.trim(), 1);
+    const valor = busca.trim();
+    const chave = valor.replace(/[\s.-]/g, "");
+    void consultar(/^\d{44}$/.test(chave) ? chave : valor, 1);
   }
 
-  return <section className="painel">
+  async function copiarChave(chave: string) {
+    try {
+      await navigator.clipboard.writeText(chave);
+      setCopia({ chave, sucesso: true });
+    } catch {
+      setCopia({ chave, sucesso: false });
+    }
+  }
+
+  return <section className="painel painel-consulta">
     <h1>Consulta de NF-e</h1>
     <form className="busca" onSubmit={buscar}>
       <label htmlFor="busca">Número da nota ou chave de acesso</label>
       <div className="linha-busca">
-        <input id="busca" value={busca} inputMode="numeric" maxLength={44} required
+        <input id="busca" value={busca} inputMode="numeric" autoComplete="off" required
           onChange={e => setBusca(e.target.value)} placeholder="Ex. 96203" />
         <button disabled={ocupado}>{ocupado ? "Consultando…" : "Consultar"}</button>
       </div>
@@ -70,25 +83,45 @@ export default function Consulta() {
     {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
     {resultado && <div className="resultado" aria-busy={ocupado}>
       <div className="resultado-barra">
-        <p role="status" className="muted">{resultado.importadoEm
-          ? `Histórico importado em ${dataBR.format(new Date(resultado.importadoEm))}`
-          : "Consulta de documentos recebidos pela SEFAZ."}</p>
+        <div className="consulta-resumo">
+          {resultado.notas.length > 0 && <p role="status">{resultado.notas.length === 1
+            ? "1 nota nesta página" : `${resultado.notas.length} notas nesta página`}</p>}
+          {resultado.importadoEm && <p className="muted">Histórico importado em {dataBR.format(new Date(resultado.importadoEm))}</p>}
+        </div>
         {resultado.notas.length > 0 && <a className="acao" href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Exportar Excel</a>}
       </div>
-      {!resultado.notas.length ? <p className="mensagem">Nenhuma NF-e localizada nesta cópia.</p>
+      {!resultado.notas.length ? <p className="mensagem" role="status">Nenhuma NF-e localizada nesta cópia.</p>
         : <div key={pagina} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Resultados da consulta">
           <table className="tabela tabela-consulta" role="table">
             <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Eventos e vínculos</th></tr></thead>
             <tbody role="rowgroup">
               {resultado.notas.map(nota => {
                 const aberta = detalhe === nota.chave;
+                const estadoCopia = copia?.chave === nota.chave ? copia : undefined;
                 const { eventos, ctes, cancelada } = nota.detalhe;
                 const totalEventos = `${eventos.length} ${eventos.length === 1 ? "evento" : "eventos"}`;
                 const temCarta = eventos.some(evento => evento.codigo === "110110");
                 return <Fragment key={nota.chave}>
-                  <tr role="row">
+                  <tr role="row" className={aberta ? "consulta-nota aberta" : "consulta-nota"}>
                     <th scope="row" role="rowheader">{nota.numero}<small>Série {nota.serie}</small></th>
-                    <td role="cell"><code>{nota.chave}</code></td>
+                    <td role="cell">
+                      <div className="consulta-chave">
+                        <code>{nota.chave}</code>
+                        <button type="button" className="secundario copiar-chave" title="Copiar chave"
+                          aria-label={`Copiar chave da NF-e ${nota.numero}, série ${nota.serie}`}
+                          onClick={() => void copiarChave(nota.chave)}>
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {estadoCopia?.sucesso
+                              ? <path d="m5 12 4 4L19 6" />
+                              : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 4H6a2 2 0 0 0-2 2v10" /></>}
+                          </svg>
+                        </button>
+                      </div>
+                      {estadoCopia && <p role={estadoCopia.sucesso ? "status" : "alert"} className={estadoCopia.sucesso ? "sr-only" : "consulta-copia-erro"}>
+                        {estadoCopia.sucesso ? "Chave de acesso copiada." : "Selecione a chave para copiá-la manualmente."}
+                      </p>}
+                    </td>
                     <td role="cell">{cancelada ? <span className="selo selo-cancelado">Cancelada no histórico local</span> : <span className="sem-marcacao">—</span>}</td>
                     <td role="cell">
                       <button type="button" className="secundario compacto" aria-expanded={aberta}
@@ -109,7 +142,7 @@ export default function Consulta() {
                             <strong>{evento.descricao || evento.codigo}</strong> · {evento.data}<br />
                             {evento.protocolo && <>Protocolo {evento.protocolo} </>}
                             {evento.nsu && <>· NSU {evento.nsu}</>}
-                            {evento.correcao && <p className="texto-evento">{evento.correcao}</p>}
+                            {evento.correcao && <p className="texto-evento consulta-correcao">{evento.correcao}</p>}
                           </li>)}</ul>}
                         </section>
                         <section>

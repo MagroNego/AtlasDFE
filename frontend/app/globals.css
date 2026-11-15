@@ -176,6 +176,22 @@ details[open] > form { padding-top: 12px; }
 .detalhe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 14px 22px; }
 .detalhe-grid, .texto-evento { overflow-wrap: anywhere; }
 .texto-evento { white-space: pre-wrap; }
+.painel-consulta .resultado-barra { gap: 12px; }
+.consulta-resumo { display: grid; gap: 2px; }
+.consulta-resumo p:first-child { font-weight: 650; }
+.consulta-resumo .muted { font-size: .85rem; }
+.consulta-nota > :is(th, td) { padding-block: 6px; }
+.tabela .consulta-nota.aberta > * { background: var(--selecao); }
+.consulta-chave { display: flex; align-items: center; gap: 10px; }
+.consulta-chave code { min-width: 0; user-select: all; }
+.copiar-chave { flex: none; width: 34px; min-height: 34px; padding: 0; }
+.consulta-copia-erro { margin: 4px 0 0; font-size: .8rem; color: var(--erro); }
+.consulta-correcao {
+  padding: 9px 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--raio);
+  background: var(--painel);
+}
 .linha-detalhe section { min-width: 0; animation: detalhe-entrada 150ms ease-out; }
 .tabela-itens { margin-top: 10px; contain: inline-size; }
 .tabela-itens :is(th, td) { white-space: nowrap; }
@@ -229,6 +245,10 @@ details[open] > form { padding-top: 12px; }
   :is(.tabela-consulta, .tabela-emissao) > tbody > .linha-detalhe { display: block; background: var(--superficie); padding: 12px; }
   :is(.tabela-consulta, .tabela-emissao) > tbody > .linha-detalhe > td { display: block; padding: 0; }
   .tabela-consulta .sem-marcacao { display: none; }
+  .tabela-consulta tbody .consulta-nota.aberta { background: var(--selecao); }
+  .tabela-consulta tbody .consulta-nota.aberta > * { background: transparent; }
+  .consulta-chave { justify-content: space-between; }
+  .consulta-nota .copiar-chave { width: 40px; min-height: 40px; }
   .tabela-emissao > tbody > tr > td:nth-child(4) { grid-row: 4; grid-column: 1 / -1; overflow-wrap: anywhere; }
   .tabela-emissao > tbody > tr > td:nth-child(6) { grid-column: 1 / -1; color: var(--muted); }
 }
