@@ -155,8 +155,7 @@ details[open] > form { padding-top: 12px; }
 
 .resultado { margin-top: 24px; }
 .tela-fiscal .resultado { margin-top: 14px; }
-.resultado-barra { justify-content: space-between; margin-bottom: 10px; }
-.resultado-barra p { margin: 0; }
+.resultado-barra { justify-content: flex-end; margin-bottom: 10px; }
 .paginacao { justify-content: flex-end; margin-top: 14px; font-variant-numeric: tabular-nums; }
 .nota { padding: 14px 0; border-top: 1px solid var(--linha); overflow-wrap: anywhere; }
 .mensagem, .erro {
@@ -183,35 +182,25 @@ details[open] > form { padding-top: 12px; }
 .tabela thead th { position: sticky; top: 0; z-index: 1; background: var(--superficie); color: var(--muted); font-size: .84rem; }
 .tabela tbody tr:last-child > * { border-bottom: 0; }
 .tabela tbody tr:hover > *, .tabela tbody tr:focus-within > * { background: var(--superficie); }
-.tabela-consulta th:first-child, .tabela-emissao th:nth-child(2), .tabela td:last-child button, .numero { white-space: nowrap; }
-.tabela-consulta td:nth-child(2) { min-width: 18ch; }
-.tabela-emissao td:nth-child(3) { min-width: 14ch; }
+:is(.tabela-consulta, .tabela-emissao) th:nth-child(2), .tabela td:last-child button, .numero { white-space: nowrap; }
+:is(.tabela-consulta, .tabela-emissao) td:nth-child(3) { min-width: 14ch; }
 .tabela .linha-detalhe > td { background: var(--superficie); padding: 16px; }
 .detalhe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 14px 22px; }
 .detalhe-grid, .texto-evento { overflow-wrap: anywhere; }
 .texto-evento { white-space: pre-wrap; }
-.tela-consulta .resultado-barra { gap: 12px; }
 .consulta-nota > :is(th, td) { padding-block: 6px; }
 .tabela :is(.consulta-nota, .emissao-nota).aberta > * { background: var(--selecao); }
 .consulta-chave { display: flex; align-items: center; gap: 10px; }
 .consulta-chave code { min-width: 0; user-select: all; }
 .copiar-chave { flex: none; width: 34px; min-height: 34px; padding: 0; }
-.tabela-consulta .secundario, .emissao-acoes .secundario {
-  border-color: transparent;
-  background: transparent;
-  color: var(--primaria);
-  font-weight: 500;
-}
-.tabela-consulta .secundario:hover, .emissao-acoes .secundario:hover { background: var(--selecao); }
-.tabela-consulta .secundario[aria-expanded="true"], .emissao-acoes .secundario[aria-expanded="true"] {
-  background: var(--painel);
-  border-color: var(--linha);
-}
+.consulta-chave .copiar-chave { border-color: transparent; background: transparent; }
+.consulta-chave .copiar-chave:hover { background: var(--selecao); }
+button.acao-nota { gap: 5px; white-space: nowrap; }
+button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color: var(--campo); }
 .consulta-copia-erro { margin: 4px 0 0; font-size: .8rem; color: var(--erro); }
 .evento-correcao { margin: 5px 0 0; }
 .linha-detalhe section { min-width: 0; }
-.emissao-acoes { display: flex; flex-wrap: wrap; gap: 2px; }
-.emissao-acoes button { width: 32px; min-height: 32px; padding: 0; }
+.emissao-acoes { display: flex; gap: 6px; }
 .emissao-acoes svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .tabela-itens { margin-top: 10px; contain: inline-size; }
 .tabela-itens :is(th, td) { white-space: nowrap; }
@@ -224,7 +213,6 @@ details[open] > form { padding-top: 12px; }
 }
 
 @media (max-width: 480px) {
-  .tabela-consulta td:nth-child(2) { min-width: 12ch; }
   .paginacao { justify-content: space-between; }
 }
 
@@ -255,9 +243,9 @@ details[open] > form { padding-top: 12px; }
   }
   :is(.tabela-consulta, .tabela-emissao) > tbody > tr:last-child { border-bottom: 0; }
   :is(.tabela-consulta, .tabela-emissao) > tbody > tr > :is(th, td) { min-width: 0; padding: 0; border: 0; }
-  .tabela-consulta > tbody > tr > td:nth-child(2), .tabela-emissao > tbody > tr > td:nth-child(3) { grid-column: 1 / -1; grid-row: 2; }
-  .tabela-consulta > tbody > tr > td:last-child, .tabela-emissao > tbody > .emissao-nota > td:first-child { grid-column: 2; grid-row: 1; }
-  .tabela-emissao > tbody > .emissao-nota > th { grid-column: 1; grid-row: 1; }
+  :is(.tabela-consulta, .tabela-emissao) > tbody > :is(.consulta-nota, .emissao-nota) > td:nth-child(3) { grid-column: 1 / -1; grid-row: 2; }
+  :is(.consulta-nota, .emissao-nota) > td:first-child { grid-column: 2; grid-row: 1; }
+  :is(.consulta-nota, .emissao-nota) > th { grid-column: 1; grid-row: 1; }
   :is(.tabela-consulta, .tabela-emissao) > tbody > tr:not(.linha-detalhe):is(:hover, :focus-within) { background: var(--superficie); }
   :is(.tabela-consulta, .tabela-emissao) > tbody > .linha-detalhe { display: block; background: var(--superficie); padding: 12px; }
   :is(.tabela-consulta, .tabela-emissao) > tbody > .linha-detalhe > td { display: block; padding: 0; }
@@ -266,7 +254,7 @@ details[open] > form { padding-top: 12px; }
   .tabela tbody :is(.consulta-nota, .emissao-nota).aberta > * { background: transparent; }
   .consulta-chave { justify-content: space-between; }
   .consulta-nota .copiar-chave { width: 40px; min-height: 40px; }
-  .emissao-acoes button { width: 38px; min-height: 38px; }
+  button.acao-nota { min-height: 38px; }
   .tabela-emissao > tbody > tr > td:nth-child(5) { grid-row: 4; grid-column: 1 / -1; overflow-wrap: anywhere; }
   .tabela-emissao > tbody > tr > td:nth-child(7) { grid-column: 1 / -1; color: var(--muted); }
 }

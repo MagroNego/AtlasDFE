@@ -136,7 +136,6 @@ export default function Emissao() {
     {message && <p className="mensagem" role="status">{message}</p>}
     {report && <div className="resultado painel-fiscal" aria-busy={busy}>
       <div className="resultado-barra">
-        <strong role="status">{report.notas.length === 1 ? "1 nota nesta página" : `${report.notas.length} notas nesta página`}</strong>
         <a className="acao" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
       </div>
       {report.notas.length === 0 ? <p className="mensagem">Nenhuma NF-e encontrada.</p>
@@ -151,18 +150,19 @@ export default function Emissao() {
                 <tr role="row" className={activeDetail ? "emissao-nota aberta" : "emissao-nota"}>
                   <td role="cell">
                     <div className="emissao-acoes">
-                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "itens"}
+                      <button type="button" className="secundario compacto acao-nota" disabled={busy} aria-expanded={activeDetail?.tipo === "itens"}
                         aria-controls={activeDetail?.tipo === "itens" ? detailId : undefined}
-                        title={`Itens (${note.itens})`}
+                        aria-label={`Itens (${note.itens})`}
                         onClick={() => openDetail(note.chave, "itens")}>
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>
-                        <span className="sr-only">Itens ({note.itens})</span>
+                        Itens
                       </button>
-                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "eventos"}
+                      <button type="button" className="secundario compacto acao-nota" disabled={busy} aria-expanded={activeDetail?.tipo === "eventos"}
                         aria-controls={activeDetail?.tipo === "eventos" ? detailId : undefined}
                         aria-label={`Eventos da NF-e ${note.numero}, série ${note.serie}`}
-                        title="Eventos" onClick={() => openDetail(note.chave, "eventos")}>
+                        onClick={() => openDetail(note.chave, "eventos")}>
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3M9 2h6v4H9zM8 13l3 3 5-6" /></svg>
+                        Eventos
                       </button>
                     </div>
                   </td>

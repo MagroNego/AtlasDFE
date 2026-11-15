@@ -8,14 +8,16 @@ A referência visual veio de `nfe_consulta/web/templates/base.html`, `static/app
 
 ## Cobertura operacional
 
+Consulte a [comparação com a versão Python](paridade-atlas-python.md) para os fluxos pendentes e os pontos de validação antes da virada.
+
 | Fluxo | Atlas em Python | Migração em .NET e frontend desta branch |
 | --- | --- | --- |
-| Consulta de NF-e | Filtros por período, empresa, situação, manifestações e demais parâmetros. | Número ou chave NF-e, 25 notas por página, eventos, protocolo, texto de CC-e, CT-e vinculados e Excel do resultado. A API atual aceita `busca` e `pagina`. |
+| Consulta de NF-e | Filtros por período do evento, número, chave, situação e tipo de manifestação. | Número ou chave NF-e, 25 notas por página, eventos, protocolo, texto de CC-e, CT-e vinculados e Excel do resultado. A API atual aceita `busca` e `pagina`. |
 | Manifestação | Histórico e filtros de eventos recebidos. | Histórico e exportação ligados à nota consultada. A API revisada não expõe envio de manifestação individual ou em massa. |
 | CT-e | Vínculos de CT-e na Consulta. | Vínculos, chave, situação, transportadora e data quando fornecida. A busca direta pelo modelo 57 exige mudança em `IdentificadorNota` e consulta própria. |
 | Cancelamentos e CC-e | Status e históricos, marcação local e ações de CC-e. | CC-e identificada na linha com acesso ao texto e protocolo. Cancelamento local e histórico disponíveis através de `/api/admin/situacao`. O painel independente de Status e os relatórios de lotes do legado não foram portados nesta etapa. |
 | Emissão | Notas, filtros, itens, XML, exportação e atalhos para eventos. | Notas paginadas em até 100, filtros combinados de período/situação/texto, itens sob demanda, importação XML/ZIP para administrador e Excel de notas e itens. A ação Eventos consulta o histórico local pela chave da nota e abre CC-e, protocolos e CT-e vinculados na própria linha. |
-| Aging List | Conversão do Infor LN e entrega via central de downloads. | Conversão TXT, XLSX ou PDF via `/api/aging` e download direto. |
+| Aging List | Conversão do Infor LN e download direto, com relatório de erros em TXT quando a conversão falha. | Conversão TXT, XLSX ou PDF via `/api/aging` e download direto. |
 | Downloads e notificações | Fila, histórico, progresso e cancelamento da geração. | A API entrega Excel diretamente. A central de Downloads e o sino de notificações dependem de um contrato de tarefas e histórico. |
 | Administração | Contas, histórico, fila NSU, agenda, operações manuais de sincronização, certificado e alertas. | Contas, auditoria, situação manual e fila NSU estão disponíveis via HTTP. Agenda, alertas e sincronização existem na camada de serviço/configuração em C#. As ações e diagnósticos completos na interface dependem de endpoints administrativos específicos. |
 | Autenticação | Modos local e corporativo definidos na instalação. | Sessão ASP.NET Identity, perfil Administrador e token CSRF. As contas do legado precisam de cadastro na nova versão. |

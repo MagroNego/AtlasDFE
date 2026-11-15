@@ -95,14 +95,12 @@ export default function Consulta() {
     {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
     {resultado && <div className="resultado painel-fiscal" aria-busy={ocupado}>
       {resultado.notas.length > 0 && <div className="resultado-barra">
-        <strong role="status">{resultado.notas.length === 1
-          ? "1 nota nesta página" : `${resultado.notas.length} notas nesta página`}</strong>
         <a className="acao" href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Exportar Excel</a>
       </div>}
       {!resultado.notas.length ? <p className="mensagem" role="status">Nenhuma NF-e localizada nesta cópia.</p>
         : <div key={pagina} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Resultados da consulta">
           <table className="tabela tabela-consulta" role="table">
-            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Eventos e vínculos</th></tr></thead>
+            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th></tr></thead>
             <tbody role="rowgroup">
               {resultado.notas.map(nota => {
                 const aberta = detalhe === nota.chave;
@@ -112,6 +110,14 @@ export default function Consulta() {
                 const temCarta = eventos.some(evento => evento.codigo === "110110");
                 return <Fragment key={nota.chave}>
                   <tr role="row" className={aberta ? "consulta-nota aberta" : "consulta-nota"}>
+                    <td role="cell">
+                      <button type="button" className="secundario compacto acao-nota" aria-expanded={aberta}
+                        aria-controls={aberta ? `detalhe-${nota.chave}` : undefined}
+                        aria-label={`Eventos da NF-e ${nota.numero}, série ${nota.serie}${temCarta ? ", com Carta de Correção" : ""}. ${totalEventos} e ${ctes.length} CT-e`}
+                        onClick={() => setDetalhe(aberta ? undefined : nota.chave)}>
+                        Eventos{temCarta && <span className="selo-cce">CC-e</span>}
+                      </button>
+                    </td>
                     <th scope="row" role="rowheader">{nota.numero}</th>
                     <td role="cell">
                       <div className="consulta-chave">
@@ -132,14 +138,6 @@ export default function Consulta() {
                       </p>}
                     </td>
                     <td role="cell">{cancelada ? <span className="selo selo-cancelado">Cancelada no histórico local</span> : <span className="sem-marcacao">—</span>}</td>
-                    <td role="cell">
-                      <button type="button" className="secundario compacto" aria-expanded={aberta}
-                        aria-controls={aberta ? `detalhe-${nota.chave}` : undefined}
-                        aria-label={`${totalEventos} e ${ctes.length} CT-e da NF-e ${nota.numero}, série ${nota.serie}${temCarta ? ", com Carta de Correção" : ""}`}
-                        onClick={() => setDetalhe(aberta ? undefined : nota.chave)}>
-                        {totalEventos} · {ctes.length} CT-e{temCarta && <span className="selo-cce">CC-e</span>}
-                      </button>
-                    </td>
                   </tr>
                   {aberta && <tr role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
                     <td role="cell" colSpan={4}>
