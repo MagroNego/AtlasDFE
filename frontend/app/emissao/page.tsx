@@ -107,66 +107,71 @@ export default function Emissao() {
   }
 
   const columns = Object.keys(detail?.tipo === "itens" ? detail.items[0] ?? {} : {});
-  const applied = new URLSearchParams(filters);
-  const filterCount = Number(applied.has("inicio") || applied.has("fim")) + Number(applied.has("situacao"));
-
   return <section className="tela-fiscal tela-emissao">
-    <div className="emissao-cabecalho">
+    <div className="titulo-fiscal">
       <h1>Emissão</h1>
-      <a className="emissao-exportar" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
+      {session.administrador && <details className="form-importacao">
+        <summary>Importar XML ou ZIP</summary>
+        <form onSubmit={upload}>
+          <label>Arquivos de emissão<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
+          <button disabled={busy}>Importar</button>
+        </form>
+      </details>}
     </div>
-    <form className="emissao-form" onSubmit={search}>
-      <label htmlFor="emissao-busca">Nota, chave, empresa ou item</label>
-      <div className="linha-busca">
-        <input id="emissao-busca" name="busca" maxLength={200} />
-        <button disabled={busy}>Pesquisar</button>
+    <form className="filtros-fiscais painel-fiscal" onSubmit={search}
+      onReset={() => void action(() => read("", 1))}>
+      <h2>Vendas</h2>
+      <div className="campos-fiscais campos-emissao">
+        <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} placeholder="NF, chave, destinatário ou item" /></label>
+        <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
+        <label>Emissão de<input type="date" name="inicio" /></label>
+        <label>Até<input type="date" name="fim" /></label>
       </div>
-      <details className="emissao-opcoes">
-        <summary>{filterCount ? `Filtros (${filterCount})` : "Filtros"}</summary>
-        <div className="emissao-filtros">
-          <label>Emissão de<input type="date" name="inicio" /></label>
-          <label>Até<input type="date" name="fim" /></label>
-          <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
-        </div>
-      </details>
+      <div className="acoes-filtros">
+        <button disabled={busy}>Pesquisar</button>
+        <button type="reset" className="secundario" disabled={busy}>Limpar filtros</button>
+      </div>
     </form>
-    {session.administrador && <details className="form-importacao">
-      <summary>Importar XML ou ZIP</summary>
-      <form onSubmit={upload}>
-        <label>Arquivos de emissão<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
-        <button disabled={busy}>Importar</button>
-      </form>
-    </details>}
     {busy && <p className={report ? "sr-only" : "mensagem"} role="status">Processando Emissão…</p>}
     {message && <p className="mensagem" role="status">{message}</p>}
-    {report && <div className="resultado" aria-busy={busy}>
+    {report && <div className="resultado painel-fiscal" aria-busy={busy}>
+      <div className="resultado-barra">
+        <strong role="status">{report.notas.length === 1 ? "1 nota nesta página" : `${report.notas.length} notas nesta página`}</strong>
+        <a className="acao" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
+      </div>
       {report.notas.length === 0 ? <p className="mensagem">Nenhuma NF-e encontrada.</p>
         : <div key={`${filters}:${page}`} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Notas de emissão">
           <table className="tabela tabela-emissao" role="table">
-            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
-              <th scope="col" role="columnheader">Destinatário</th><th scope="col" role="columnheader">Valor</th><th scope="col" role="columnheader">Situação</th><th scope="col" role="columnheader">Ações</th></tr></thead>
+            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e / Série</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
+              <th scope="col" role="columnheader">Destinatário</th><th scope="col" role="columnheader">Valor</th><th scope="col" role="columnheader">Situação</th></tr></thead>
             <tbody role="rowgroup">{report.notas.map(note => {
               const activeDetail = detail?.chave === note.chave ? detail : undefined;
               const detailId = `emissao-detalhe-${note.chave}`;
               return <Fragment key={note.chave}>
                 <tr role="row" className={activeDetail ? "emissao-nota aberta" : "emissao-nota"}>
+                  <td role="cell">
+                    <div className="emissao-acoes">
+                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "itens"}
+                        aria-controls={activeDetail?.tipo === "itens" ? detailId : undefined}
+                        title={`Itens (${note.itens})`}
+                        onClick={() => openDetail(note.chave, "itens")}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>
+                        <span className="sr-only">Itens ({note.itens})</span>
+                      </button>
+                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "eventos"}
+                        aria-controls={activeDetail?.tipo === "eventos" ? detailId : undefined}
+                        aria-label={`Eventos da NF-e ${note.numero}, série ${note.serie}`}
+                        title="Eventos" onClick={() => openDetail(note.chave, "eventos")}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-3M9 2h6v4H9zM8 13l3 3 5-6" /></svg>
+                      </button>
+                    </div>
+                  </td>
                   <th scope="row" role="rowheader">{note.numero}<small>Série {note.serie}</small></th>
                   <td role="cell"><code>{note.chave}</code></td>
                   <td role="cell" className="numero">{note.emissao.split("-").reverse().join("/")}</td>
                   <td role="cell">{note.destinatario}</td>
                   <td role="cell" className="numero">{currency.format(note.valor)}</td>
                   <td role="cell">{note.cancelada ? <span className="selo selo-cancelado">Cancelada</span> : "Autorizada"}</td>
-                  <td role="cell">
-                    <div className="emissao-acoes">
-                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "itens"}
-                        aria-controls={activeDetail?.tipo === "itens" ? detailId : undefined}
-                        onClick={() => openDetail(note.chave, "itens")}>Itens ({note.itens})</button>
-                      <button type="button" className="secundario compacto" disabled={busy} aria-expanded={activeDetail?.tipo === "eventos"}
-                        aria-controls={activeDetail?.tipo === "eventos" ? detailId : undefined}
-                        aria-label={`Eventos da NF-e ${note.numero}, série ${note.serie}`}
-                        onClick={() => openDetail(note.chave, "eventos")}>Eventos</button>
-                    </div>
-                  </td>
                 </tr>
                 {activeDetail?.tipo === "eventos" && <tr role="row" className="linha-detalhe" id={detailId}>
                   <td role="cell" colSpan={7}>

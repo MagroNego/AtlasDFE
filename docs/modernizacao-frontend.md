@@ -24,9 +24,11 @@ Seleção em massa, ordenação global, redimensionamento e menus contextuais fi
 
 ## Implementação
 
+- A Consulta e a Emissão seguem a organização da versão Python. Os filtros ficam em um painel visível, a exportação fica no cabeçalho dos resultados e a Emissão começa pela coluna de ações com ícones. Os campos de número e chave da Consulta usam o mesmo contrato de busca da API atual.
+
 - O layout raiz mantém uma sessão para as rotas, usa navegação do Next.js e disponibiliza logout global. A interface usa o perfil para mostrar ações administrativas. A autorização das requisições continua nas políticas da API.
 - Consulta e Emissão têm cabeçalhos fixos e rolagem delimitada. As páginas mantêm os limites da API. Na Consulta, apenas a nota aberta monta os detalhes. Na Emissão, itens são consultados ao abrir e as colunas são calculadas uma vez por renderização do resultado.
-- A restauração de tema roda antes da interface. Os logotipos são importados como ativos estáticos do Next.js e o efeito de abertura dos detalhes respeita `prefers-reduced-motion`.
+- A restauração de tema roda antes da interface. Os logotipos são importados como ativos estáticos do Next.js.
 - O frontend continua usando a mesma origem para sessão, CSRF, uploads e downloads. Nenhum contrato de API ou dependência de produção foi alterado.
 
 ## Verificação

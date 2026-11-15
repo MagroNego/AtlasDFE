@@ -11,7 +11,6 @@ const dataBR = new Intl.DateTimeFormat("pt-BR", {
 export default function Consulta() {
   const { refreshSession } = useAtlasSession();
   const [detalhe, setDetalhe] = useState<string>();
-  const [busca, setBusca] = useState("");
   const [termo, setTermo] = useState("");
   const [pagina, setPagina] = useState(1);
   const [resultado, setResultado] = useState<ResultadoConsulta>();
@@ -51,9 +50,23 @@ export default function Consulta() {
 
   function buscar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
-    const valor = busca.trim();
+    const campos = new FormData(evento.currentTarget);
+    const numero = String(campos.get("numero") ?? "").trim();
+    const chaveInformada = String(campos.get("chave") ?? "").trim();
+    if ((!numero && !chaveInformada) || (numero && chaveInformada)) {
+      setErro("Informe apenas o número da nota ou a chave de acesso.");
+      return;
+    }
+    const valor = numero || chaveInformada;
     const chave = valor.replace(/[\s.-]/g, "");
     void consultar(/^\d{44}$/.test(chave) ? chave : valor, 1);
+  }
+
+  function limpar() {
+    setResultado(undefined);
+    setDetalhe(undefined);
+    setCopia(undefined);
+    setErro("");
   }
 
   async function copiarChave(chave: string) {
@@ -66,18 +79,25 @@ export default function Consulta() {
   }
 
   return <section className="tela-fiscal tela-consulta">
-    <h1>Consulta de NF-e</h1>
-    <form className="busca" onSubmit={buscar}>
-      <label htmlFor="busca">Número da nota ou chave de acesso</label>
-      <div className="linha-busca">
-        <input id="busca" value={busca} inputMode="numeric" autoComplete="off" required
-          onChange={e => setBusca(e.target.value)} placeholder="Ex. 96203" />
+    <div className="titulo-fiscal"><h1>Consulta</h1></div>
+    <form className="filtros-fiscais painel-fiscal" onSubmit={buscar} onReset={limpar}>
+      <h2>Filtros</h2>
+      <div className="campos-fiscais campos-consulta">
+        <label>Número da NF
+          <input name="numero" inputMode="numeric" autoComplete="off" placeholder="Ex.: 96203" />
+        </label>
+        <label>Chave NF-e
+          <input name="chave" inputMode="numeric" autoComplete="off" placeholder="44 dígitos" />
+        </label>
+      </div>
+      <div className="acoes-filtros">
+        <button type="reset" className="secundario" disabled={ocupado}>Limpar</button>
         <button disabled={ocupado}>{ocupado ? "Consultando…" : "Consultar"}</button>
       </div>
     </form>
     {erro && <p role="alert" className="erro">{erro}</p>}
     {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
-    {resultado && <div className="resultado" aria-busy={ocupado}>
+    {resultado && <div className="resultado painel-fiscal" aria-busy={ocupado}>
       <div className="resultado-barra">
         <div className="consulta-resumo">
           {resultado.notas.length > 0 && <p role="status">{resultado.notas.length === 1
