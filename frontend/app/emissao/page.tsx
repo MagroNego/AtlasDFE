@@ -107,20 +107,28 @@ export default function Emissao() {
   }
 
   const columns = Object.keys(detail?.tipo === "itens" ? detail.items[0] ?? {} : {});
+  const applied = new URLSearchParams(filters);
+  const filterCount = Number(applied.has("inicio") || applied.has("fim")) + Number(applied.has("situacao"));
 
   return <section className="tela-fiscal tela-emissao">
-    <h1>Emissão</h1>
+    <div className="emissao-cabecalho">
+      <h1>Emissão</h1>
+      <a className="emissao-exportar" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
+    </div>
     <form className="emissao-form" onSubmit={search}>
-      <label className="emissao-busca">Nota, chave, empresa ou item<input name="busca" maxLength={200} /></label>
-      <div className="emissao-filtros">
-        <label>Emissão de<input type="date" name="inicio" /></label>
-        <label>Até<input type="date" name="fim" /></label>
-        <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
-      </div>
-      <div className="form-acoes">
+      <label htmlFor="emissao-busca">Nota, chave, empresa ou item</label>
+      <div className="linha-busca">
+        <input id="emissao-busca" name="busca" maxLength={200} />
         <button disabled={busy}>Pesquisar</button>
-        <a className="acao" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
       </div>
+      <details className="emissao-opcoes">
+        <summary>{filterCount ? `Filtros (${filterCount})` : "Filtros"}</summary>
+        <div className="emissao-filtros">
+          <label>Emissão de<input type="date" name="inicio" /></label>
+          <label>Até<input type="date" name="fim" /></label>
+          <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
+        </div>
+      </details>
     </form>
     {session.administrador && <details className="form-importacao">
       <summary>Importar XML ou ZIP</summary>

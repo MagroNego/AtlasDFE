@@ -1,8 +1,8 @@
 :root {
   color-scheme: light dark;
-  --fundo: light-dark(#e2e6ea, #11161c);
-  --painel: light-dark(#edf0f3, #171d24);
-  --superficie: light-dark(#dce2e8, #202833);
+  --fundo: light-dark(#e5e8eb, #14181d);
+  --painel: light-dark(#eceef0, #191e24);
+  --superficie: light-dark(#e0e4e8, #21262d);
   --texto: light-dark(#17212b, #f2f4f7);
   --muted: light-dark(#536175, #a9b5c4);
   --linha: light-dark(#bcc7d1, #323d4a);
@@ -11,7 +11,7 @@
   --primaria: light-dark(#243b53, #d8e5f0);
   --primaria-hover: light-dark(#1b2f44, #f0f6fb);
   --sobre-primaria: light-dark(#fff, #17212b);
-  --selecao: light-dark(#d2dde7, #263443);
+  --selecao: light-dark(#dbe1e7, #262e38);
   --foco: light-dark(#175ab2, #96c3ff);
   --erro: light-dark(#a01a13, #ffb1aa);
   --erro-fundo: light-dark(#fff0ee, #3a1d1b);
@@ -82,8 +82,8 @@ button, input, select, textarea { font: inherit; }
 main { max-width: 1440px; margin: auto; padding: clamp(22px, 3vw, 40px) var(--espaco-pagina) 48px; scroll-margin-top: 115px; }
 .painel { min-width: 0; padding: clamp(16px, 2.5vw, 30px); background: var(--painel); border: 1px solid var(--linha); border-radius: 11px; }
 .tela-fiscal { min-width: 0; }
-.tela-fiscal h1 { margin-bottom: 16px; font-size: 1.45rem; }
-.tela-fiscal label { font-size: .85rem; }
+.tela-fiscal h1 { margin-bottom: 14px; font-size: 1.4rem; font-weight: 600; }
+.tela-fiscal label { font-size: .85rem; font-weight: 500; }
 .tela-fiscal input, .tela-fiscal select { font-weight: 400; }
 .login { max-width: 470px; }
 fieldset { margin: 0 0 14px; border: 1px solid var(--linha); border-radius: var(--raio); }
@@ -139,11 +139,14 @@ button.secundario:hover:not(:disabled), a.acao:hover { background: var(--selecao
 .linha-busca input { min-width: 0; margin: 0; }
 .linha-busca button { flex: none; }
 .emissao-filtros, .paginacao, .resultado-barra, .form-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.emissao-form { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; max-width: none; }
-.emissao-busca { flex: 1 1 240px; }
-.emissao-filtros { align-items: end; }
-.emissao-form :is(input, select) { min-width: 0; margin-bottom: 0; }
-.form-importacao { margin-top: 12px; font-size: .875rem; }
+.emissao-cabecalho { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 14px; }
+.emissao-cabecalho h1 { margin: 0; }
+.emissao-exportar { font-size: .875rem; }
+.tela-fiscal :is(.busca, .emissao-form) { max-width: 560px; }
+.emissao-filtros { align-items: end; margin-top: 8px; }
+.emissao-filtros :is(input, select) { min-width: 0; margin-bottom: 0; }
+.emissao-opcoes, .form-importacao { margin-top: 10px; font-size: .875rem; }
+.tela-emissao summary { width: fit-content; font-weight: 500; }
 summary { cursor: pointer; color: var(--primaria); font-weight: 650; }
 details[open] > form { padding-top: 12px; }
 .inline-check { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
@@ -174,6 +177,7 @@ details[open] > form { padding-top: 12px; }
   scrollbar-color: var(--campo) var(--superficie);
 }
 .tabela { width: 100%; border-spacing: 0; background: var(--painel); text-align: left; font-variant-numeric: tabular-nums; }
+.tela-fiscal .tabela-rolagem { border-radius: 4px; }
 .tabela :is(th, td) { padding: 8px 11px; border-bottom: 1px solid var(--linha); text-align: start; }
 .tabela thead th { position: sticky; top: 0; z-index: 1; background: var(--superficie); color: var(--muted); font-size: .84rem; }
 .tabela tbody tr:last-child > * { border-bottom: 0; }
@@ -199,6 +203,7 @@ details[open] > form { padding-top: 12px; }
   border-color: transparent;
   background: transparent;
   color: var(--primaria);
+  font-weight: 500;
 }
 .tabela-consulta .secundario:hover, .emissao-acoes .secundario:hover { background: var(--selecao); }
 .tabela-consulta .secundario[aria-expanded="true"], .emissao-acoes .secundario[aria-expanded="true"] {
@@ -208,7 +213,7 @@ details[open] > form { padding-top: 12px; }
 .consulta-copia-erro { margin: 4px 0 0; font-size: .8rem; color: var(--erro); }
 .evento-correcao { margin: 5px 0 0; }
 .linha-detalhe section { min-width: 0; }
-.emissao-acoes { display: flex; flex-wrap: wrap; gap: 5px; }
+.emissao-acoes { display: flex; flex-wrap: wrap; gap: 2px; }
 .tabela-itens { margin-top: 10px; contain: inline-size; }
 .tabela-itens :is(th, td) { white-space: nowrap; }
 
@@ -230,9 +235,7 @@ details[open] > form { padding-top: 12px; }
 }
 
 @media (max-width: 660px) {
-  .emissao-form { display: grid; }
   .emissao-filtros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .emissao-form :is(input, select) { min-width: 0; }
   .emissao-filtros label:last-child { grid-column: 1 / -1; }
   :is(.tabela-consulta, .tabela-emissao), :is(.tabela-consulta, .tabela-emissao) > tbody { display: block; }
   :is(.tabela-consulta, .tabela-emissao) > thead {
