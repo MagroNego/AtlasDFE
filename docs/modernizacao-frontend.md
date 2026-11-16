@@ -12,7 +12,7 @@ Consulte a [comparação com a versão Python](paridade-atlas-python.md) para os
 
 | Fluxo | Atlas em Python | Migração em .NET e frontend desta branch |
 | --- | --- | --- |
-| Consulta de NF-e | Filtros por período do evento, número, chave, situação e tipo de manifestação. | Número ou chave NF-e, 25 notas por página, eventos, protocolo, texto de CC-e, CT-e vinculados e Excel do resultado. A API atual aceita `busca` e `pagina`. |
+| Consulta de NF-e | Filtros por período do evento, número, chave, situação e tipo de manifestação. | Número, chave NF-e, período do evento, manifestação e situação são filtros combináveis. São 25 notas por página, com eventos, protocolo, CC-e e CT-e vinculados. Excel com os filtros aplicados e exportação de listas TXT por chave ou número. |
 | Manifestação | Histórico e filtros de eventos recebidos. | Histórico e exportação ligados à nota consultada. A API revisada não expõe envio de manifestação individual ou em massa. |
 | CT-e | Vínculos de CT-e na Consulta. | Vínculos, chave, situação, transportadora e data quando fornecida. A busca direta pelo modelo 57 exige mudança em `IdentificadorNota` e consulta própria. |
 | Cancelamentos e CC-e | Status e históricos, marcação local e ações de CC-e. | CC-e identificada na linha com acesso ao texto e protocolo. Cancelamento local e histórico disponíveis através de `/api/admin/situacao`. O painel independente de Status e os relatórios de lotes do legado não foram portados nesta etapa. |
@@ -26,7 +26,7 @@ Seleção em massa, ordenação global, redimensionamento e menus contextuais fi
 
 ## Implementação
 
-- A Consulta e a Emissão seguem a organização da versão Python. Os filtros ficam em um painel visível, a exportação fica no cabeçalho dos resultados e a Emissão começa pela coluna de ações com ícones. Os campos de número e chave da Consulta usam o mesmo contrato de busca da API atual.
+- A Consulta e a Emissão seguem a organização da versão Python. Os filtros ficam em um painel visível, a exportação fica no cabeçalho dos resultados e a Emissão começa pela coluna de ações com ícones. O Excel da Consulta, da Emissão e dos Itens exporta cabeçalhos e valores sem formatação visual.
 
 - O layout raiz mantém uma sessão para as rotas, usa navegação do Next.js e disponibiliza logout global. A interface usa o perfil para mostrar ações administrativas. A autorização das requisições continua nas políticas da API.
 - Consulta e Emissão têm cabeçalhos fixos e rolagem delimitada. As páginas mantêm os limites da API. Na Consulta, apenas a nota aberta monta os detalhes. Na Emissão, itens são consultados ao abrir e as colunas são calculadas uma vez por renderização do resultado.

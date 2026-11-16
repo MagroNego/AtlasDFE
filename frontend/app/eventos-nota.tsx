@@ -1,6 +1,6 @@
 type Evento = { codigo: string; descricao: string; data: string; protocolo: string; nsu: string; correcao: string };
 type Cte = { chave: string; status: string; transportadora: string; data: string };
-type Nota = { chave: string; numero: number; serie: number; temItens: boolean; detalhe: DetalheNota };
+type Nota = { chave: string; numero: number; serie: number; temItens: boolean; eventosFiltrados?: Evento[]; detalhe: DetalheNota };
 export type DetalheNota = { cancelada: boolean; eventos: Evento[]; ctes: Cte[] };
 export type ResultadoConsulta = { importadoEm: string | null; notas: Nota[]; mais: boolean };
 

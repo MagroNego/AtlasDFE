@@ -4,10 +4,10 @@ Comparação de código entre a versão Python em `main` (`2f813ad`) e a migraç
 
 | Área | Já existe na migração | Diferenças para o Python |
 | --- | --- | --- |
-| Consulta de manifestações | Busca por número ou chave NF-e, eventos e CT-e vinculados por nota, CC-e com texto e protocolo, exportação XLSX. | Filtros combinados por período do evento, tipo de manifestação e situação, além do parâmetro de série do legado. O Python pagina e totaliza eventos filtrados. A migração pagina notas por número ou chave. |
-| Consulta por arquivo | Busca individual. | Upload de `CHAVES.txt` ou `NOTAS.txt`, validação da lista e geração de relatório em lote. |
+| Consulta de manifestações | Filtros combinados por número, chave, período do evento, manifestação e situação. Eventos filtrados em tela e no XLSX, com atalhos para a CC-e e os CT-e vinculados. | O Python pagina eventos. A migração agrupa os eventos por NF-e e pagina notas. O filtro de série do legado permanece fora da tela. |
+| Consulta por arquivo | Upload de `CHAVES.txt` ou `NOTAS.txt`, validação em UTF-8, deduplicação das entradas e Excel com as ocorrências. O lote de números lista todos os resultados e a contagem por número, inclusive os não encontrados. | O download é direto. A fila e o arquivamento central dos relatórios continuam pendentes. |
 | Emissão | Lista de notas com busca, período e situação. Itens e eventos por nota. XLSX de notas e XLSX avulso dos itens. Há valores de PIS e COFINS retidos no Excel de notas. | Relatórios gerais de itens e impostos e de PIS/COFINS retidos, filtro independente de item, filtro de itens dentro da nota e CSV. O XLSX geral do Python reúne abas Notas, Itens, Retenções e Resumo. O XLSX .NET de Emissão hoje tem apenas a aba Emissão. |
-| Arquivos gerados | Exportações diretas da Consulta e da Emissão. | Central de Downloads, histórico e recuperação de arquivo gerado, notificações, progresso e cancelamento das tarefas em segundo plano. Nomes de relatórios com o período deram lugar a nomes fixos. |
+| Arquivos gerados | Exportações diretas da Consulta e da Emissão. | Central de Downloads, histórico e recuperação de arquivo gerado, notificações, progresso e cancelamento das tarefas em segundo plano. O Excel de manifestação usa o período. Os arquivos de Emissão ainda usam nomes fixos. |
 | Status SEFAZ | Distribuição, recuperação por NSU, agendador e dados operacionais no serviço .NET. Fila pontual por NSU no Admin. | Tela Status com disponibilidade do banco, última gravação, `ultNSU`, `maxNSU`, janela de sincronização, respostas pendentes e logs de execução com diagnóstico. O endpoint `/health` apenas responde pela saúde do processo. |
 | Controles SEFAZ | Sincronização manual e recuperação por CLI. Horários, SMTP e certificado por configuração do serviço. | Iniciar sincronização pela web, editar agendamento pela web, configurar ou testar alertas por e-mail e reenviar pendências pela interface. Também faltam os fluxos web de configuração do certificado e substituição do banco do legado. O .NET lê certificado de arquivo ou, no Windows, do repositório por thumbprint. |
 | Importação de XML/ZIP | Upload administrativo de XML/ZIP, incluindo eventos vinculados de cancelamento e CC-e. Retorno com totais de importados e existentes. | Histórico e registro baixável por lote, com contagem separada de cancelamentos, CC-e, duplicatas e erros. O Python aceita 100 MiB no envio e 250 MiB descompactados. A migração aplica 64 MiB expandidos e 8 MiB por XML, com transação por lote. |
@@ -19,7 +19,7 @@ A busca direta geral por CT-e e o envio de manifestação à SEFAZ não aparecer
 
 ## Ordem sugerida para a virada
 
-1. Recuperar os filtros da Consulta e a geração pelas listas TXT. Conferir os resultados e o Excel das duas versões com uma cópia da mesma base.
+1. Conferir os filtros e o Excel da Consulta, por tela e por TXT, nas duas versões com uma cópia da mesma base.
 2. Recuperar os relatórios e formatos de Emissão. Comparar abas, colunas, retenções e totais com o legado.
 3. Expor Status, logs e controles SEFAZ a partir dos serviços .NET existentes. Conferir cursor, janela, respostas pendentes e sincronizações de teste.
 4. Recuperar Downloads, notificações e registro dos lotes. Validar cancelamento das tarefas, erros e entrega de arquivos.

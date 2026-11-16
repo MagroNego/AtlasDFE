@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.AspNetCore.RateLimiting;
 using Atlas.Domain;
 using Atlas.Infrastructure;
@@ -240,38 +239,7 @@ app.MapPost("/api/logout", async (HttpContext http, IAntiforgery csrf, SignInMan
     return Results.NoContent();
 }).RequireAuthorization();
 
-app.MapGet("/api/consulta", async (
-    string? busca, int? pagina, AtlasDbContext banco, CancellationToken cancelamento) =>
-{
-    var nota = IdentificadorNota.Parse(busca);
-    if (nota is null || pagina is < 1 or > 10000)
-        return Results.BadRequest(new { erro = "Informe uma chave de NF-e ou um número de nota válido." });
-
-    await using var leitura = await banco.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancelamento);
-    var importacao = await banco.Importacoes.AsNoTracking()
-        .SingleOrDefaultAsync(i => i.Cnpj == cnpj, cancelamento);
-
-    const int tamanho = 25;
-    var consulta = banco.Notas.AsNoTracking().Where(n => n.Cnpj == cnpj);
-    consulta = nota.Chave is not null
-        ? consulta.Where(n => n.Chave == nota.Chave)
-        : consulta.Where(n => n.Numero == nota.Numero);
-    var linhas = await consulta.OrderBy(n => n.Chave)
-        .Skip(((pagina ?? 1) - 1) * tamanho).Take(tamanho + 1)
-        .Select(n => new { n.Chave, n.Numero, n.Serie, n.Detalhe, Manual = banco.Situacoes.Any(s => s.Cnpj == n.Cnpj && s.Chave == n.Chave && s.Cancelada) })
-        .ToListAsync(cancelamento);
-
-    var chaves = linhas.Take(tamanho).Select(n => n.Chave).ToArray();
-    var chavesComItens = chaves.Length == 0 ? [] : await banco.Database.SqlQuery<string>($"""
-        SELECT chave AS "Value" FROM emissao_notas
-        WHERE cnpj={cnpj} AND chave=ANY({chaves}) AND jsonb_array_length(itens)>0
-        """).ToListAsync(cancelamento);
-    var comItens = chavesComItens.ToHashSet(StringComparer.Ordinal);
-    return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho).Select(n => new { n.Chave, n.Numero, n.Serie,
-        TemItens = comItens.Contains(n.Chave),
-        Detalhe = FiscalEndpoints.MergeStatus(n.Detalhe, n.Manual) }), mais = linhas.Count > tamanho });
-}).RequireAuthorization();
-
+app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);
 
 await app.RunAsync();

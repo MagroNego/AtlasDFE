@@ -4,7 +4,6 @@ using Atlas.Infrastructure;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.EntityFrameworkCore;
 
 internal static class FiscalEndpoints
 {
@@ -168,39 +167,6 @@ internal static class FiscalEndpoints
                     n.Emitente, n.Destinatario, n.Valor, n.Itens, n.Cancelada ? "Cancelada" : "Autorizada", n.PisRetido, n.CofinsRetido }), token);
         });
 
-        app.MapGet("/api/consulta/excel", async (string? busca, AtlasDbContext db, CancellationToken token) =>
-        {
-            var id = IdentificadorNota.Parse(busca);
-            if (id is null)
-                return Results.BadRequest(new { erro = "Informe o número ou a chave da NF-e." });
-            var query = db.Notas.AsNoTracking().Where(note => note.Cnpj == cnpj);
-            query = id.Chave is not null ? query.Where(note => note.Chave == id.Chave)
-                : query.Where(note => note.Numero == id.Numero);
-            var notes = await query.OrderBy(note => note.Chave).Take(1001)
-                .Select(note => new { note.Chave, note.Numero, note.Serie, note.Detalhe,
-                    Manual = db.Situacoes.Any(s => s.Cnpj == note.Cnpj && s.Chave == note.Chave && s.Cancelada) })
-                .ToListAsync(token);
-            if (notes.Count > 1000)
-                return Results.BadRequest(new { erro = "Use a chave para restringir a busca." });
-            var rows = new List<object[]>();
-            foreach (var note in notes)
-            {
-                bool canceled = note.Manual || note.Detalhe.GetProperty("cancelada").GetBoolean();
-                string status = canceled ? "Cancelada" : "Autorizada";
-                var events = note.Detalhe.GetProperty("eventos");
-                if (events.GetArrayLength() == 0)
-                    rows.Add([note.Chave, note.Numero, note.Serie, status, "", "", "", "", ""]);
-                foreach (var e in events.EnumerateArray())
-                {
-                    if (rows.Count >= 100000)
-                        return Results.BadRequest(new { erro = "Mais de 100.000 eventos. Informe a chave da nota." });
-                    rows.Add([note.Chave, note.Numero, note.Serie, status, Value(e, "descricao"),
-                        Value(e, "data"), Value(e, "protocolo"), Value(e, "nsu"), Value(e, "correcao")]);
-                }
-            }
-            return Excel("Manifestação", "manifestacao.xlsx",
-                ["Chave Acesso", "Número Nota", "Série", "Situação", "Evento", "Data", "Protocolo", "NSU", "Correção"], rows, token);
-        }).RequireAuthorization();
     }
 
     internal static JsonElement MergeStatus(JsonElement details, bool manual) => manual
@@ -213,27 +179,29 @@ internal static class FiscalEndpoints
     private static bool Valid(string? query, DateOnly? start, DateOnly? end, string? status) =>
         (query?.Length ?? 0) <= 200 && !(start > end) && status is null or "" or "autorizada" or "cancelada";
 
-    private static string Value(JsonElement element, string field) =>
-        element.TryGetProperty(field, out var value) ? value.GetString() ?? "" : "";
-
-    private static IResult Excel(string title, string filename, string[] headers, IEnumerable<object[]> rows,
+    internal static IResult Excel(string title, string filename, string[] headers, IEnumerable<object[]> rows,
         CancellationToken token)
     {
         using var book = new XLWorkbook();
+        WriteSheet(book, title, headers, rows, token);
+        return DownloadExcel(book, filename);
+    }
+
+    internal static void WriteSheet(XLWorkbook book, string title, string[] headers, IEnumerable<object[]> rows,
+        CancellationToken token)
+    {
         var sheet = book.AddWorksheet(title);
         for (int col = 0; col < headers.Length; col++)
             sheet.Cell(1, col + 1).Value = headers[col];
-        var heading = sheet.Range(1, 1, 1, headers.Length);
-        heading.Style.Font.Bold = true;
-        heading.Style.Fill.BackgroundColor = XLColor.FromHtml("#DCEAE1");
-        sheet.SheetView.FreezeRows(1);
-        sheet.Columns().Width = 20;
-        sheet.Column(1).Width = 48;
         sheet.Cell(2, 1).InsertData(rows.Select(row =>
         {
             token.ThrowIfCancellationRequested();
             return row;
         }));
+    }
+
+    internal static IResult DownloadExcel(XLWorkbook book, string filename)
+    {
         using var output = new MemoryStream();
         book.SaveAs(output);
         return Results.File(output.ToArray(),

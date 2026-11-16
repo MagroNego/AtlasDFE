@@ -6,13 +6,15 @@ import { EventosNota, rotulosAcoes, type AcaoNota, type ResultadoConsulta } from
 import { ItensNota, type ItemNota } from "./itens-nota";
 
 export default function Consulta() {
-  const { refreshSession } = useAtlasSession();
+  const { session, refreshSession } = useAtlasSession();
   const [detalhe, setDetalhe] = useState<{ chave: string; tipo: AcaoNota; itens?: ItemNota[] }>();
   const [termo, setTermo] = useState("");
   const [pagina, setPagina] = useState(1);
   const [resultado, setResultado] = useState<ResultadoConsulta>();
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [erroLote, setErroLote] = useState("");
   const [copia, setCopia] = useState<{ chave: string; sucesso: boolean }>();
 
   async function consultar(valor: string, paginaAlvo: number) {
@@ -23,7 +25,8 @@ export default function Consulta() {
     setErro("");
     if (paginaAlvo === 1) setResultado(undefined);
     try {
-      const parametros = new URLSearchParams({ busca: valor, pagina: String(paginaAlvo) });
+      const parametros = new URLSearchParams(valor);
+      parametros.set("pagina", String(paginaAlvo));
       const resposta = await fetch(`/api/consulta?${parametros}`);
       if (resposta.status === 401) {
         setResultado(undefined);
@@ -31,7 +34,8 @@ export default function Consulta() {
         return;
       }
       if (resposta.status === 400) {
-        setErro("Informe o número da NF-e ou a chave de acesso de 44 dígitos.");
+        const falha = await resposta.json().catch(() => null);
+        setErro(falha?.erro ?? "Confira os filtros informados.");
         return;
       }
       if (!resposta.ok) throw new Error();
@@ -48,15 +52,46 @@ export default function Consulta() {
   function buscar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const campos = new FormData(evento.currentTarget);
-    const numero = String(campos.get("numero") ?? "").trim();
-    const chaveInformada = String(campos.get("chave") ?? "").trim();
-    if ((!numero && !chaveInformada) || (numero && chaveInformada)) {
-      setErro("Informe apenas o número da nota ou a chave de acesso.");
+    const filtros = new URLSearchParams();
+    for (const [nome, campo] of campos) {
+      if (typeof campo !== "string" || !campo.trim()) continue;
+      filtros.set(nome, nome === "chave" ? campo.replace(/[\s.-]/g, "") : campo.trim());
+    }
+    if (!filtros.size) {
+      setErro("Informe pelo menos um filtro.");
       return;
     }
-    const valor = numero || chaveInformada;
-    const chave = valor.replace(/[\s.-]/g, "");
-    void consultar(/^\d{44}$/.test(chave) ? chave : valor, 1);
+    void consultar(filtros.toString(), 1);
+  }
+
+  async function exportarLote(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (exportando) return;
+    setExportando(true);
+    setErroLote("");
+    try {
+      const resposta = await fetch("/api/consulta/lote", {
+        method: "POST", headers: { "X-CSRF-TOKEN": session.token }, body: new FormData(evento.currentTarget),
+      });
+      if (resposta.status === 401) {
+        await refreshSession();
+        return;
+      }
+      if (!resposta.ok) {
+        const falha = await resposta.json().catch(() => null);
+        throw new Error(falha?.erro ?? "Não foi possível exportar o TXT.");
+      }
+      const arquivo = URL.createObjectURL(await resposta.blob());
+      const link = document.createElement("a");
+      link.href = arquivo;
+      link.download = resposta.headers.get("content-disposition")?.match(/filename="?([\w.-]+)"?(?:;|$)/i)?.[1] ?? "manifestacao.xlsx";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(arquivo), 1000);
+    } catch (erro) {
+      setErroLote(erro instanceof Error ? erro.message : "Não foi possível exportar o TXT.");
+    } finally {
+      setExportando(false);
+    }
   }
 
   function limpar() {
@@ -108,11 +143,30 @@ export default function Consulta() {
     <form className="filtros-fiscais painel-fiscal" onSubmit={buscar} onReset={limpar}>
       <h2>Filtros</h2>
       <div className="campos-fiscais campos-consulta">
+        <label>Data inicial do evento<input type="date" name="inicio" /></label>
+        <label>Data final do evento<input type="date" name="fim" /></label>
         <label>Número da NF
           <input name="numero" inputMode="numeric" autoComplete="off" placeholder="Ex.: 96203" />
         </label>
         <label>Chave NF-e
           <input name="chave" inputMode="numeric" autoComplete="off" placeholder="44 dígitos" />
+        </label>
+        <label>Manifestação
+          <select name="codigo">
+            <option value="">Todas</option>
+            <option value="210200">Confirmação da Operação</option>
+            <option value="210210">Ciência da Operação</option>
+            <option value="210220">Desconhecimento da Operação</option>
+            <option value="210240">Operação não Realizada</option>
+            <option value="110110">Carta de Correção</option>
+          </select>
+        </label>
+        <label>Situação
+          <select name="situacao">
+            <option value="">Todas</option>
+            <option value="autorizada">Autorizada</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
         </label>
       </div>
       <div className="acoes-filtros">
@@ -124,7 +178,7 @@ export default function Consulta() {
     {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
     {resultado && <div className="resultado painel-fiscal" aria-busy={ocupado}>
       {resultado.notas.length > 0 && <div className="resultado-barra">
-        <a className="acao" href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Exportar Excel</a>
+        <a className="acao" href={`/api/consulta/excel?${termo}`}>Exportar Excel</a>
       </div>}
       {!resultado.notas.length ? <p className="mensagem" role="status">Nenhuma NF-e localizada nesta cópia.</p>
         : <div key={pagina} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Resultados da consulta">
@@ -135,7 +189,8 @@ export default function Consulta() {
                 const detalheAberto = detalhe?.chave === nota.chave ? detalhe : undefined;
                 const estadoCopia = copia?.chave === nota.chave ? copia : undefined;
                 const { eventos, ctes, cancelada } = nota.detalhe;
-                const totalEventos = `${eventos.length} ${eventos.length === 1 ? "evento" : "eventos"}`;
+                const visiveis = nota.eventosFiltrados ?? eventos;
+                const totalEventos = `${visiveis.length} ${visiveis.length === 1 ? "evento" : "eventos"}`;
                 const temCarta = eventos.some(evento => evento.codigo === "110110");
                 const acoes: AcaoNota[] = ["eventos"];
                 if (nota.temItens) acoes.unshift("itens");
@@ -177,7 +232,8 @@ export default function Consulta() {
                     <td role="cell" colSpan={4}>
                       {detalheAberto.tipo === "itens"
                         ? <ItensNota chave={nota.chave} items={detalheAberto.itens ?? []} />
-                        : <EventosNota detalhe={nota.detalhe} tipo={detalheAberto.tipo} />}
+                        : <EventosNota detalhe={detalheAberto.tipo === "eventos"
+                            ? { ...nota.detalhe, eventos: visiveis } : nota.detalhe} tipo={detalheAberto.tipo} />}
                     </td>
                   </tr>}
                 </Fragment>;
@@ -193,5 +249,19 @@ export default function Consulta() {
           onClick={() => void consultar(termo, pagina + 1)}>Próxima</button>
       </nav>}
     </div>}
+    <form className="filtros-fiscais painel-fiscal consulta-lote" onSubmit={exportarLote}>
+      <h2>Consulta por arquivo</h2>
+      <div className="campos-fiscais campos-lote">
+        <label>Conteúdo do TXT
+          <select name="tipo"><option value="chaves">Chaves de NF-e</option><option value="numeros">Números de NF-e</option></select>
+        </label>
+        <label>Arquivo TXT<input type="file" name="arquivo" accept=".txt,text/plain" required aria-describedby="lote-ajuda" /></label>
+      </div>
+      <p id="lote-ajuda" className="muted">Uma chave ou um número por linha. Até 10.000 entradas e 2 MiB.</p>
+      {erroLote && <p role="alert" className="erro">{erroLote}</p>}
+      <div className="acoes-filtros"><button className="secundario" disabled={exportando}>
+        {exportando ? "Gerando…" : "Gerar Excel"}
+      </button></div>
+    </form>
   </section>;
 }
