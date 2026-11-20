@@ -1,38 +1,31 @@
 using Atlas.Infrastructure;
 
 internal sealed class SefazScheduler(
-    IConfiguration settings, string connection, string cnpj, ILogger<SefazScheduler> logger) : BackgroundService
+    OperationalSettings operations, string connection, string cnpj, ILogger<SefazScheduler> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (settings["Sefaz:Uf"] is not { Length: 2 } uf || !uf.All(char.IsAsciiDigit))
-        {
-            logger.LogWarning("Agenda SEFAZ indisponível. Configure Sefaz__Uf.");
-            return;
-        }
-        SefazSchedule schedule;
-        try
-        {
-            schedule = SefazSchedule.Read(settings);
-        }
-        catch (Exception error) when (error is FormatException or InvalidOperationException or ArgumentException)
-        {
-            logger.LogWarning("Agenda SEFAZ indisponível. Confira a janela, os dias e os horários configurados.");
-            return;
-        }
-
         using var timer = new PeriodicTimer(SefazSchedule.Poll);
         DateTimeOffset? attemptedSlot = null;
         do
         {
-            var now = DateTimeOffset.UtcNow;
-            var slot = schedule.CurrentSlot(now);
-            if (slot is null || slot == attemptedSlot)
-                continue;
-
+            DateTimeOffset? slot = null;
             try
             {
-                using var certificate = SefazCommand.Certificate(settings);
+                using var values = await operations.ReadAsync(stoppingToken);
+                var settings = values.Configuration;
+                if (!settings.GetValue<bool>("Sefaz:ScheduleEnabled"))
+                    continue;
+                if (settings["Sefaz:Uf"] is not { Length: 2 } uf || !uf.All(char.IsAsciiDigit))
+                    continue;
+
+                var schedule = SefazSchedule.Read(settings);
+                var now = DateTimeOffset.UtcNow;
+                slot = schedule.CurrentSlot(now);
+                if (slot is null || slot == attemptedSlot)
+                    continue;
+
+                using var certificate = await operations.CertificateAsync(stoppingToken);
                 using var client = SefazSync.Client(certificate);
                 var result = await new SefazSync(connection, client).RunAsync(
                     cnpj, uf, null, null, now, schedule.Start, schedule.End, stoppingToken, scheduledSlot: slot);
@@ -49,7 +42,7 @@ internal sealed class SefazScheduler(
             }
             catch (Exception error)
             {
-                attemptedSlot = slot;
+                if (slot.HasValue) attemptedSlot = slot;
                 logger.LogWarning("Falha na sincronização SEFAZ agendada ({Type}).", error.GetType().Name);
             }
         }

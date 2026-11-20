@@ -36,6 +36,7 @@ const sections = [
 ];
 
 const adminSections = [
+  { path: "/admin/sefaz", label: "Controles SEFAZ" },
   { path: "/admin", label: "Fila NSU" },
   { path: "/admin/situacao", label: "Situação manual" },
   { path: "/admin/contas", label: "Contas e auditoria" },

@@ -123,6 +123,12 @@ Para ativar, inicie a API com `Sefaz__ScheduleEnabled=true`, as variáveis do ce
 
 Em **Status SEFAZ**, a sessão autenticada acompanha o cursor, a janela, a pausa registrada, a fila e as últimas 25 entradas de atividade. O próximo horário elegível é uma estimativa baseada na agenda, na pausa e na última reserva. A última gravação mostra a hora de processamento registrada a partir da migração de Status. O histórico anterior permanece visível pela hora de recebimento.
 
+Em **Administração → Controles SEFAZ**, o administrador pode iniciar uma consulta com o cursor salvo, editar a agenda, cadastrar ou remover o certificado A1 e gerenciar alertas. A sincronização usa a mesma trava do agendador e do comando local e respeita a janela e a pausa. O próximo ciclo do agendador aplica os horários salvos na tela.
+
+O Atlas protege o PFX e a senha com as chaves de Data Protection. Preserve `DataProtection__Path` ao trocar de servidor ou recriar o serviço e compartilhe o mesmo conjunto de chaves entre instâncias que usem o mesmo banco. O cadastro pela web tem precedência sobre o certificado da instalação. Ao remover o cadastro, o Atlas volta a usar a configuração da instalação. Use HTTPS para cadastrar o certificado pela rede.
+
+A tela permite ativar alertas, editar destinatários, testar o envio e antecipar a próxima tentativa das entregas pendentes. Configure o host, a porta, o modo TLS, o remetente e as credenciais SMTP na instalação. O teste envia apenas para um destinatário da lista salva.
+
 A fila pode ser preenchida pelos comandos ou pela importação descrita abaixo. A Consulta exibe também os vínculos CT-e reconhecidos nos lotes recebidos e mantém o cancelamento de uma chave de CT-e já identificada.
 
 ### Transferir o estado da sincronização

@@ -115,6 +115,10 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     var gapResult = await scheduled.RunAsync(liveCnpj, "33", null, null, nextSlot, new(22,0), new(5,0), default,
         scheduledSlot: nextSlot);
     Check(gapResult?.Cursor == 94 && recoveryTransport.LastNsu == 12);
+    Check(await scheduled.RunAsync(liveCnpj, "33", null, null, nextSlot.AddSeconds(30),
+        new(22,0), new(5,0), default, manual: true) is null);
+    Check(recoveryTransport.LastNsu == 12);
+
     Check(await queue.CancelAsync(liveCnpj, 10, default));
 
     const string nsuSefaz = "<ultNSU>77</ultNSU>";

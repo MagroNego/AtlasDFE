@@ -58,6 +58,16 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("sincronizar-web", limit =>
+    {
+        limit.PermitLimit = 3;
+        limit.Window = TimeSpan.FromMinutes(1);
+    });
+    options.AddFixedWindowLimiter("teste-smtp", limit =>
+    {
+        limit.PermitLimit = 3;
+        limit.Window = TimeSpan.FromMinutes(1);
+    });
     options.AddFixedWindowLimiter("login", limit =>
     {
         limit.PermitLimit = 20;
@@ -71,18 +81,16 @@ if (configuration["DataProtection:Path"] is { Length: > 0 } keyPath)
 var serviceMode = !args.Any(arg => arg is
     "--migrate" or "--bootstrap-admin" or "--promover-admin" or "--importar-historico" or "--reprocessar-sefaz" or "--sincronizar-sefaz"
     or "--recuperar-nsu" or "--fila-nsu" or "--enfileirar-nsu" or "--cancelar-nsu");
-if (serviceMode && bool.TryParse(configuration["Sefaz:ScheduleEnabled"], out bool scheduleEnabled) && scheduleEnabled)
+var company = configuration["Atlas:Cnpj"] ?? "";
+builder.Services.AddSingleton(provider => new OperationalSettings(connectionString, company, configuration,
+    provider.GetRequiredService<IDataProtectionProvider>()));
+if (serviceMode)
 {
-    var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
     builder.Services.AddHostedService(provider => new SefazScheduler(
-        configuration, connectionString, company, provider.GetRequiredService<ILogger<SefazScheduler>>()));
-}
-
-if (serviceMode && SmtpAlerts.Enabled(configuration))
-{
-    var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
+        provider.GetRequiredService<OperationalSettings>(), connectionString, company,
+        provider.GetRequiredService<ILogger<SefazScheduler>>()));
     builder.Services.AddHostedService(provider => new SmtpAlerts(
-        connectionString, company, configuration, provider.GetRequiredService<ILogger<SmtpAlerts>>()));
+        connectionString, company, provider.GetRequiredService<OperationalSettings>(), provider.GetRequiredService<ILogger<SmtpAlerts>>()));
 }
 
 var app = builder.Build();
@@ -165,7 +173,7 @@ if (queueSefaz)
 
 if (syncSefaz)
 {
-    Environment.ExitCode = await SefazCommand.RunAsync(args, configuration, connectionString, cnpj);
+    Environment.ExitCode = await SefazCommand.RunAsync(args, app.Services.GetRequiredService<OperationalSettings>(), connectionString, cnpj);
     return;
 }
 
@@ -242,6 +250,7 @@ app.MapPost("/api/logout", async (HttpContext http, IAntiforgery csrf, SignInMan
 app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);
 app.MapSefazStatus(connectionString, cnpj);
+app.MapOperationalControls(connectionString, cnpj);
 
 await app.RunAsync();
 
