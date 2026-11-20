@@ -4,9 +4,10 @@ import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useAtlasSession } from "../atlas-frame";
 import { EventosNota, rotulosAcoes, type AcaoNota, type DetalheNota, type ResultadoConsulta } from "../eventos-nota";
 import { ItensNota, type ItemNota } from "../itens-nota";
+import { ExportarArquivo } from "../exportar-arquivo";
 
 type Note = { chave: string; numero: number; serie: number; emissao: string; destinatario: string; valor: number; itens: number; cancelada: boolean; temCce: boolean; temCte: boolean };
-type Report = { notas: Note[]; mais: boolean };
+type Report = { notas: Note[]; colunas?: string[]; linhas?: ItemNota[]; mais: boolean };
 type Detail = { chave: string } & (
   { tipo: "itens"; items: ItemNota[] }
   | { tipo: Exclude<AcaoNota, "itens">; eventos: DetalheNota | null }
@@ -25,12 +26,16 @@ export default function Emissao() {
   async function read(query: string, next: number, signal?: AbortSignal) {
     const params = new URLSearchParams(query);
     params.set("pagina", String(next));
-    const response = await fetch(`/api/emissao?${params}`, { signal });
+    const type = params.get("tipo") ?? "notas";
+    const response = await fetch(`/api/emissao${type === "notas" ? "" : "/relatorio"}?${params}`, { signal });
     if (response.status === 401) {
       location.href = "/";
       return;
     }
-    if (!response.ok) throw new Error("Não foi possível carregar a Emissão.");
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.erro ?? "Não foi possível carregar a Emissão.");
+    }
     setReport(await response.json());
     setFilters(query);
     setPage(next);
@@ -123,10 +128,12 @@ export default function Emissao() {
       onReset={() => void action(() => read("", 1))}>
       <h2>Vendas</h2>
       <div className="campos-fiscais campos-emissao">
+        <label>Relatório<select name="tipo"><option value="notas">Notas emitidas</option><option value="itens">Itens e impostos</option><option value="retencoes">PIS/COFINS retidos</option></select></label>
         <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} placeholder="NF, chave, destinatário ou item" /></label>
         <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
         <label>Emissão de<input type="date" name="inicio" /></label>
         <label>Até<input type="date" name="fim" /></label>
+        <label>Item<input name="item" type="search" maxLength={200} placeholder="Descrição, código ou NCM" /></label>
       </div>
       <div className="acoes-filtros">
         <button disabled={busy}>Pesquisar</button>
@@ -137,9 +144,17 @@ export default function Emissao() {
     {message && <p className="mensagem" role="status">{message}</p>}
     {report && <div className="resultado painel-fiscal" aria-busy={busy}>
       <div className="resultado-barra">
-        <a className="acao" href={`/api/emissao/excel?${filters}`}>Exportar Excel</a>
+        <ExportarArquivo href={`/api/emissao/excel?${filters}`}>Exportar Excel</ExportarArquivo>
+        <ExportarArquivo href={`/api/emissao/csv?${filters}`}>Exportar CSV</ExportarArquivo>
       </div>
-      {report.notas.length === 0 ? <p className="mensagem">Nenhuma NF-e encontrada.</p>
+      <p className="muted ajuda-exportacao">Excel com Notas, Itens, Retenções e Resumo. CSV do relatório consultado.</p>
+      {report.linhas ? (report.linhas.length === 0 ? <p className="mensagem">Nenhum registro encontrado.</p>
+        : <div className="tabela-rolagem tabela-relatorio" tabIndex={0} role="region" aria-label="Relatório de emissão">
+          <table className="tabela"><thead><tr>{report.colunas?.map(field => <th key={field} scope="col">{field}</th>)}</tr></thead>
+            <tbody>{report.linhas.map((row, index) => <tr key={index}>{report.colunas?.map(field =>
+              <td key={field}>{field === "Data Emissao" ? String(row[field] ?? "").split("-").reverse().join("/") : row[field]}</td>)}</tr>)}</tbody>
+          </table>
+        </div>) : report.notas.length === 0 ? <p className="mensagem">Nenhuma NF-e encontrada.</p>
         : <div key={`${filters}:${page}`} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Notas de emissão">
           <table className="tabela tabela-emissao" role="table">
             <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Emissão</th>
@@ -188,7 +203,7 @@ export default function Emissao() {
                 </tr>}
                 {activeDetail?.tipo === "itens" && <tr role="row" className="linha-detalhe" id={detailId}>
                   <td role="cell" colSpan={7}>
-                    <ItensNota chave={note.chave} items={activeDetail.items} />
+                    <ItensNota key={note.chave} chave={note.chave} items={activeDetail.items} />
                   </td>
                 </tr>}
               </Fragment>;

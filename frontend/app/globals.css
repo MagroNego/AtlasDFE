@@ -143,7 +143,7 @@ button.secundario:hover:not(:disabled), a.acao:hover { background: var(--selecao
 .campos-consulta { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.7fr) minmax(0, 1.35fr) minmax(0, 1fr); }
 .consulta-lote { margin-top: 14px; }
 .campos-lote { grid-template-columns: minmax(0, 220px) minmax(0, 460px); }
-.campos-emissao { grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); }
+.campos-emissao { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.7fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.4fr); }
 .campos-fiscais :is(input, select) { min-width: 0; min-height: 36px; margin-bottom: 0; }
 .acoes-filtros { justify-content: flex-end; margin-top: 12px; }
 .form-importacao { font-size: .875rem; }
@@ -205,6 +205,14 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
 .emissao-acoes svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .tabela-itens { margin-top: 10px; contain: inline-size; }
 .tabela-itens :is(th, td) { white-space: nowrap; }
+.filtro-itens { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.filtro-itens label { flex: 1 1 240px; max-width: 420px; }
+.filtro-itens input { margin-bottom: 0; }
+.exportacao-arquivo { max-width: 100%; }
+.exportacao-arquivo .erro { max-width: 380px; margin-bottom: 0; }
+.ajuda-exportacao { margin: 0 0 12px; font-size: .8rem; text-align: right; }
+.tabela-relatorio { contain: inline-size; }
+.tabela-relatorio :is(th, td) { white-space: nowrap; }
 
 @media (max-width: 790px) {
   .topbar { grid-template-columns: 1fr auto; gap: 8px; }
@@ -224,6 +232,7 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
 
 @media (max-width: 1000px) {
   .campos-consulta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .campos-emissao { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 660px) {

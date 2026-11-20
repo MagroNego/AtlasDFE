@@ -111,11 +111,23 @@ public sealed class EmissionStore(string connection)
             CultureInfo.InvariantCulture, DateTimeStyles.None, out var emission))
             throw new InvalidDataException("Data de emissão inválida.");
         decimal amount = Amount(Value(info.Element(Nfe + "total")?.Element(Nfe + "ICMSTot"), "vNF"));
+        var dest = info.Element(Nfe + "dest");
+        string hour = date.Contains('T') ? date.Split('T')[1].Split('+', '-')[0].TrimEnd('Z') : "";
+        object Weight(string field)
+        {
+            var values = info.Element(Nfe + "transp")?.Elements(Nfe + "vol")
+                .Select(volume => Value(volume, field)).Where(value => value.Length > 0).ToArray() ?? [];
+            return values.Length == 0 ? "" : values.Sum(Amount);
+        }
+        object netWeight = Weight("pesoL"), grossWeight = Weight("pesoB");
         var items = info.Elements(Nfe + "det").Take(991).Select(item =>
         {
             var product = item.Element(Nfe + "prod") ?? throw new InvalidDataException("Item sem produto.");
             var fields = new Dictionary<string, object>
             {
+                ["Hora Emissao"] = hour, ["Peso Liquido"] = netWeight, ["Peso Bruto"] = grossWeight,
+                ["Emitente CNPJ"] = cnpj, ["Destinatario CNPJ"] = First(Value(dest, "CNPJ"), Value(dest, "CPF")),
+                ["Destinatario UF"] = Value(dest?.Element(Nfe + "enderDest"), "UF"),
                 ["Item"] = (string?)item.Attribute("nItem") ?? "",
                 ["Codigo"] = Value(product, "cProd"), ["Descricao"] = Value(product, "xProd"),
                 ["NCM"] = Value(product, "NCM"), ["CFOP"] = Value(product, "CFOP"),
@@ -134,6 +146,8 @@ public sealed class EmissionStore(string connection)
                 {
                     fields["CSOSN"] = Value(taxed, "CSOSN");
                     fields["Origem ICMS"] = Value(taxed, "orig");
+                    if (Value(taxed, "CST").Length > 0)
+                        fields["CST ICMS"] = Value(taxed, "orig") + Value(taxed, "CST").PadLeft(2, '0');
                 }
                 if (tax is "PIS" or "COFINS")
                 {
@@ -165,11 +179,26 @@ public sealed class EmissionStore(string connection)
         command.Parameters.AddWithValue(note.Hash);
         command.Parameters.AddWithValue(note.PisRetido);
         command.Parameters.AddWithValue(note.CofinsRetido);
-        return await command.ExecuteNonQueryAsync(token) == 1;
+        bool inserted = await command.ExecuteNonQueryAsync(token) == 1;
+        // Reimportar o mesmo XML recupera metadados ausentes de versões anteriores.
+        // Um XML diferente com a mesma chave continua sem substituir o documento.
+        if (!inserted)
+        {
+            await using var enrich = new NpgsqlCommand("""
+                UPDATE emissao_notas SET itens=$3 WHERE cnpj=$1 AND chave=$2 AND hash=$4
+                    AND NOT (itens->0 ? 'Peso Liquido') AND ($3::jsonb->0 ? 'Peso Liquido')
+                """, tx.Connection, tx);
+            enrich.Parameters.AddWithValue(cnpj);
+            enrich.Parameters.AddWithValue(note.Chave);
+            enrich.Parameters.AddWithValue(NpgsqlDbType.Jsonb, note.Itens.GetRawText());
+            enrich.Parameters.AddWithValue(note.Hash);
+            await enrich.ExecuteNonQueryAsync(token);
+        }
+        return inserted;
     }
 
     public async Task<List<EmissionRow>> ListAsync(string cnpj, string query, DateOnly? start, DateOnly? end,
-        string status, int skip, int limit, CancellationToken token)
+        string status, int skip, int limit, CancellationToken token, string itemQuery = "")
     {
         await using var db = new NpgsqlConnection(connection);
         await db.OpenAsync(token);
@@ -185,6 +214,8 @@ public sealed class EmissionStore(string connection)
                     WHERE strpos(lower(concat_ws(' ',i->>'Codigo',i->>'Descricao',i->>'NCM')),lower($2))>0))
                 AND ($3 IS NULL OR e.emissao >= $3) AND ($4 IS NULL OR e.emissao <= $4)
                 AND ($5='' OR (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false))=($5='cancelada'))
+                AND ($8='' OR EXISTS (SELECT 1 FROM jsonb_array_elements(e.itens) i
+                    WHERE strpos(lower(concat_ws(' ',i->>'Codigo',i->>'Descricao',i->>'NCM')),lower($8))>0))
             ORDER BY e.emissao DESC,e.chave LIMIT $6 OFFSET $7
             """, db);
         command.Parameters.AddWithValue(cnpj);
@@ -194,6 +225,7 @@ public sealed class EmissionStore(string connection)
         command.Parameters.AddWithValue(status);
         command.Parameters.AddWithValue(limit);
         command.Parameters.AddWithValue(skip);
+        command.Parameters.AddWithValue(itemQuery);
         var result = new List<EmissionRow>();
         await using var rows = await command.ExecuteReaderAsync(token);
         while (await rows.ReadAsync(token))

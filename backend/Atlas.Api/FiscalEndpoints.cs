@@ -110,12 +110,12 @@ internal static class FiscalEndpoints
             }
         }).RequireAuthorization(policy => policy.RequireRole(Administration.Role));
 
-        group.MapGet("", async (string? busca, DateOnly? inicio, DateOnly? fim, string? situacao, int? pagina, CancellationToken token) =>
+        group.MapGet("", async (string? busca, DateOnly? inicio, DateOnly? fim, string? situacao, string? item, int? pagina, CancellationToken token) =>
         {
             int page = pagina ?? 1;
-            if (page is < 1 or > 1000 || !Valid(busca, inicio, fim, situacao))
+            if (page is < 1 or > 1000 || !Valid(busca, inicio, fim, situacao) || (item?.Length ?? 0) > 200)
                 return Results.BadRequest(new { erro = "Filtros de emissão inválidos." });
-            var rows = await store.ListAsync(cnpj, busca?.Trim() ?? "", inicio, fim, situacao ?? "", (page - 1) * 100, 101, token);
+            var rows = await store.ListAsync(cnpj, busca?.Trim() ?? "", inicio, fim, situacao ?? "", (page - 1) * 100, 101, token, item?.Trim() ?? "");
             return Results.Ok(new { notas = rows.Take(100), mais = rows.Count > 100 });
         });
 
@@ -127,45 +127,7 @@ internal static class FiscalEndpoints
             return items is null ? Results.NotFound() : Results.Content(items, "application/json");
         });
 
-        group.MapGet("/{chave}/itens/excel", async (string chave, CancellationToken token) =>
-        {
-            if (IdentificadorNota.Parse(chave)?.Chave != chave)
-                return Results.BadRequest();
-            string? items = await store.ItemsAsync(cnpj, chave, token);
-            if (items is null)
-                return Results.NotFound();
-            using var content = JsonDocument.Parse(items);
-            var fields = content.RootElement.EnumerateArray()
-                .SelectMany(item => item.EnumerateObject().Select(field => field.Name))
-                .Distinct(StringComparer.Ordinal).ToArray();
-            if (fields.Length == 0)
-                return Results.NotFound();
-            var rows = content.RootElement.EnumerateArray().Select(item => fields.Select(field =>
-            {
-                if (!item.TryGetProperty(field, out var value))
-                    return "";
-                return value.ValueKind switch
-                {
-                    JsonValueKind.Number when value.TryGetDecimal(out var number) => (object)number,
-                    JsonValueKind.String => value.GetString() ?? "",
-                    _ => "",
-                };
-            }).ToArray()).ToArray();
-            return Excel("Itens", $"itens_{chave}.xlsx", fields, rows, token);
-        });
-
-        group.MapGet("/excel", async (string? busca, DateOnly? inicio, DateOnly? fim, string? situacao, CancellationToken token) =>
-        {
-            if (!Valid(busca, inicio, fim, situacao))
-                return Results.BadRequest(new { erro = "Filtros de emissão inválidos." });
-            var rows = await store.ListAsync(cnpj, busca?.Trim() ?? "", inicio, fim, situacao ?? "", 0, 100001, token);
-            if (rows.Count > 100000)
-                return Results.BadRequest(new { erro = "Mais de 100.000 notas. Refine os filtros." });
-            return Excel("Emissão", "emissao.xlsx",
-                ["Chave Acesso", "Número Nota", "Série", "Data Emissão", "Emitente", "Destinatário", "Valor Nota", "Itens", "Situação", "PIS Retido", "COFINS Retido"],
-                rows.Select(n => new object[] { n.Chave, n.Numero, n.Serie, n.Emissao.ToDateTime(TimeOnly.MinValue),
-                    n.Emitente, n.Destinatario, n.Valor, n.Itens, n.Cancelada ? "Cancelada" : "Autorizada", n.PisRetido, n.CofinsRetido }), token);
-        });
+        group.MapEmissionReports(connection, cnpj);
 
     }
 

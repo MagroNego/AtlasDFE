@@ -3,6 +3,8 @@ using System.Text;
 using Atlas.Infrastructure;
 using Npgsql;
 
+await EmissionChecks.RunAsync(Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE"));
+
 const string cnpj = "12345678000199";
 const long cursor = 41;
 byte[] doc = Encoding.UTF8.GetBytes("<resNFe xmlns=\"http://www.portalfiscal.inf.br/nfe\" />");
