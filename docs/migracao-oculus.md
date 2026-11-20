@@ -141,6 +141,8 @@ A agenda tenta primeiro os NSUs de prioridade alta, depois os primeiros NSUs fal
 
 Entre no Atlas e abra **Emissão**. A tela importa XMLs ou ZIPs de NF-e do CNPJ configurado e mostra notas e itens. Os filtros aceitam período, situação, número, chave, empresas e código, descrição ou NCM do item. O botão **Excel** gera a planilha de Emissão com os filtros aplicados, incluindo retenções de PIS e COFINS registradas no XML. A Consulta gera a planilha de Manifestação para o número ou a chave pesquisada.
 
+As exportações de Consulta, TXT, Emissão e itens feitas na interface entram na **Central de Downloads**. A conta acompanha a geração por etapas, cancela pedidos ativos e pode baixar novamente os arquivos. O menu sinaliza arquivos prontos ou erros ainda não vistos. A fila e os arquivos ficam no PostgreSQL por CNPJ e conta. O serviço retoma pedidos interrompidos em caso de reinício e exclui os arquivos do histórico após sete dias ou quando excedem os 20 pedidos concluídos mais recentes da conta. Cada arquivo tem limite de 32 MiB.
+
 O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
 
 A nova versão tem telas para a fila de NSU e para registrar ou remover marcação local de cancelamento. O histórico registra usuário, motivo e data. A remoção de marcação local preserva cancelamentos reconhecidos pela SEFAZ.

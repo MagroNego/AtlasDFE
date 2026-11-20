@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ExportarArquivo } from "./exportar-arquivo";
 import { Fragment, useState, type FormEvent } from "react";
 import { useAtlasSession } from "./atlas-frame";
 import { EventosNota, rotulosAcoes, type AcaoNota, type ResultadoConsulta } from "./eventos-nota";
@@ -14,6 +16,7 @@ export default function Consulta() {
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [loteNaFila, setLoteNaFila] = useState(false);
   const [erroLote, setErroLote] = useState("");
   const [copia, setCopia] = useState<{ chave: string; sucesso: boolean }>();
 
@@ -69,8 +72,9 @@ export default function Consulta() {
     if (exportando) return;
     setExportando(true);
     setErroLote("");
+    setLoteNaFila(false);
     try {
-      const resposta = await fetch("/api/consulta/lote", {
+      const resposta = await fetch("/api/consulta/lote/gerar", {
         method: "POST", headers: { "X-CSRF-TOKEN": session.token }, body: new FormData(evento.currentTarget),
       });
       if (resposta.status === 401) {
@@ -81,12 +85,7 @@ export default function Consulta() {
         const falha = await resposta.json().catch(() => null);
         throw new Error(falha?.erro ?? "Não foi possível exportar o TXT.");
       }
-      const arquivo = URL.createObjectURL(await resposta.blob());
-      const link = document.createElement("a");
-      link.href = arquivo;
-      link.download = resposta.headers.get("content-disposition")?.match(/filename="?([\w.-]+)"?(?:;|$)/i)?.[1] ?? "manifestacao.xlsx";
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(arquivo), 1000);
+      setLoteNaFila(true);
     } catch (erro) {
       setErroLote(erro instanceof Error ? erro.message : "Não foi possível exportar o TXT.");
     } finally {
@@ -178,7 +177,7 @@ export default function Consulta() {
     {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
     {resultado && <div className="resultado painel-fiscal" aria-busy={ocupado}>
       {resultado.notas.length > 0 && <div className="resultado-barra">
-        <a className="acao" href={`/api/consulta/excel?${termo}`}>Exportar Excel</a>
+        <ExportarArquivo key={termo} href={`/api/consulta/excel?${termo}`}>Exportar Excel</ExportarArquivo>
       </div>}
       {!resultado.notas.length ? <p className="mensagem" role="status">Nenhuma NF-e localizada nesta cópia.</p>
         : <div key={pagina} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Resultados da consulta">
@@ -257,10 +256,11 @@ export default function Consulta() {
         </label>
         <label>Arquivo TXT<input type="file" name="arquivo" accept=".txt,text/plain" required aria-describedby="lote-ajuda" /></label>
       </div>
+      {loteNaFila && <p role="status">Pedido na fila. <Link href="/downloads">Ver Downloads</Link></p>}
       <p id="lote-ajuda" className="muted">Uma chave ou um número por linha. Até 10.000 entradas e 2 MiB.</p>
       {erroLote && <p role="alert" className="erro">{erroLote}</p>}
       <div className="acoes-filtros"><button className="secundario" disabled={exportando}>
-        {exportando ? "Gerando…" : "Gerar Excel"}
+        {exportando ? "Enviando pedido…" : "Gerar Excel"}
       </button></div>
     </form>
   </section>;

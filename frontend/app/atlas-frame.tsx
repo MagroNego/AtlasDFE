@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { DownloadsBadge } from "./downloads-badge";
 import atlasLight from "./identidade/atlasdfe-light.webp";
 import atlasDark from "./identidade/atlasdfe-dark.webp";
 import yorozuLight from "./identidade/yorozu-light.webp";
@@ -31,6 +32,7 @@ const sections = [
   { path: "/", label: "Consulta" },
   { path: "/emissao", label: "Emissão" },
   { path: "/status", label: "Status SEFAZ" },
+  { path: "/downloads", label: "Downloads" },
   { path: "/aging", label: "Aging List" },
   { path: "/admin", label: "Administração", admin: true },
 ];
@@ -115,7 +117,7 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
       {session?.autenticado && <nav className="abas" aria-label="Navegação principal">
         {sections.filter(section => !section.admin || session.administrador).map(section => {
           const active = section.path === "/admin" ? adminPage : pathname === section.path;
-          return <Link key={section.path} href={section.path} aria-current={active ? "page" : undefined}>{section.label}</Link>;
+          return <Link key={section.path} href={section.path} aria-current={active ? "page" : undefined}>{section.label}{section.path === "/downloads" && <DownloadsBadge key={session.token} />}</Link>;
         })}
       </nav>}
       <div className="conta">

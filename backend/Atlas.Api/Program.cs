@@ -84,8 +84,11 @@ var serviceMode = !args.Any(arg => arg is
 var company = configuration["Atlas:Cnpj"] ?? "";
 builder.Services.AddSingleton(provider => new OperationalSettings(connectionString, company, configuration,
     provider.GetRequiredService<IDataProtectionProvider>()));
+builder.Services.AddSingleton(new DownloadQueue(connectionString, company));
 if (serviceMode)
 {
+    builder.Services.AddHostedService(provider => new DownloadWorker(provider.GetRequiredService<DownloadQueue>(),
+        connectionString, company, provider.GetRequiredService<ILogger<DownloadWorker>>()));
     builder.Services.AddHostedService(provider => new SefazScheduler(
         provider.GetRequiredService<OperationalSettings>(), connectionString, company,
         provider.GetRequiredService<ILogger<SefazScheduler>>()));
@@ -247,6 +250,7 @@ app.MapPost("/api/logout", async (HttpContext http, IAntiforgery csrf, SignInMan
     return Results.NoContent();
 }).RequireAuthorization();
 
+app.MapDownloads();
 app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);
 app.MapSefazStatus(connectionString, cnpj);

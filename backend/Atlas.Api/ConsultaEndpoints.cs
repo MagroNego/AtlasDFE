@@ -32,31 +32,27 @@ internal static class ConsultaEndpoints
             return Results.Ok(new { importadoEm = importedAt, notas = notes.Take(PageSize), mais = notes.Count > PageSize });
         });
 
-        group.MapGet("/excel", async ([AsParameters] Filtros filtros, CancellationToken token) =>
+        group.MapGet("/excel", ([AsParameters] Filtros filtros, CancellationToken token) =>
+            ExportAsync(connection, cnpj, filtros, token));
+
+        group.MapPost("/excel", async ([AsParameters] Filtros filtros, HttpContext http, IAntiforgery csrf,
+            DownloadQueue queue, CancellationToken token) =>
         {
-            if (!TryResolve(filtros, out var filter))
+            if (!await DownloadEndpoints.ValidCsrf(http, csrf)) return DownloadEndpoints.SessionError();
+            if (!TryResolve(filtros, out _))
                 return Results.BadRequest(new { erro = "Confira o número, a chave e os filtros informados." });
-            var notes = await ReadAsync(connection, cnpj, filter, 0, MaxResults + 1, token);
-            var rows = new List<object[]>();
-            foreach (var note in notes)
-            {
-                var events = note.EventosFiltrados;
-                string status = Status(note);
-                if (events.GetArrayLength() == 0)
-                    rows.Add([note.Chave, note.Numero, note.Serie, status, "", "", "", "", ""]);
-                foreach (var e in events.EnumerateArray())
-                    rows.Add([note.Chave, note.Numero, note.Serie, status, Value(e, "descricao"),
-                        Value(e, "data"), Value(e, "protocolo"), Value(e, "nsu"), Value(e, "correcao")]);
-                if (rows.Count > MaxResults)
-                    return Results.BadRequest(new { erro = "Mais de 100.000 registros. Refine os filtros." });
-            }
-            return FiscalEndpoints.Excel("Manifestação", FileName(notes, filter.Inicio, filter.Fim),
-                ["Chave Acesso", "Número Nota", "Série", "Situação", "Evento", "Data", "Protocolo", "NSU", "Correção"], rows, token);
+            return await DownloadEndpoints.EnqueueAsync(http, queue, new("consulta", Consulta: filtros), token);
         });
 
-        group.MapPost("/lote", async (HttpContext http, IAntiforgery csrf, CancellationToken token) =>
+        group.MapPost("/lote", (HttpContext http, IAntiforgery csrf, DownloadQueue queue, CancellationToken token) =>
+            Batch(http, csrf, queue, false, token));
+        group.MapPost("/lote/gerar", (HttpContext http, IAntiforgery csrf, DownloadQueue queue, CancellationToken token) =>
+            Batch(http, csrf, queue, true, token));
+
+        async Task<IResult> Batch(HttpContext http, IAntiforgery csrf, DownloadQueue queue, bool enqueue, CancellationToken token)
         {
-            if (!await csrf.IsRequestValidAsync(http) || !http.Request.HasFormContentType)
+            if (!(enqueue ? await DownloadEndpoints.ValidCsrf(http, csrf) : await csrf.IsRequestValidAsync(http))
+                || !http.Request.HasFormContentType)
                 return Results.BadRequest(new { erro = "Envie um TXT com uma sessão válida." });
             if (http.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
                 limit.MaxRequestBodySize = MaxTxtBytes + 65536;
@@ -72,47 +68,81 @@ internal static class ConsultaEndpoints
 
                 bool byNumber = mode == "numeros";
                 var entries = await ReadEntriesAsync(form.Files[0], byNumber, token);
-                var filter = byNumber
-                    ? new Resolved(null, entries.Select(entry => entry.Numero!.Value).ToArray(), null, null, null, null)
-                    : new Resolved(entries.Select(entry => entry.Chave!).ToArray(), null, null, null, null, null);
-                var notes = await ReadAsync(connection, cnpj, filter, 0, MaxResults + 1, token, includeEmission: true);
-                if (notes.Count > MaxResults)
-                    return Results.BadRequest(new { erro = "Mais de 100.000 notas correspondem ao TXT. Reduza a lista." });
-
-                var byKey = notes.ToDictionary(note => note.Chave, StringComparer.Ordinal);
-                var byNoteNumber = notes.ToLookup(note => note.Numero);
-                using var book = new XLWorkbook();
-                if (byNumber)
-                {
-                    FiscalEndpoints.WriteSheet(book, "Consulta_Manifestacao_YAB", BatchHeaders,
-                        entries.SelectMany(entry => byNoteNumber[entry.Numero!.Value]).Select(BatchRow), token);
-                    FiscalEndpoints.WriteSheet(book, "Numeros solicitados", ["Número NF", "Notas localizadas", "Resultado"],
-                        entries.Select(entry =>
-                        {
-                            int number = entry.Numero!.Value;
-                            int count = byNoteNumber[number].Count();
-                            return new object[] { number, count, count switch
-                            {
-                                0 => "Não localizada no banco",
-                                1 => "Localizada",
-                                _ => "Múltiplas notas; confira chave e série",
-                            } };
-                        }), token);
-                }
-                else
-                {
-                    FiscalEndpoints.WriteSheet(book, "Consulta_Manifestacao_YAB", BatchHeaders,
-                        entries.Select(entry => byKey.TryGetValue(entry.Chave!, out var note) ? BatchRow(note)
-                            : new object[] { entry.Chave!, int.Parse(entry.Chave!.AsSpan(25, 9), CultureInfo.InvariantCulture),
-                                entry.Chave![22..25], "Sem evento localizado", "", "", "", 0, "", "Não localizada no banco", "", "Não localizado" }), token);
-                }
-                return FiscalEndpoints.DownloadExcel(book, FileName(notes, null, null));
+                return enqueue
+                    ? await DownloadEndpoints.EnqueueAsync(http, queue, new("lote", Lote: entries, PorNumero: byNumber), token)
+                    : await ExportBatchAsync(connection, cnpj, entries, byNumber, token);
             }
             catch (Exception error) when (error is InvalidDataException or BadHttpRequestException or DecoderFallbackException)
             {
                 return Results.BadRequest(new { erro = error is DecoderFallbackException ? "Salve o TXT em UTF-8." : error.Message });
             }
-        });
+        }
+    }
+
+    internal static async Task<IResult> ExportAsync(string connection, string cnpj, Filtros filtros,
+        CancellationToken token, Func<string, CancellationToken, Task>? progress = null)
+    {
+        if (!TryResolve(filtros, out var filter))
+            return Results.BadRequest(new { erro = "Confira o número, a chave e os filtros informados." });
+        var notes = await ReadAsync(connection, cnpj, filter, 0, MaxResults + 1, token);
+        if (progress is not null) await progress("gerando", token);
+        var rows = new List<object[]>();
+        foreach (var note in notes)
+        {
+            token.ThrowIfCancellationRequested();
+            var events = note.EventosFiltrados;
+            string status = Status(note);
+            if (events.GetArrayLength() == 0)
+                rows.Add([note.Chave, note.Numero, note.Serie, status, "", "", "", "", ""]);
+            foreach (var e in events.EnumerateArray())
+                rows.Add([note.Chave, note.Numero, note.Serie, status, Value(e, "descricao"),
+                    Value(e, "data"), Value(e, "protocolo"), Value(e, "nsu"), Value(e, "correcao")]);
+            if (rows.Count > MaxResults)
+                return Results.BadRequest(new { erro = "Mais de 100.000 registros. Refine os filtros." });
+        }
+        return FiscalEndpoints.Excel("Manifestação", FileName(notes, filter.Inicio, filter.Fim),
+            ["Chave Acesso", "Número Nota", "Série", "Situação", "Evento", "Data", "Protocolo", "NSU", "Correção"], rows, token);
+    }
+
+    internal static async Task<IResult> ExportBatchAsync(string connection, string cnpj, List<IdentificadorNota> entries,
+        bool byNumber, CancellationToken token, Func<string, CancellationToken, Task>? progress = null)
+    {
+        var filter = byNumber
+            ? new Resolved(null, entries.Select(entry => entry.Numero!.Value).ToArray(), null, null, null, null)
+            : new Resolved(entries.Select(entry => entry.Chave!).ToArray(), null, null, null, null, null);
+        var notes = await ReadAsync(connection, cnpj, filter, 0, MaxResults + 1, token, includeEmission: true);
+        if (notes.Count > MaxResults)
+            return Results.BadRequest(new { erro = "Mais de 100.000 notas correspondem ao TXT. Reduza a lista." });
+
+        if (progress is not null) await progress("gerando", token);
+        var byKey = notes.ToDictionary(note => note.Chave, StringComparer.Ordinal);
+        var byNoteNumber = notes.ToLookup(note => note.Numero);
+        using var book = new XLWorkbook();
+        if (byNumber)
+        {
+            FiscalEndpoints.WriteSheet(book, "Consulta_Manifestacao_YAB", BatchHeaders,
+                entries.SelectMany(entry => byNoteNumber[entry.Numero!.Value]).Select(BatchRow), token);
+            FiscalEndpoints.WriteSheet(book, "Numeros solicitados", ["Número NF", "Notas localizadas", "Resultado"],
+                entries.Select(entry =>
+                {
+                    int number = entry.Numero!.Value;
+                    int count = byNoteNumber[number].Count();
+                    return new object[] { number, count, count switch
+                    {
+                        0 => "Não localizada no banco",
+                        1 => "Localizada",
+                        _ => "Múltiplas notas; confira chave e série",
+                    } };
+                }), token);
+        }
+        else
+        {
+            FiscalEndpoints.WriteSheet(book, "Consulta_Manifestacao_YAB", BatchHeaders,
+                entries.Select(entry => byKey.TryGetValue(entry.Chave!, out var note) ? BatchRow(note)
+                    : new object[] { entry.Chave!, int.Parse(entry.Chave!.AsSpan(25, 9), CultureInfo.InvariantCulture),
+                        entry.Chave![22..25], "Sem evento localizado", "", "", "", 0, "", "Não localizada no banco", "", "Não localizado" }), token);
+        }
+        return FiscalEndpoints.DownloadExcel(book, FileName(notes, null, null));
     }
 
     private static async Task<List<IdentificadorNota>> ReadEntriesAsync(IFormFile file, bool byNumber, CancellationToken token)

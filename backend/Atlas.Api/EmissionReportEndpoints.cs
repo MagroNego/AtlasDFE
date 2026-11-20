@@ -3,6 +3,7 @@ using System.Text;
 using Atlas.Domain;
 using Atlas.Infrastructure;
 using ClosedXML.Excel;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 
 internal static class EmissionReportEndpoints
@@ -12,65 +13,89 @@ internal static class EmissionReportEndpoints
 
     public static void MapEmissionReports(this RouteGroupBuilder group, string connection, string cnpj)
     {
-        var store = new EmissionReports(connection);
         group.MapGet("/relatorio", async ([AsParameters] Filters filters, int? pagina, CancellationToken token) =>
         {
             int page = pagina ?? 1;
             if (!Valid(filters) || page is < 1 or > 1000)
                 return Results.BadRequest(new { erro = "Filtros de emissão inválidos." });
-            var report = await Read(filters, "", (page - 1) * 100, 101, token);
+            var report = await Read(new(connection), cnpj, filters, "", (page - 1) * 100, 101, token);
             // Mantém série disponível nos arquivos, sem reintroduzi-la na tabela.
             return Results.Ok(new { colunas = report.Colunas.Where(field => field != "Serie"),
                 linhas = report.Linhas.Take(100), notas = Array.Empty<object>(), mais = report.Linhas.Count > 100 });
         });
 
-        group.MapGet("/excel", ([AsParameters] Filters filters, CancellationToken token) => Export(filters, "", false, token));
-        group.MapGet("/csv", ([AsParameters] Filters filters, CancellationToken token) => Export(filters, "", true, token));
+        group.MapGet("/excel", ([AsParameters] Filters filters, CancellationToken token) => ExportAsync(connection, cnpj, filters, "", false, token));
+        group.MapGet("/csv", ([AsParameters] Filters filters, CancellationToken token) => ExportAsync(connection, cnpj, filters, "", true, token));
         group.MapGet("/{chave}/itens/excel", (string chave, [AsParameters] Filters filters, CancellationToken token) =>
-            Export(filters with { Tipo = "itens" }, chave, false, token));
+            ExportAsync(connection, cnpj, filters with { Tipo = "itens" }, chave, false, token));
         group.MapGet("/{chave}/itens/csv", (string chave, [AsParameters] Filters filters, CancellationToken token) =>
-            Export(filters with { Tipo = "itens" }, chave, true, token));
+            ExportAsync(connection, cnpj, filters with { Tipo = "itens" }, chave, true, token));
 
-        Task<EmissionReport> Read(Filters f, string key, int skip, int limit, CancellationToken token) =>
-            store.ReadAsync(cnpj, f.Tipo ?? "notas", f.Busca?.Trim() ?? "", f.Inicio, f.Fim,
-                f.Situacao ?? "", f.Item?.Trim() ?? "", key, skip, limit, token);
-
-        async Task<IResult> Export(Filters f, string key, bool csv, CancellationToken token)
+        foreach (bool csv in new[] { false, true })
         {
-            if (!Valid(f) || (key.Length > 0 && IdentificadorNota.Parse(key)?.Chave != key))
-                return Results.BadRequest(new { erro = "Filtros de emissão inválidos." });
-            try
-            {
-                if (key.Length > 0 && await new EmissionStore(connection).ItemsAsync(cnpj, key, token) is null)
-                    return Results.NotFound(new { erro = "NF-e não encontrada." });
-                if (csv || key.Length > 0)
-                {
-                    var report = await Read(f, key, 0, EmissionReports.MaxRows + 1, token);
-                    EmissionReports.EnsureLimit(report);
-                    string filename = FileName([report], f, csv ? "csv" : "xlsx", key);
-                    if (csv) return Csv(report, filename, token);
-                    using var book = new XLWorkbook();
-                    Sheet(book, "Itens", report, token);
-                    return FiscalEndpoints.DownloadExcel(book, filename);
-                }
-                var reports = await store.WorkbookAsync(cnpj, f.Busca?.Trim() ?? "", f.Inicio, f.Fim,
-                    f.Situacao ?? "", f.Item?.Trim() ?? "", token);
-                using var workbook = new XLWorkbook();
-                string[] titles = ["Notas", "Itens", "Retencoes", "Resumo"];
-                for (int index = 0; index < reports.Length; index++)
-                    Sheet(workbook, titles[index], reports[index], token);
-                return FiscalEndpoints.DownloadExcel(workbook, FileName(reports, f, "xlsx", ""));
-            }
-            catch (InvalidDataException error)
-            {
-                return Results.BadRequest(new { erro = error.Message });
-            }
+            string extension = csv ? "csv" : "excel";
+            group.MapPost($"/{extension}", ([AsParameters] Filters filters, HttpContext http, IAntiforgery csrf,
+                DownloadQueue queue, CancellationToken token) => Enqueue(filters, "", csv, http, csrf, queue, token));
+            group.MapPost($"/{{chave}}/itens/{extension}", (string chave, [AsParameters] Filters filters, HttpContext http,
+                IAntiforgery csrf, DownloadQueue queue, CancellationToken token) =>
+                Enqueue(filters with { Tipo = "itens" }, chave, csv, http, csrf, queue, token));
         }
     }
 
-    private static bool Valid(Filters f) => (f.Busca?.Length ?? 0) <= 200 && (f.Item?.Length ?? 0) <= 200
+    private static async Task<IResult> Enqueue(Filters filters, string key, bool csv, HttpContext http,
+        IAntiforgery csrf, DownloadQueue queue, CancellationToken token)
+    {
+        if (!await DownloadEndpoints.ValidCsrf(http, csrf)) return DownloadEndpoints.SessionError();
+        if (!Valid(filters, key)) return Results.BadRequest(new { erro = "Filtros de emissão inválidos." });
+        return await DownloadEndpoints.EnqueueAsync(http, queue,
+            new(key.Length > 0 ? "itens" : "emissao", Emissao: filters, Chave: key, Csv: csv), token);
+    }
+
+    private static Task<EmissionReport> Read(EmissionReports store, string cnpj, Filters f, string key,
+        int skip, int limit, CancellationToken token) =>
+        store.ReadAsync(cnpj, f.Tipo ?? "notas", f.Busca?.Trim() ?? "", f.Inicio, f.Fim,
+            f.Situacao ?? "", f.Item?.Trim() ?? "", key, skip, limit, token);
+
+    internal static async Task<IResult> ExportAsync(string connection, string cnpj, Filters f, string key,
+        bool csv, CancellationToken token, Func<string, CancellationToken, Task>? progress = null)
+    {
+        if (!Valid(f, key))
+            return Results.BadRequest(new { erro = "Filtros de emissão inválidos." });
+        var store = new EmissionReports(connection);
+        try
+        {
+            if (key.Length > 0 && await new EmissionStore(connection).ItemsAsync(cnpj, key, token) is null)
+                return Results.NotFound(new { erro = "NF-e não encontrada." });
+            if (csv || key.Length > 0)
+            {
+                var report = await Read(store, cnpj, f, key, 0, EmissionReports.MaxRows + 1, token);
+                EmissionReports.EnsureLimit(report);
+                if (progress is not null) await progress("gerando", token);
+                string filename = FileName([report], f, csv ? "csv" : "xlsx", key);
+                if (csv) return Csv(report, filename, token);
+                using var book = new XLWorkbook();
+                Sheet(book, "Itens", report, token);
+                return FiscalEndpoints.DownloadExcel(book, filename);
+            }
+            var reports = await store.WorkbookAsync(cnpj, f.Busca?.Trim() ?? "", f.Inicio, f.Fim,
+                f.Situacao ?? "", f.Item?.Trim() ?? "", token);
+            if (progress is not null) await progress("gerando", token);
+            using var workbook = new XLWorkbook();
+            string[] titles = ["Notas", "Itens", "Retencoes", "Resumo"];
+            for (int index = 0; index < reports.Length; index++)
+                Sheet(workbook, titles[index], reports[index], token);
+            return FiscalEndpoints.DownloadExcel(workbook, FileName(reports, f, "xlsx", ""));
+        }
+        catch (InvalidDataException error)
+        {
+            return Results.BadRequest(new { erro = error.Message });
+        }
+    }
+
+    private static bool Valid(Filters f, string key = "") => (f.Busca?.Length ?? 0) <= 200 && (f.Item?.Length ?? 0) <= 200
         && !(f.Inicio > f.Fim) && f.Situacao is null or "" or "autorizada" or "cancelada"
-        && f.Tipo is null or "notas" or "itens" or "retencoes";
+        && f.Tipo is null or "notas" or "itens" or "retencoes"
+        && (key.Length == 0 || IdentificadorNota.Parse(key)?.Chave == key);
 
     private static void Sheet(XLWorkbook workbook, string title, EmissionReport report, CancellationToken token)
     {

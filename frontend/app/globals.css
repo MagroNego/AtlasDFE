@@ -300,3 +300,24 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
 .sefaz-dados dd { margin: 2px 0 0; }
 .sefaz-atividade { margin-top: 12px; }
 .sefaz-atividade :is(th, td) { white-space: nowrap; }
+
+.downloads-badge {
+  display: inline-block;
+  margin-inline-start: 0.4em;
+  padding: 0 0.38em;
+  border-radius: 1em;
+  background: var(--primaria);
+  color: var(--sobre-primaria);
+  font-variant-numeric: tabular-nums;
+}
+.download-item {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: center;
+}
+.download-nome { display: block; margin: 2px 0; }
+@media (max-width: 600px) {
+  .download-item { grid-template-columns: 1fr auto; }
+  .download-item > :first-child { grid-column: 1 / -1; }
+}
