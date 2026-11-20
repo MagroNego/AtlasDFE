@@ -167,6 +167,19 @@ details[open] > form { padding-top: 12px; }
   background: var(--superficie);
 }
 .erro { color: var(--erro); background: var(--erro-fundo); overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(.mensagem, .erro, p[role="status"], p[role="alert"]):not(.sr-only, .linha-detalhe *),
+  .tabela .linha-detalhe > td {
+    animation: atlas-aparecer 160ms ease-out;
+  }
+}
+
+@keyframes atlas-aparecer {
+  from { opacity: .7; }
+  to { opacity: 1; }
+}
+
 .selo { border-radius: 4px; display: inline-block; padding: 3px 7px; font-weight: 600; font-size: .8rem; }
 .selo-cancelado { color: var(--erro); background: var(--erro-fundo); }
 

@@ -227,7 +227,7 @@ export default function Consulta() {
                     </td>
                     <td role="cell">{cancelada ? <span className="selo selo-cancelado">Cancelada no histórico local</span> : <span className="sem-marcacao">—</span>}</td>
                   </tr>
-                  {detalheAberto && <tr role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
+                  {detalheAberto && <tr key={detalheAberto.tipo} role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
                     <td role="cell" colSpan={4}>
                       {detalheAberto.tipo === "itens"
                         ? <ItensNota chave={nota.chave} items={detalheAberto.itens ?? []} />

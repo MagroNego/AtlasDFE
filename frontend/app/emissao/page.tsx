@@ -199,7 +199,7 @@ export default function Emissao() {
                   <td role="cell" className="numero">{currency.format(note.valor)}</td>
                   <td role="cell">{note.cancelada ? <span className="selo selo-cancelado">Cancelada</span> : "Autorizada"}</td>
                 </tr>
-                {activeDetail && activeDetail.tipo !== "itens" && <tr role="row" className="linha-detalhe" id={detailId}>
+                {activeDetail && activeDetail.tipo !== "itens" && <tr key={activeDetail.tipo} role="row" className="linha-detalhe" id={detailId}>
                   <td role="cell" colSpan={7}>
                     {activeDetail.eventos ? <EventosNota detalhe={activeDetail.eventos} tipo={activeDetail.tipo} />
                       : <p role="status">Esta NF-e ainda não consta no histórico consultado pelo Atlas.</p>}
