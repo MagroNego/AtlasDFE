@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { MinhaConta } from "./minha-conta";
 import { DownloadsBadge } from "./downloads-badge";
 import atlasLight from "./identidade/atlasdfe-light.webp";
 import atlasDark from "./identidade/atlasdfe-dark.webp";
@@ -55,6 +56,7 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [requested, setRequested] = useState(false);
+  const [contaAberta, setContaAberta] = useState(false);
   const exportPage = pathname === "/downloads" || pathname === "/aging";
   const adminPage = pathname === "/admin" || pathname.startsWith("/admin/");
 
@@ -166,12 +168,12 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
               if (menu) { menu.open = false; menu.querySelector("summary")?.focus(); }
             }}><span className="amostra-tema" data-swatch={value} aria-hidden="true" />{name}</button>)}</div>
         </details>
-        {session?.autenticado && <Link href="/perfil" className="controle-icone" title="Minha conta" aria-label="Minha conta"
-          aria-current={pathname === "/perfil" ? "page" : undefined}>
+        {session?.autenticado && <button type="button" className="secundario controle-icone" title="Minha conta"
+          aria-label="Minha conta" aria-haspopup="dialog" onClick={() => setContaAberta(true)}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
             <circle cx="12" cy="8" r="3.3" /><path d="M4.5 20v-1.2a7.5 5.4 0 0 1 15 0V20" />
           </svg>
-        </Link>}
+        </button>}
         {session?.autenticado && <button type="button" className="secundario" disabled={busy} onClick={() => void authenticate("logout")}>Sair</button>}
       </div>
     </header>
@@ -184,9 +186,8 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
       </section>}
       {!session && !sessionError && <p className="mensagem" role="status">Carregando sessão…</p>}
       {session?.autenticado === false && <section className="painel login login-atlas">
-        <div className="login-marca">
-          <img className="tema-claro" src={atlasLight.src} alt="Atlas DFE" width={146} height={43} />
-          <img className="tema-escuro" src={atlasDark.src} alt="Atlas DFE" width={146} height={43} />
+        <div className="login-marca" aria-hidden="true">
+          <span><img src={atlasDark.src} alt="" /></span>
         </div>
         <h1>Entrar no Atlas</h1>
         <form onSubmit={login}>
@@ -218,6 +219,11 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
                 aria-current={pathname === section.path ? "page" : undefined}>{section.label}</Link>)}
             </nav></aside><div className="admin-conteudo">{children}</div></div> : children}
           </AtlasSession.Provider>)}
+      {session?.autenticado && (contaAberta || pathname === "/perfil") &&
+        <MinhaConta token={session.token} refreshSession={refreshSession} onClose={() => {
+          setContaAberta(false);
+          if (pathname === "/perfil") router.replace("/");
+        }} />}
     </main>
   </>;
 }

@@ -34,7 +34,8 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
     options.Password.RequiredLength = 12;
     options.User.RequireUniqueEmail = true;
 })
-.AddEntityFrameworkStores<AtlasDbContext>();
+.AddEntityFrameworkStores<AtlasDbContext>()
+.AddDefaultTokenProviders();
 builder.Services.AddAuthorization(options => options.AddPolicy(Administration.Export, policy =>
     policy.RequireAuthenticatedUser().RequireAssertion(context => context.User.IsInRole(Administration.Role)
         || !context.User.IsInRole(Administration.Consulta))));

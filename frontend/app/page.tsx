@@ -1,5 +1,6 @@
 "use client";
 
+import { SeletorArquivo } from "./seletor-arquivo";
 import { CampoData, periodoParam } from "./periodo";
 import Link from "next/link";
 import { ExportarArquivo } from "./exportar-arquivo";
@@ -251,14 +252,13 @@ export default function Consulta() {
         <label>Conteúdo do TXT
           <select name="tipo"><option value="chaves">Chaves de NF-e</option><option value="numeros">Números de NF-e</option></select>
         </label>
-        <label>Arquivo TXT<input type="file" name="arquivo" accept=".txt,text/plain" required aria-describedby="lote-ajuda" /></label>
+        <SeletorArquivo name="arquivo" accept=".txt,text/plain" titulo="Selecionar arquivo TXT"
+          ajuda="Uma chave ou número por linha. Até 10.000 entradas e 2 MiB." disabled={exportando}
+          onSelect={() => { setLoteNaFila(false); setErroLote(""); }} />
+        <button className="secundario" disabled={exportando}>{exportando ? "Enviando pedido…" : "Gerar Excel"}</button>
       </div>
       {loteNaFila && <p role="status">Pedido na fila. <Link href="/downloads">Ver Downloads</Link></p>}
-      <p id="lote-ajuda" className="muted">Uma chave ou um número por linha. Até 10.000 entradas e 2 MiB.</p>
       {erroLote && <p role="alert" className="erro">{erroLote}</p>}
-      <div className="acoes-filtros"><button className="secundario" disabled={exportando}>
-        {exportando ? "Enviando pedido…" : "Gerar Excel"}
-      </button></div>
     </form>}
   </section>;
 }

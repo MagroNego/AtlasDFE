@@ -1,5 +1,7 @@
 "use client";
 
+import { Janela } from "../janela";
+import { SeletorArquivo } from "../seletor-arquivo";
 import { CampoData, mesParametro, periodoParam } from "../periodo";
 import Link from "next/link";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
@@ -73,26 +75,33 @@ export default function Emissao() {
     }
   }
 
-  function upload(event: FormEvent<HTMLFormElement>) {
+  const [importOpen, setImportOpen] = useState(false);
+  const [importError, setImportError] = useState("");
+
+  async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const payload = new FormData(form);
-    void action(async () => {
+    if (busy) return;
+    const payload = new FormData(event.currentTarget);
+    setBusy(true);
+    setImportError("");
+    setMessage("");
+    try {
       const response = await fetch("/api/emissao/xml", {
         method: "POST", body: payload, headers: { "X-CSRF-TOKEN": session.token },
       });
-      if (response.status === 401) {
-        location.href = "/";
-        return;
-      }
+      if (response.status === 401) { location.href = "/"; return; }
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.id
         ? `Lote ${result.id} revertido. ${result.erros} erro(s). ${result.erro}`
         : result.erro ?? "Não foi possível importar o lote.");
-      await read(filters, 1);
-      form.reset();
-      setMessage(`Lote ${result.id} · ${result.notas} nota(s), ${result.cancelamentos} cancelamento(s), ${result.cce} CC-e, ${result.duplicatas} duplicata(s).`);
-    });
+      setImportOpen(false);
+      const summary = `Lote ${result.id} · ${result.notas} nota(s), ${result.cancelamentos} cancelamento(s), ${result.cce} CC-e, ${result.duplicatas} duplicata(s).`;
+      setMessage(summary);
+      try { await read(filters, 1); }
+      catch { setMessage(summary + " Pesquise novamente para atualizar os resultados."); }
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Não foi possível importar o lote.");
+    } finally { setBusy(false); }
   }
 
   function openDetail(chave: string, tipo: Detail["tipo"]) {
@@ -122,15 +131,21 @@ export default function Emissao() {
   return <section className="tela-fiscal tela-emissao">
     <div className="titulo-fiscal">
       <h1>Emissão</h1>
-      {session.administrador && <details className="form-importacao">
-        <summary>Importar XML ou ZIP</summary>
-        <form onSubmit={upload}>
-          <label>Arquivos de emissão<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
-          <div className="form-acoes"><button disabled={busy}>Importar</button>
-            <Link href="/admin/importacoes" className="acao">Histórico de lotes</Link></div>
-        </form>
-      </details>}
+      {session.administrador && <button type="button" className="secundario" aria-haspopup="dialog" disabled={busy}
+        onClick={() => { setImportError(""); setImportOpen(true); }}>Importar XML ou ZIP</button>}
     </div>
+    {session.administrador && importOpen && <Janela titulo="Importar notas de emissão"
+      busy={busy} onClose={() => setImportOpen(false)}>
+      <form onSubmit={upload}>
+        <SeletorArquivo name="arquivos" accept=".xml,.zip" titulo="Selecionar XML ou ZIP"
+          ajuda="Você pode selecionar vários arquivos." multiple disabled={busy} onSelect={() => setImportError("")} />
+        {importError && <p className="erro" role="alert">{importError}</p>}
+        <div className="form-acoes">
+          <button disabled={busy}>{busy ? "Importando…" : "Importar"}</button>
+          <Link href="/admin/importacoes" className="acao" onClick={event => { if (busy) event.preventDefault(); }}>Histórico de lotes</Link>
+        </div>
+      </form>
+    </Janela>}
     <form className="filtros-fiscais painel-fiscal" onSubmit={search}
       onReset={() => void action(() => read(mesParametro(), 1))}>
       <h2>Vendas</h2>

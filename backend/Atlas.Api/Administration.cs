@@ -22,15 +22,16 @@ internal static class Administration
 
     internal static void MapAccounts(this RouteGroupBuilder group, string cnpj)
     {
-        group.MapGet("/contas", async (UserManager<IdentityUser> users, CancellationToken token) =>
+        group.MapGet("/contas", async (HttpContext http, UserManager<IdentityUser> users, CancellationToken token) =>
         {
             var accounts = await users.Users.OrderBy(user => user.Email).Take(501).ToListAsync(token);
+            var actor = users.GetUserId(http.User);
             var elevated = await users.GetUsersInRoleAsync(Role);
             var admins = elevated.Select(user => user.Id).ToHashSet(StringComparer.Ordinal);
             var readers = (await users.GetUsersInRoleAsync(Consulta)).Select(user => user.Id).ToHashSet(StringComparer.Ordinal);
             return Results.Ok(accounts.Take(500).Select(user => new
             {
-                user.Email, user.UserName, Admin = admins.Contains(user.Id),
+                user.Id, user.Email, user.UserName, MinhaConta = user.Id == actor, Admin = admins.Contains(user.Id),
                 Perfil = admins.Contains(user.Id) ? "administrador" : readers.Contains(user.Id) ? "consulta" : "fiscal",
                 Ativa = user.LockoutEnd != DateTimeOffset.MaxValue,
             }));
@@ -50,6 +51,8 @@ internal static class Administration
             await using var transaction = await db.Database.BeginTransactionAsync(token);
             await LockAsync(db, token);
             var account = await users.FindByEmailAsync(email!);
+            if (input.ContaId is not null && (input.Acao == "criar" || account?.Id != input.ContaId))
+                return Results.Conflict(new { erro = "Esta conta mudou desde que a lista foi aberta. Feche a janela e atualize a lista." });
             bool self = account is not null && account.Id == users.GetUserId(http.User);
             bool isAdmin = account is not null && await users.IsInRoleAsync(account, Role);
             bool removeAdmin = input.Acao is "bloquear" or "excluir" || input.Acao == "editar" && profile != Role;
@@ -169,6 +172,6 @@ internal static class Administration
             throw new InvalidOperationException(string.Join(" ", result.Errors.Select(e => e.Description)));
     }
 
-    private sealed record AccountInput(string? Email, string? Acao, string? Senha, bool Admin, string? Perfil, string? NovoEmail, string? Usuario);
+    private sealed record AccountInput(string? Email, string? Acao, string? Senha, bool Admin, string? Perfil, string? NovoEmail, string? Usuario, string? ContaId);
     private sealed record AuditRow(string Usuario, string Acao, string Alvo, DateTime CriadoEm);
 }
