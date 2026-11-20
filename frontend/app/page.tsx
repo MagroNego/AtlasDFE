@@ -248,7 +248,7 @@ export default function Consulta() {
           onClick={() => void consultar(termo, pagina + 1)}>Próxima</button>
       </nav>}
     </div>}
-    <form className="filtros-fiscais painel-fiscal consulta-lote" onSubmit={exportarLote}>
+    {session.podeExportar !== false && <form className="filtros-fiscais painel-fiscal consulta-lote" onSubmit={exportarLote}>
       <h2>Consulta por arquivo</h2>
       <div className="campos-fiscais campos-lote">
         <label>Conteúdo do TXT
@@ -262,6 +262,6 @@ export default function Consulta() {
       <div className="acoes-filtros"><button className="secundario" disabled={exportando}>
         {exportando ? "Enviando pedido…" : "Gerar Excel"}
       </button></div>
-    </form>
+    </form>}
   </section>;
 }

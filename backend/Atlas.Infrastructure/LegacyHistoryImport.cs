@@ -20,6 +20,8 @@ public static class LegacyHistoryImport
             Password = password ?? "",
         }.ToString());
         source.Open();
+        using var read = source.BeginTransaction(deferred: true);
+        MigrationIntegrity.VerifySqlite(read, cancellationToken);
 
         await using var destination = new NpgsqlConnection(connectionString);
         await destination.OpenAsync(cancellationToken);
@@ -28,6 +30,7 @@ public static class LegacyHistoryImport
         await using var prepare = new NpgsqlCommand("""
             SELECT pg_advisory_xact_lock(718322, hashtext(@cnpj));
             SELECT pg_advisory_xact_lock(718320, hashtext(@cnpj));
+            SELECT pg_advisory_xact_lock(718321, hashtext(@cnpj));
             DELETE FROM consulta_notas WHERE cnpj=@cnpj
             AND NOT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=@cnpj AND NOT legada)
             AND NOT EXISTS (SELECT 1 FROM sefaz_respostas WHERE cnpj=@cnpj AND cstat IS NOT NULL);
@@ -45,10 +48,11 @@ public static class LegacyHistoryImport
                 throw new InvalidDataException("Importe o histórico antes de ativar a sincronização C# deste CNPJ.");
         }
 
-        using var read = source.BeginTransaction(deferred: true);
         var history = new LegacyHistory(read, cnpj);
 
         int count = 0;
+        long events = 0, links = 0;
+        using var hash = MigrationIntegrity.CreateHash();
         string copySql = "COPY consulta_notas (cnpj,chave,numero,serie,detalhe) FROM STDIN (FORMAT BINARY)";
         await using (var copy = await destination.BeginBinaryImportAsync(copySql, cancellationToken))
         {
@@ -58,6 +62,10 @@ public static class LegacyHistoryImport
                     throw new InvalidDataException("A origem contém uma chave de NF-e inválida.");
 
                 string details = history.Details(key);
+                using var parsed = JsonDocument.Parse(details);
+                events += parsed.RootElement.GetProperty("eventos").GetArrayLength();
+                links += parsed.RootElement.GetProperty("ctes").GetArrayLength();
+                MigrationIntegrity.AppendKey(hash, key);
                 await copy.StartRowAsync(cancellationToken);
                 await copy.WriteAsync(cnpj, NpgsqlDbType.Varchar, cancellationToken);
                 await copy.WriteAsync(key, NpgsqlDbType.Varchar, cancellationToken);
@@ -69,19 +77,29 @@ public static class LegacyHistoryImport
             await copy.CompleteAsync(cancellationToken);
         }
 
+        if (count == 0)
+            throw new InvalidDataException("A origem não tem notas deste CNPJ. A cópia anterior foi preservada.");
+
         await using var finish = new NpgsqlCommand("""
             INSERT INTO consulta_importacoes (cnpj,importado_em,total)
             VALUES (@cnpj,now(),@total)
             ON CONFLICT (cnpj) DO UPDATE SET importado_em=excluded.importado_em,total=excluded.total
-            WHERE excluded.total > 0
             """, destination, write);
         finish.Parameters.AddWithValue("cnpj", cnpj);
         finish.Parameters.AddWithValue("total", count);
-        if (await finish.ExecuteNonQueryAsync(cancellationToken) == 0)
-            throw new InvalidDataException("A origem não tem notas deste CNPJ. A cópia anterior foi preservada.");
-        await ManualStatus.ImportAsync(read, write, cnpj, cancellationToken);
-        await LegacyEmissionImport.RunAsync(read, write, cnpj, cancellationToken);
+        await finish.ExecuteNonQueryAsync(cancellationToken);
+        long manual = await ManualStatus.ImportAsync(read, write, cnpj, cancellationToken);
+        var emission = await LegacyEmissionImport.RunAsync(read, write, cnpj, cancellationToken);
         await new LegacySefazImport(read, write, cnpj).RunAsync(cancellationToken);
+        var metrics = await MigrationIntegrity.MeasureAsync(read, write, cnpj, count, events, links,
+            MigrationIntegrity.Digest(hash), emission, manual, cancellationToken);
+        if (metrics.Any(metric => metric.Sqlite != metric.Postgres))
+        {
+            await write.RollbackAsync(cancellationToken);
+            await MigrationIntegrity.RecordAsync(destination, null, cnpj, false, metrics, cancellationToken);
+            throw new InvalidDataException("A conferência encontrou diferenças. A migração foi revertida. Consulte o Status SEFAZ.");
+        }
+        await MigrationIntegrity.RecordAsync(destination, write, cnpj, true, metrics, cancellationToken);
         await write.CommitAsync(cancellationToken);
         return count;
     }
@@ -125,7 +143,7 @@ public static class LegacyHistoryImport
             ];
             var selects = sources.Where(s => tables.Contains(s.Table))
                 .Select(s => $"SELECT {s.Column} FROM {s.Table} WHERE cnpj=$cnpj");
-            using var command = Query(string.Join(" UNION ", selects));
+            using var command = Query("SELECT chave FROM (" + string.Join(" UNION ", selects) + ") ORDER BY chave COLLATE BINARY");
             using var rows = command.ExecuteReader();
             while (rows.Read())
                 yield return rows.IsDBNull(0) ? "" : rows.GetString(0);

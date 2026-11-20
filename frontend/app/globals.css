@@ -321,3 +321,18 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
   .download-item { grid-template-columns: 1fr auto; }
   .download-item > :first-child { grid-column: 1 / -1; }
 }
+
+.integridade-legenda { display: flex; gap: 16px; margin-block: 10px; }
+.integridade-legenda span::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-inline-end: 5px; background: var(--muted); }
+.integridade-legenda span + span::before { background: var(--primaria); }
+.integridade-grafico { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 7px; max-width: 600px; }
+.integridade-grafico li { display: grid; grid-template-columns: minmax(92px, 0.65fr) minmax(100px, 1fr); gap: 2px 12px; align-items: center; margin: 0; }
+.integridade-linha { display: flex; align-items: center; gap: 6px; height: 14px; }
+.integridade-linha > span { display: block; height: 6px; border-radius: 2px; max-width: calc(100% - 5ch); }
+.integridade-linha .sqlite { background: var(--muted); }
+.integridade-linha .pg { background: var(--primaria); }
+.integridade-diferenca { grid-column: 2; color: var(--erro, #a22); }
+
+@media (min-width: 900px) {
+  .sefaz-paineis { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+}

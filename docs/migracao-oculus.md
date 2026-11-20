@@ -137,21 +137,27 @@ Antes de ativar o C#, pare a coleta legada e execute novamente `--importar-histo
 
 A agenda tenta primeiro os NSUs de prioridade alta, depois os primeiros NSUs faltantes dos intervalos conhecidos e por fim a fila normal. Os documentos já registrados e as consultas concluídas ficam fora da recuperação. A rejeição 656 com `ultNSU` superior registra um intervalo e preserva o cursor confirmado. A recuperação mantém o cursor de distribuição.
 
+### Conferir a migração
+
+O comando `--importar-historico` abre o SQLite em leitura, executa `PRAGMA quick_check` e compara os dados normalizados com a cópia provisória no PostgreSQL. São conferidos os totais de notas, eventos, vínculos, itens e marcações, o conjunto de chaves da Consulta e da Emissão e os NSUs da origem quando disponíveis. A cópia só é publicada com a comparação aprovada. Se os valores divergem, a transação é revertida e a divergência fica registrada.
+
+Em **Status SEFAZ → Integridade da migração**, o gráfico mostra o resultado da última comparação concluída, com data e valores por base. É um retrato da cópia ensaiada. Valide também relatórios e documentos representativos antes de virar a produção.
+
 ## Emissão, XML e Excel
 
 Entre no Atlas e abra **Emissão**. A tela importa XMLs ou ZIPs de NF-e do CNPJ configurado e mostra notas e itens. Os filtros aceitam período, situação, número, chave, empresas e código, descrição ou NCM do item. O botão **Excel** gera a planilha de Emissão com os filtros aplicados, incluindo retenções de PIS e COFINS registradas no XML. A Consulta gera a planilha de Manifestação para o número ou a chave pesquisada.
 
 As exportações de Consulta, TXT, Emissão e itens feitas na interface entram na **Central de Downloads**. A conta acompanha a geração por etapas, cancela pedidos ativos e pode baixar novamente os arquivos. O menu sinaliza arquivos prontos ou erros ainda não vistos. A fila e os arquivos ficam no PostgreSQL por CNPJ e conta. O serviço retoma pedidos interrompidos em caso de reinício e exclui os arquivos do histórico após sete dias ou quando excedem os 20 pedidos concluídos mais recentes da conta. Cada arquivo tem limite de 32 MiB.
 
-O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
+O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O histórico de lotes em **Administração → Importações XML** detalha notas, cancelamentos, CC-e, duplicatas e erros. O CSV vai para a Central de Downloads. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
 
 A nova versão tem telas para a fila de NSU e para registrar ou remover marcação local de cancelamento. O histórico registra usuário, motivo e data. A remoção de marcação local preserva cancelamentos reconhecidos pela SEFAZ.
 
-Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.
+Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. Use **Ver prévia** para conferir as primeiras dez linhas dos lançamentos. Se houver erro, baixe o diagnóstico TXT. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.
 
 ## Contas e auditoria
 
-A conta criada por `--bootstrap-admin` recebe o perfil Administrador. Se a conta já foi criada em uma revisão anterior do Atlas C#, aplique as migrações e execute `dotnet run --project backend/Atlas.Api -- --promover-admin email@empresa.com` para o e-mail escolhido. Use o painel **Administração → Contas e auditoria** para cadastrar usuários, trocar senhas e bloquear ou liberar acessos. As contas antigas do Python precisam ser cadastradas novamente.
+A conta criada por `--bootstrap-admin` recebe o perfil Administrador. Se a conta já foi criada em uma revisão anterior do Atlas C#, aplique as migrações e execute `dotnet run --project backend/Atlas.Api -- --promover-admin email@empresa.com` para o e-mail escolhido. Use o painel **Administração → Contas e auditoria** para cadastrar, editar, excluir, trocar senhas e bloquear ou liberar acessos. O perfil Consulta pode ler dados fiscais. Fiscal e Administrador também podem exportar. Usuários .NET existentes sem perfil explícito mantêm acesso de Fiscal. Em **Perfil**, o usuário pode editar seus dados mediante confirmação da senha. Para habilitar solicitação de conta, configure `Atlas__SelfRegistration=true`. Cada conta solicitada começa bloqueada como Consulta e exige liberação administrativa. As contas antigas do Python precisam ser cadastradas novamente.
 
 ## Alertas por e-mail
 

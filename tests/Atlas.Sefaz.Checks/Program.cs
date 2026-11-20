@@ -4,6 +4,7 @@ using Atlas.Infrastructure;
 using Npgsql;
 
 await EmissionChecks.RunAsync(Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE"));
+await LegacyMigrationChecks.RunAsync(Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE"));
 
 const string cnpj = "12345678000199";
 const long cursor = 41;

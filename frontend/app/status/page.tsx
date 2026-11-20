@@ -14,7 +14,14 @@ type Entry = {
   documentos: number | null;
 };
 
+type Integrity = {
+  verificadoEm: string;
+  publicado: boolean;
+  medidas: { nome: string; sqlite: number; postgres: number }[];
+};
+
 type Status = {
+  integridade: Integrity | null;
   bancoDisponivel: boolean;
   consultadoEm: string;
   snapshot: {
@@ -58,6 +65,39 @@ function result(entry: Entry) {
     case 656: return "656 · Consumo indevido";
     default: return `${entry.cstat} · Retorno da SEFAZ`;
   }
+}
+
+const amount = new Intl.NumberFormat("pt-BR");
+function MigrationChart({ report }: { report: Integrity | null }) {
+  if (!report) return <p className="muted">Aguardando a primeira conferência da migração SQLite → PostgreSQL.</p>;
+  const counts = report.medidas.filter(row => !row.nome.startsWith("Chaves") && !row.nome.includes("NSU"));
+  const checks = report.medidas.filter(row => !counts.includes(row));
+  const max = Math.max(1, ...counts.map(row => Math.max(row.sqlite, row.postgres)));
+  return <>
+    <p role="status">{report.publicado ? "Conferência concluída" : "Diferenças detectadas. A cópia foi revertida."} · {date(report.verificadoEm)}</p>
+    <div className="integridade-legenda"><span>SQLite</span><span>PostgreSQL</span></div>
+    <ul className="integridade-grafico" aria-label="Comparação dos totais do SQLite e PostgreSQL">
+      {counts.map(row => {
+        return <li key={row.nome}>
+          <span>{row.nome}</span>
+          <div className="integridade-barras">
+            {[row.sqlite, row.postgres].map((value, index) => <div key={index} className="integridade-linha">
+              <span className={index ? "pg" : "sqlite"} style={{ width: `${(value / max) * 100}%` }} aria-hidden="true" />
+              <small aria-label={`${index ? "PostgreSQL" : "SQLite"} ${value}`}>{amount.format(value)}</small>
+            </div>)}
+          </div>
+          {row.sqlite !== row.postgres && <small className="integridade-diferenca">Diferença de {amount.format(row.postgres - row.sqlite)}</small>}
+        </li>;
+      })}
+    </ul>
+    <details>
+      <summary>Chaves e NSU</summary>
+      <ul>{checks.map(row => <li key={row.nome}>{row.nome} · {row.nome.startsWith("Chaves")
+        ? row.sqlite === row.postgres ? "Conferidas" : "Divergentes"
+        : `SQLite ${nsu(row.sqlite)} · PostgreSQL ${row.postgres < 0 ? "—" : nsu(row.postgres)}`}</li>)}</ul>
+    </details>
+    <small>Retrato da última cópia comparada.</small>
+  </>;
 }
 
 export default function SefazStatus() {
@@ -138,23 +178,29 @@ export default function SefazStatus() {
             {session.administrador && <> · <Link href="/admin">Abrir fila</Link></>}</dd></div>
         </dl>
       </section>
-      <section className="painel-fiscal resultado">
-        <h2>Janela e agenda</h2>
-        {agenda.diagnostico && <p className="erro">{agenda.diagnostico}</p>}
-        <dl className="sefaz-dados">
-          <div><dt>Janela de consulta</dt><dd>{agenda.inicio && agenda.fim ?
-            `${agenda.inicio} a ${agenda.fim} · ${agenda.naJanela ? "Aberta" : "Fechada"}` : "—"}</dd></div>
-          <div><dt>Intervalo de espera</dt><dd>{agenda.emPausa ? `Até ${date(snapshot.pausaAte)}` : "Sem pausa ativa"}</dd></div>
-          <div><dt>Agenda automática</dt><dd>{agenda.habilitada ? "Ativada" : "Desativada"}</dd></div>
-          {agenda.habilitada && <>
-            <div><dt>Dias e horários configurados</dt><dd>{agenda.horarios.length ? <>
-              {agenda.dias.map(day => days[day]).join(", ")}<br />{agenda.horarios.join(", ")}
-            </> : "—"}</dd></div>
-            <div><dt>Último horário reservado</dt><dd>{date(snapshot.ultimaReserva)}</dd></div>
-            <div><dt>Próximo horário elegível (estimativa)</dt><dd>{date(agenda.proxima)}</dd></div>
-          </>}
-        </dl>
-      </section>
+      <div className="sefaz-paineis">
+        <section className="painel-fiscal resultado integridade-painel">
+          <h2>Integridade da migração</h2>
+          <MigrationChart report={status.integridade} />
+        </section>
+        <section className="painel-fiscal resultado">
+          <h2>Janela e agenda</h2>
+          {agenda.diagnostico && <p className="erro">{agenda.diagnostico}</p>}
+          <dl className="sefaz-dados">
+            <div><dt>Janela de consulta</dt><dd>{agenda.inicio && agenda.fim ?
+              `${agenda.inicio} a ${agenda.fim} · ${agenda.naJanela ? "Aberta" : "Fechada"}` : "—"}</dd></div>
+            <div><dt>Intervalo de espera</dt><dd>{agenda.emPausa ? `Até ${date(snapshot.pausaAte)}` : "Sem pausa ativa"}</dd></div>
+            <div><dt>Agenda automática</dt><dd>{agenda.habilitada ? "Ativada" : "Desativada"}</dd></div>
+            {agenda.habilitada && <>
+              <div><dt>Dias e horários configurados</dt><dd>{agenda.horarios.length ? <>
+                {agenda.dias.map(day => days[day]).join(", ")}<br />{agenda.horarios.join(", ")}
+              </> : "—"}</dd></div>
+              <div><dt>Último horário reservado</dt><dd>{date(snapshot.ultimaReserva)}</dd></div>
+              <div><dt>Próximo horário elegível (estimativa)</dt><dd>{date(agenda.proxima)}</dd></div>
+            </>}
+          </dl>
+        </section>
+      </div>
       <section className="painel-fiscal resultado">
         <h2>Atividade recente</h2>
         {snapshot.atividade.length === 0 ? <p className="muted">Nenhuma tentativa ou resposta registrada.</p>

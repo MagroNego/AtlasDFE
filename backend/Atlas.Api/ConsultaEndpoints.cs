@@ -33,7 +33,7 @@ internal static class ConsultaEndpoints
         });
 
         group.MapGet("/excel", ([AsParameters] Filtros filtros, CancellationToken token) =>
-            ExportAsync(connection, cnpj, filtros, token));
+            ExportAsync(connection, cnpj, filtros, token)).RequireAuthorization(Administration.Export);
 
         group.MapPost("/excel", async ([AsParameters] Filtros filtros, HttpContext http, IAntiforgery csrf,
             DownloadQueue queue, CancellationToken token) =>
@@ -42,12 +42,12 @@ internal static class ConsultaEndpoints
             if (!TryResolve(filtros, out _))
                 return Results.BadRequest(new { erro = "Confira o número, a chave e os filtros informados." });
             return await DownloadEndpoints.EnqueueAsync(http, queue, new("consulta", Consulta: filtros), token);
-        });
+        }).RequireAuthorization(Administration.Export);
 
         group.MapPost("/lote", (HttpContext http, IAntiforgery csrf, DownloadQueue queue, CancellationToken token) =>
-            Batch(http, csrf, queue, false, token));
+            Batch(http, csrf, queue, false, token)).RequireAuthorization(Administration.Export);
         group.MapPost("/lote/gerar", (HttpContext http, IAntiforgery csrf, DownloadQueue queue, CancellationToken token) =>
-            Batch(http, csrf, queue, true, token));
+            Batch(http, csrf, queue, true, token)).RequireAuthorization(Administration.Export);
 
         async Task<IResult> Batch(HttpContext http, IAntiforgery csrf, DownloadQueue queue, bool enqueue, CancellationToken token)
         {

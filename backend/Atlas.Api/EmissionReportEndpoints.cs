@@ -24,21 +24,21 @@ internal static class EmissionReportEndpoints
                 linhas = report.Linhas.Take(100), notas = Array.Empty<object>(), mais = report.Linhas.Count > 100 });
         });
 
-        group.MapGet("/excel", ([AsParameters] Filters filters, CancellationToken token) => ExportAsync(connection, cnpj, filters, "", false, token));
-        group.MapGet("/csv", ([AsParameters] Filters filters, CancellationToken token) => ExportAsync(connection, cnpj, filters, "", true, token));
+        group.MapGet("/excel", ([AsParameters] Filters filters, CancellationToken token) => ExportAsync(connection, cnpj, filters, "", false, token)).RequireAuthorization(Administration.Export);
+        group.MapGet("/csv", ([AsParameters] Filters filters, CancellationToken token) => ExportAsync(connection, cnpj, filters, "", true, token)).RequireAuthorization(Administration.Export);
         group.MapGet("/{chave}/itens/excel", (string chave, [AsParameters] Filters filters, CancellationToken token) =>
-            ExportAsync(connection, cnpj, filters with { Tipo = "itens" }, chave, false, token));
+            ExportAsync(connection, cnpj, filters with { Tipo = "itens" }, chave, false, token)).RequireAuthorization(Administration.Export);
         group.MapGet("/{chave}/itens/csv", (string chave, [AsParameters] Filters filters, CancellationToken token) =>
-            ExportAsync(connection, cnpj, filters with { Tipo = "itens" }, chave, true, token));
+            ExportAsync(connection, cnpj, filters with { Tipo = "itens" }, chave, true, token)).RequireAuthorization(Administration.Export);
 
         foreach (bool csv in new[] { false, true })
         {
             string extension = csv ? "csv" : "excel";
             group.MapPost($"/{extension}", ([AsParameters] Filters filters, HttpContext http, IAntiforgery csrf,
-                DownloadQueue queue, CancellationToken token) => Enqueue(filters, "", csv, http, csrf, queue, token));
+                DownloadQueue queue, CancellationToken token) => Enqueue(filters, "", csv, http, csrf, queue, token)).RequireAuthorization(Administration.Export);
             group.MapPost($"/{{chave}}/itens/{extension}", (string chave, [AsParameters] Filters filters, HttpContext http,
                 IAntiforgery csrf, DownloadQueue queue, CancellationToken token) =>
-                Enqueue(filters with { Tipo = "itens" }, chave, csv, http, csrf, queue, token));
+                Enqueue(filters with { Tipo = "itens" }, chave, csv, http, csrf, queue, token)).RequireAuthorization(Administration.Export);
         }
     }
 

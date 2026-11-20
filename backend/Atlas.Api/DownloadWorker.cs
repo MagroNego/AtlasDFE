@@ -89,6 +89,7 @@ internal sealed class DownloadWorker(DownloadQueue queue, string connection, str
             {
                 "consulta" => await ConsultaEndpoints.ExportAsync(connection, cnpj, request.Consulta!, token, Progress),
                 "lote" => await ConsultaEndpoints.ExportBatchAsync(connection, cnpj, request.Lote!, request.PorNumero, token, Progress),
+                "importacao" => await XmlImportHistory.ExportAsync(connection, cnpj, request.Importacao, token, Progress),
                 _ => await EmissionReportEndpoints.ExportAsync(connection, cnpj, request.Emissao!,
                     request.Chave, request.Csv, token, Progress),
             };

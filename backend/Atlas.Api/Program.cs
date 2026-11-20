@@ -35,7 +35,9 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
     options.User.RequireUniqueEmail = true;
 })
 .AddEntityFrameworkStores<AtlasDbContext>();
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => options.AddPolicy(Administration.Export, policy =>
+    policy.RequireAuthenticatedUser().RequireAssertion(context => context.User.IsInRole(Administration.Role)
+        || !context.User.IsInRole(Administration.Consulta))));
 builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 builder.Services.ConfigureApplicationCookie(options =>
@@ -228,17 +230,24 @@ app.UseRateLimiter();
 
 app.Map("/erro", () => Results.Problem());
 app.MapGet("/health", () => Results.Ok()).AllowAnonymous();
-app.MapGet("/api/sessao", (HttpContext http, IAntiforgery csrf) =>
+app.MapGet("/api/sessao", (HttpContext http, IAntiforgery csrf, IConfiguration settings) =>
     Results.Ok(new { autenticado = http.User.Identity?.IsAuthenticated == true, administrador = http.User.IsInRole(Administration.Role),
+        podeExportar = http.User.Identity?.IsAuthenticated == true &&
+            (!http.User.IsInRole(Administration.Consulta) || http.User.IsInRole(Administration.Role)),
+        cadastroHabilitado = ProfileEndpoints.SelfRegistration(settings),
         token = csrf.GetAndStoreTokens(http).RequestToken })).AllowAnonymous();
 app.MapPost("/api/login", async (
-    Credenciais input, HttpContext http, IAntiforgery csrf, SignInManager<IdentityUser> login) =>
+    Credenciais input, HttpContext http, IAntiforgery csrf, SignInManager<IdentityUser> login, UserManager<IdentityUser> users) =>
 {
     if (!await csrf.IsRequestValidAsync(http))
         return Results.BadRequest();
     if (string.IsNullOrWhiteSpace(input.Email) || string.IsNullOrEmpty(input.Senha))
         return Results.BadRequest();
-    var resultado = await login.PasswordSignInAsync(input.Email.Trim(), input.Senha, false, true);
+    var handle = input.Email.Trim();
+    if (handle.Length > 254) return Results.Unauthorized();
+    var account = handle.Contains('@') ? await users.FindByEmailAsync(handle) : await users.FindByNameAsync(handle);
+    if (account is null) return Results.Unauthorized();
+    var resultado = await login.PasswordSignInAsync(account, input.Senha, false, true);
     return resultado.Succeeded ? Results.NoContent() : Results.Unauthorized();
 }).AllowAnonymous().RequireRateLimiting("login");
 
@@ -250,6 +259,7 @@ app.MapPost("/api/logout", async (HttpContext http, IAntiforgery csrf, SignInMan
     return Results.NoContent();
 }).RequireAuthorization();
 
+app.MapProfile(cnpj);
 app.MapDownloads();
 app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);

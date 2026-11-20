@@ -16,7 +16,17 @@ internal static class SefazStatusEndpoint
                 var snapshot = await store.ReadAsync(cnpj, timeout.Token);
                 using var values = await operations.ReadAsync(timeout.Token);
                 var now = DateTimeOffset.UtcNow;
-                return Results.Ok(new { bancoDisponivel = true, consultadoEm = now, snapshot,
+                await using var db = new NpgsqlConnection(connection);
+                await db.OpenAsync(timeout.Token);
+                await using var command = new NpgsqlCommand("""
+                    SELECT jsonb_build_object('verificadoEm',verificado_em,'publicado',publicado,'medidas',medidas)::text
+                    FROM atlas_integridade_migracao WHERE cnpj=$1
+                    """, db);
+                command.Parameters.AddWithValue(cnpj);
+                var json = (string?)await command.ExecuteScalarAsync(timeout.Token);
+                var integridade = json is null ? (System.Text.Json.JsonElement?)null :
+                    System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(json);
+                return Results.Ok(new { integridade, bancoDisponivel = true, consultadoEm = now, snapshot,
                     agenda = Schedule(values, snapshot, now) });
             }
             catch (Exception error) when (error is NpgsqlException or TimeoutException

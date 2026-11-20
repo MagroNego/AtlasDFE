@@ -31,7 +31,7 @@ export default function Situacao() {
       const response = await fetch("/api/admin/situacao", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": session.token },
-        body: JSON.stringify({ nota: fields.get("nota"), cancelada: fields.get("acao") === "cancelar", motivo: fields.get("motivo") }),
+        body: JSON.stringify({ notas: String(fields.get("nota") ?? "").split(/[\s,;]+/).filter(Boolean), cancelada: fields.get("acao") === "cancelar", motivo: fields.get("motivo") }),
       });
       if (response.status === 401 || response.status === 403) {
         await refreshSession();
@@ -41,9 +41,10 @@ export default function Situacao() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.erro ?? "Não foi possível atualizar a situação.");
       }
+      const data = await response.json();
       form.reset();
       await refresh();
-      setMessage("Situação local registrada.");
+      setMessage(`${data.alteradas} nota(s) atualizada(s).`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível atualizar a situação.");
     } finally { setBusy(false); }
@@ -52,7 +53,7 @@ export default function Situacao() {
   return <section className="painel">
     <h1>Situação manual de NF-e</h1>
     <form onSubmit={apply}>
-      <label>Número ou chave da nota<input name="nota" maxLength={44} inputMode="numeric" required /></label>
+      <label>Números ou chaves da NF-e<textarea name="nota" maxLength={4600} rows={4} placeholder="Uma NF-e por linha, até 100" required /></label>
       <fieldset>
         <legend>Ação local</legend>
         <label className="inline-check"><input type="radio" name="acao" value="cancelar" defaultChecked /> Marcar cancelada</label>

@@ -5,7 +5,7 @@ using NpgsqlTypes;
 
 internal sealed record DownloadRequest(string Tipo, ConsultaEndpoints.Filtros? Consulta = null,
     EmissionReportEndpoints.Filters? Emissao = null, string Chave = "", bool Csv = false,
-    List<IdentificadorNota>? Lote = null, bool PorNumero = false);
+    List<IdentificadorNota>? Lote = null, bool PorNumero = false, long Importacao = 0);
 
 internal sealed record DownloadEntry(Guid Id, string Tipo, string Estado, DateTimeOffset CriadoEm,
     DateTimeOffset? ConcluidoEm, string? Nome, long? Tamanho, string? Erro, bool Visto);
@@ -40,14 +40,14 @@ internal sealed class DownloadQueue(string connection, string cnpj)
         return inserted ? id : null;
     }
 
-    public async Task<List<DownloadEntry>> ListAsync(string owner, CancellationToken token)
+    public async Task<List<DownloadEntry>> ListAsync(string owner, bool admin, CancellationToken token)
     {
         await using var db = await OpenAsync(token);
         await using var command = Command(db, $"""
             SELECT id,tipo,estado,criado_em,concluido_em,nome,octet_length(arquivo)::bigint,erro,visto
-            FROM atlas_downloads WHERE cnpj=$1 AND usuario=$2 AND ({History})
+            FROM atlas_downloads WHERE cnpj=$1 AND usuario=$2 AND ($3 OR tipo<>'importacao') AND ({History})
             ORDER BY criado_em DESC,id DESC LIMIT 25
-            """, owner);
+            """, owner, admin);
         await using var rows = await command.ExecuteReaderAsync(token);
         var entries = new List<DownloadEntry>();
         while (await rows.ReadAsync(token))
@@ -57,16 +57,16 @@ internal sealed class DownloadQueue(string connection, string cnpj)
         return entries;
     }
 
-    public async Task<long> UnreadAsync(string owner, CancellationToken token)
+    public async Task<long> UnreadAsync(string owner, bool admin, CancellationToken token)
     {
         await using var db = await OpenAsync(token);
         await using var command = Command(db, """
             SELECT count(*) FROM (
                 SELECT visto,estado FROM atlas_downloads WHERE cnpj=$1 AND usuario=$2
-                    AND (concluido_em IS NULL OR concluido_em > now() - interval '7 days')
+                    AND ($3 OR tipo<>'importacao') AND (concluido_em IS NULL OR concluido_em > now() - interval '7 days')
                 ORDER BY criado_em DESC,id DESC LIMIT 25
             ) history WHERE NOT visto AND estado IN ('pronto','falhou')
-            """, owner);
+            """, owner, admin);
         return (long)(await command.ExecuteScalarAsync(token))!;
     }
 
@@ -89,13 +89,13 @@ internal sealed class DownloadQueue(string connection, string cnpj)
         return await command.ExecuteNonQueryAsync(token) != 0;
     }
 
-    public async Task<IResult> FileAsync(string owner, Guid id, CancellationToken token)
+    public async Task<IResult> FileAsync(string owner, Guid id, bool admin, CancellationToken token)
     {
         await using var db = await OpenAsync(token);
         await using var command = Command(db, """
-            SELECT nome,mime,arquivo FROM atlas_downloads WHERE cnpj=$1 AND usuario=$2 AND id=$3 AND estado='pronto'
+            SELECT nome,mime,arquivo FROM atlas_downloads WHERE cnpj=$1 AND usuario=$2 AND id=$3 AND estado='pronto' AND ($4 OR tipo<>'importacao')
                 AND concluido_em > now() - interval '7 days'
-            """, owner, id);
+            """, owner, id, admin);
         await using var rows = await command.ExecuteReaderAsync(token);
         if (!await rows.ReadAsync(token)) return Results.NotFound();
         return Results.File(rows.GetFieldValue<byte[]>(2), rows.GetString(1), rows.GetString(0));

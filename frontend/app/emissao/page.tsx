@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useAtlasSession } from "../atlas-frame";
 import { EventosNota, rotulosAcoes, type AcaoNota, type DetalheNota, type ResultadoConsulta } from "../eventos-nota";
@@ -82,10 +83,12 @@ export default function Emissao() {
         return;
       }
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.erro ?? "Não foi possível importar o lote.");
+      if (!response.ok) throw new Error(result.id
+        ? `Lote ${result.id} revertido. ${result.erros} erro(s). ${result.erro}`
+        : result.erro ?? "Não foi possível importar o lote.");
       await read(filters, 1);
       form.reset();
-      setMessage(`Importados: ${result.importadas}. Já existentes: ${result.existentes}.`);
+      setMessage(`Lote ${result.id} · ${result.notas} nota(s), ${result.cancelamentos} cancelamento(s), ${result.cce} CC-e, ${result.duplicatas} duplicata(s).`);
     });
   }
 
@@ -120,7 +123,8 @@ export default function Emissao() {
         <summary>Importar XML ou ZIP</summary>
         <form onSubmit={upload}>
           <label>Arquivos de emissão<input name="arquivos" type="file" accept=".xml,.zip" multiple required /></label>
-          <button disabled={busy}>Importar</button>
+          <div className="form-acoes"><button disabled={busy}>Importar</button>
+            <Link href="/admin/importacoes" className="acao">Histórico de lotes</Link></div>
         </form>
       </details>}
     </div>

@@ -9,7 +9,7 @@ import atlasDark from "./identidade/atlasdfe-dark.webp";
 import yorozuLight from "./identidade/yorozu-light.webp";
 import yorozuDark from "./identidade/yorozu-dark.webp";
 
-type Session = { autenticado: boolean; administrador: boolean; token: string };
+type Session = { autenticado: boolean; administrador: boolean; podeExportar?: boolean; cadastroHabilitado?: boolean; token: string };
 type SessionContext = { session: Session; refreshSession: () => Promise<void> };
 const AtlasSession = createContext<SessionContext | null>(null);
 const themeKey = "nfe-theme";
@@ -32,8 +32,9 @@ const sections = [
   { path: "/", label: "Consulta" },
   { path: "/emissao", label: "Emissão" },
   { path: "/status", label: "Status SEFAZ" },
-  { path: "/downloads", label: "Downloads" },
-  { path: "/aging", label: "Aging List" },
+  { path: "/downloads", label: "Downloads", exportOnly: true },
+  { path: "/aging", label: "Aging List", exportOnly: true },
+  { path: "/perfil", label: "Perfil" },
   { path: "/admin", label: "Administração", admin: true },
 ];
 
@@ -42,6 +43,7 @@ const adminSections = [
   { path: "/admin", label: "Fila NSU" },
   { path: "/admin/situacao", label: "Situação manual" },
   { path: "/admin/contas", label: "Contas e auditoria" },
+  { path: "/admin/importacoes", label: "Importações XML" },
 ];
 
 export default function AtlasFrame({ children }: { children: ReactNode }) {
@@ -51,6 +53,8 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
   const [sessionError, setSessionError] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [requested, setRequested] = useState(false);
+  const exportPage = pathname === "/downloads" || pathname === "/aging";
   const adminPage = pathname === "/admin" || pathname.startsWith("/admin/");
 
   const refreshSession = useCallback(async () => {
@@ -103,6 +107,28 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
     void authenticate("login", new FormData(event.currentTarget));
   }
 
+  async function register(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const form = event.currentTarget;
+      const response = await fetch("/api/cadastro", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": session.token },
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.erro ?? "Não foi possível solicitar a conta.");
+      }
+      form.reset();
+      setRequested(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível solicitar a conta.");
+    } finally { setBusy(false); }
+  }
+
   return <>
     <a href="#conteudo" className="pular">Ir para o conteúdo</a>
     <header className="topbar">
@@ -115,7 +141,7 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
         </span>
       </Link>
       {session?.autenticado && <nav className="abas" aria-label="Navegação principal">
-        {sections.filter(section => !section.admin || session.administrador).map(section => {
+        {sections.filter(section => (!section.admin || session.administrador) && (!section.exportOnly || session.podeExportar !== false)).map(section => {
           const active = section.path === "/admin" ? adminPage : pathname === section.path;
           return <Link key={section.path} href={section.path} aria-current={active ? "page" : undefined}>{section.label}{section.path === "/downloads" && <DownloadsBadge key={session.token} />}</Link>;
         })}
@@ -140,15 +166,25 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
       {session?.autenticado === false && <section className="painel login">
         <h1>Entrar no Atlas</h1>
         <form onSubmit={login}>
-          <label>E-mail<input name="email" type="email" autoComplete="username" required /></label>
+          <label>E-mail ou usuário<input name="email" type="text" autoComplete="username" maxLength={254} required /></label>
           <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
           <button disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button>
         </form>
+        {session.cadastroHabilitado && <details className="resultado">
+          <summary>Solicitar conta</summary>
+          <form onSubmit={register}>
+            <label>E-mail para cadastro<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
+            <label>Usuário (opcional)<input name="usuario" maxLength={60} /></label>
+            <label>Senha para cadastro<input name="senha" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /></label>
+            <button disabled={busy}>Enviar pedido</button>
+          </form>
+          {requested && <p role="status">Conta solicitada. Aguarde liberação do administrador.</p>}
+        </details>}
       </section>}
-      {session?.autenticado && (adminPage && !session.administrador
+      {session?.autenticado && ((adminPage && !session.administrador || exportPage && session.podeExportar === false)
         ? <section className="painel">
             <h1>Acesso restrito</h1>
-            <p>A área de administração exige uma conta de administrador.</p>
+            <p>Seu perfil não tem acesso a esta área.</p>
             <Link className="acao" href="/">Voltar à Consulta</Link>
           </section>
         : <AtlasSession.Provider value={{ session, refreshSession }}>

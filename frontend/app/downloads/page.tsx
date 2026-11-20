@@ -20,7 +20,7 @@ const estado: Record<Estado, string> = {
   salvando: "Salvando arquivo", pronto: "Pronto", falhou: "Falhou", cancelado: "Cancelado",
 };
 const tipo: Record<string, string> = {
-  consulta: "Consulta de manifestações", lote: "Consulta por TXT", emissao: "Emissão", itens: "Itens da NF-e",
+  consulta: "Consulta de manifestações", lote: "Consulta por TXT", emissao: "Emissão", itens: "Itens da NF-e", importacao: "Importação XML",
 };
 const format = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 

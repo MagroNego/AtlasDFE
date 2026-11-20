@@ -5,15 +5,15 @@ internal static class DownloadEndpoints
 {
     public static void MapDownloads(this WebApplication app)
     {
-        var group = app.MapGroup("/api/downloads").RequireAuthorization();
+        var group = app.MapGroup("/api/downloads").RequireAuthorization(Administration.Export);
         group.MapGet("", async (HttpContext http, DownloadQueue queue, CancellationToken token) =>
-            Owner(http) is { } owner ? Results.Ok(await queue.ListAsync(owner, token)) : Results.Unauthorized());
+            Owner(http) is { } owner ? Results.Ok(await queue.ListAsync(owner, http.User.IsInRole(Administration.Role), token)) : Results.Unauthorized());
 
         group.MapGet("/novos", async (HttpContext http, DownloadQueue queue, CancellationToken token) =>
-            Owner(http) is { } owner ? Results.Ok(new { total = await queue.UnreadAsync(owner, token) }) : Results.Unauthorized());
+            Owner(http) is { } owner ? Results.Ok(new { total = await queue.UnreadAsync(owner, http.User.IsInRole(Administration.Role), token) }) : Results.Unauthorized());
 
         group.MapGet("/{id:guid}/arquivo", async (Guid id, HttpContext http, DownloadQueue queue, CancellationToken token) =>
-            Owner(http) is { } owner ? await queue.FileAsync(owner, id, token) : Results.Unauthorized());
+            Owner(http) is { } owner ? await queue.FileAsync(owner, id, http.User.IsInRole(Administration.Role), token) : Results.Unauthorized());
 
         group.MapPost("/{id:guid}/cancelar", async (Guid id, HttpContext http, IAntiforgery csrf,
             DownloadQueue queue, CancellationToken token) =>

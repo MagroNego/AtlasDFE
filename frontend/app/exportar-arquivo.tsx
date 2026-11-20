@@ -28,6 +28,8 @@ export function ExportarArquivo({ href, children }: { href: string; children: st
     } finally { setBusy(false); }
   }
 
+  if (session.podeExportar === false) return null;
+
   return <div className="exportacao-arquivo">
     <button type="button" className="secundario" onClick={() => void request()} disabled={busy} aria-busy={busy}>
       {busy ? "Enviando pedido…" : children}
