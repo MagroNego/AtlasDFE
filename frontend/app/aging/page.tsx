@@ -20,6 +20,7 @@ export default function Aging() {
   const [error, setError] = useState("");
   const [diagnostic, setDiagnostic] = useState("");
   const [preview, setPreview] = useState<Preview>();
+  const [fileName, setFileName] = useState("");
   const [converted, setConverted] = useState(false);
 
   async function convert(event: FormEvent<HTMLFormElement>) {
@@ -57,11 +58,15 @@ export default function Aging() {
     <div className="titulo-fiscal"><h1>Aging List</h1></div>
     <section className="painel-fiscal">
       <form onSubmit={convert}>
-        <label>Arquivo de vencimentos do Infor LN
-          <input required name="arquivo" type="file" accept=".txt,.xlsx,.pdf" aria-describedby="aging-formatos"
-            disabled={busy} onChange={() => { setPreview(undefined); setDiagnostic(""); setError(""); setConverted(false); }} />
+        <label className="arquivo-seletor">
+          <input required name="arquivo" type="file" accept=".txt,.xlsx,.pdf" disabled={busy}
+            aria-label="Arquivo de vencimentos do Infor LN"
+            onChange={event => { setFileName(event.currentTarget.files?.[0]?.name ?? ""); setPreview(undefined); setDiagnostic(""); setError(""); setConverted(false); }} />
+          <span className="arquivo-icone" aria-hidden="true">↑</span>
+          <span className="arquivo-texto"><strong>{fileName || "Selecionar relatório do Infor LN"}</strong>
+            <small>{fileName ? "Clique para trocar o arquivo" : "TXT, XLSX ou PDF de até 5 MiB"}</small></span>
+          <span className="arquivo-acao">{fileName ? "Trocar" : "Escolher arquivo"}</span>
         </label>
-        <p id="aging-formatos" className="muted">TXT, XLSX ou PDF de até 5 MiB.</p>
         <div className="form-acoes">
           <button value="previa" disabled={busy}>{busy ? "Processando…" : "Ver prévia"}</button>
           <button value="excel" className="secundario" disabled={busy}>Converter para Excel</button>

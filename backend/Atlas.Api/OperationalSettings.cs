@@ -27,6 +27,7 @@ internal sealed class OperationalSettings(string connection, string cnpj, IConfi
             {
                 case "agenda":
                     var agenda = JsonSerializer.Deserialize<AgendaInput>(data, Json)!;
+                    if (!string.IsNullOrEmpty(agenda.Uf)) overlay["Sefaz:Uf"] = agenda.Uf;
                     overlay["Sefaz:ScheduleEnabled"] = agenda.Habilitada.ToString();
                     overlay["Sefaz:WindowStart"] = agenda.Inicio;
                     overlay["Sefaz:WindowEnd"] = agenda.Fim;
@@ -112,7 +113,11 @@ internal sealed class OperationalSettings(string connection, string cnpj, IConfi
             || !string.IsNullOrWhiteSpace(Configuration["Sefaz:CertificatePath"])
             || (OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(Configuration["Sefaz:CertificateThumbprint"]));
     }
-    internal sealed record AgendaInput(bool Habilitada, string? Inicio, string? Fim, string? Horarios, int[]? Dias);
+    internal static bool ValidUf(string? uf) => uf is "11" or "12" or "13" or "14" or "15" or "16" or "17"
+        or "21" or "22" or "23" or "24" or "25" or "26" or "27" or "28" or "29"
+        or "31" or "32" or "33" or "35" or "41" or "42" or "43" or "50" or "51" or "52" or "53";
+
+    internal sealed record AgendaInput(bool Habilitada, string? Inicio, string? Fim, string? Horarios, int[]? Dias, string? Uf = null);
     internal sealed record AlertsInput(bool Habilitados, string? Destinatarios);
     internal sealed record CertificateInfo(string ImpressaoDigital, DateTime ValidoDesde, DateTime ValidoAte);
 }

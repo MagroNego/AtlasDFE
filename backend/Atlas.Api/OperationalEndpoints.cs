@@ -33,7 +33,7 @@ internal static class OperationalEndpoints
             {
                 agenda = new OperationalSettings.AgendaInput(bool.TryParse(settings["Sefaz:ScheduleEnabled"], out bool enabled) && enabled,
                     settings["Sefaz:WindowStart"] ?? "22:00", settings["Sefaz:WindowEnd"] ?? "04:00",
-                    settings["Sefaz:ScheduleTimes"] ?? "22:00,23:00,00:00,01:00,02:00,03:00", days.ToArray()),
+                    settings["Sefaz:ScheduleTimes"] ?? "22:00,23:00,00:00,01:00,02:00,03:00", days.ToArray(), settings["Sefaz:Uf"]),
                 alertas = new OperationalSettings.AlertsInput(bool.TryParse(settings["Smtp:Enabled"], out bool alerts) && alerts,
                     settings["Smtp:Recipients"] ?? ""),
                 servidorSmtp = !string.IsNullOrWhiteSpace(settings["Smtp:Host"]) && !string.IsNullOrWhiteSpace(settings["Smtp:From"]),
@@ -61,7 +61,11 @@ internal static class OperationalEndpoints
             {
                 return Error("Os horários devem estar dentro da janela e ter pelo menos uma hora de intervalo.");
             }
-            await operations.SaveAsync(db, Actor(http), "agenda", input, null, token);
+            using var current = await operations.ReadAsync(token);
+            string? uf = string.IsNullOrWhiteSpace(input.Uf) ? current.Configuration["Sefaz:Uf"] : input.Uf;
+            if ((uf is { Length: > 0 } || input.Habilitada) && !OperationalSettings.ValidUf(uf))
+                return Error("Selecione uma UF válida para a SEFAZ.");
+            await operations.SaveAsync(db, Actor(http), "agenda", input with { Uf = uf }, null, token);
             return Results.NoContent();
         });
 
@@ -172,8 +176,9 @@ internal static class OperationalEndpoints
             try
             {
                 using var values = await operations.ReadAsync(token);
-                if (values.Configuration["Sefaz:Uf"] is not { Length: 2 } uf || !uf.All(char.IsAsciiDigit))
-                    return Error("Configure a UF da SEFAZ no serviço.");
+                string? uf = values.Configuration["Sefaz:Uf"];
+                if (!OperationalSettings.ValidUf(uf))
+                    return Error("Selecione a UF em Controles SEFAZ e salve a agenda.");
                 var (start, end) = SefazSchedule.ReadWindow(values.Configuration);
                 var snapshot = await new SefazStatusStore(connection).ReadAsync(cnpj, token);
                 if (snapshot.EmExecucao) return Error("Já existe uma sincronização em andamento.", 409);
@@ -184,7 +189,7 @@ internal static class OperationalEndpoints
                 await Administration.AuditAsync(db, cnpj, Actor(http), "operacao.sincronizar", "", token);
                 using var certificate = await operations.CertificateAsync(token);
                 using var client = SefazSync.Client(certificate);
-                var result = await new SefazSync(connection, client).RunAsync(cnpj, uf, null, null,
+                var result = await new SefazSync(connection, client).RunAsync(cnpj, uf!, null, null,
                     DateTimeOffset.UtcNow, start, end, token, manual: true);
                 return result is null
                     ? Error("A consulta não foi enviada. Confira a janela, a pausa e a última tentativa no Status SEFAZ.", 409)

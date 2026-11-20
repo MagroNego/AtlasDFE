@@ -29,6 +29,8 @@ Abra [localhost:3001](http://localhost:3001). O administrador inicial é criado 
 
 ## Importar uma cópia do histórico
 
+No Atlas, abra **Administração → Migração do banco**. Selecione uma cópia independente do SQLite ou SQLCipher de até 60 MiB, informe a senha se for criptografada e confirme com `MIGRAR`. Confira o resultado em **Status SEFAZ → Integridade da migração**. Para arquivos maiores, use o comando abaixo.
+
 O importador usa o SDK .NET 10 definido em `global.json`. Execute na raiz do repositório, com o PostgreSQL do Compose em execução. Use o mesmo `ATLAS_CNPJ` da configuração do Compose.
 
 ```powershell
@@ -95,7 +97,7 @@ O teste de protocolo roda com `dotnet run --project tests/Atlas.Sefaz.Checks`. P
 
 O comando processa um lote por execução. Ele retoma primeiro uma resposta pendente, respeita a janela configurada em horário de Brasília e consulta o PostgreSQL para verificar a pausa e o limite de recuperação. Novas NF-e, manifestações, CC-e e cancelamentos reconhecidos aparecem na Consulta. Os documentos completos ficam gravados no PostgreSQL.
 
-Para a primeira execução, pare a coleta Python do CNPJ e importe a cópia final do banco. Se o banco legado não tiver estado gravado, informe o cursor em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
+Para a primeira execução, pare a coleta Python do CNPJ e importe a cópia final do banco. Se o banco legado não tiver estado gravado, informe o cursor em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Selecione a UF em **Administração → Controles SEFAZ → Agenda automática** ou configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
 
 Para A1, informe `Sefaz__CertificatePath` e `Sefaz__CertificatePasswordFile`, com o caminho de um arquivo privado contendo a senha. No Windows, também é possível informar `Sefaz__CertificateThumbprint` de um certificado no repositório Pessoal do usuário que executa o comando. Valide o acesso à chave privada e o dispositivo no ambiente da TI.
 

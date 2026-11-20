@@ -20,12 +20,13 @@ export function useAtlasSession() {
   return context;
 }
 
-function toggleTheme() {
-  const root = document.documentElement;
-  const active = root.dataset.theme ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  const next = active === "dark" ? "light" : "dark";
-  root.dataset.theme = next;
-  try { localStorage.setItem(themeKey, next); } catch { /* The theme still applies to this page. */ }
+const themes = [
+  ["light", "Claro"], ["dark", "Escuro"], ["catppuccin", "Catppuccin"], ["tokyo", "Tokyo Night"],
+] as const;
+
+function setTheme(theme: string) {
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem(themeKey, theme); } catch { /* The theme still applies to this page. */ }
 }
 
 const sections = [
@@ -34,7 +35,6 @@ const sections = [
   { path: "/status", label: "Status SEFAZ" },
   { path: "/downloads", label: "Downloads", exportOnly: true },
   { path: "/aging", label: "Aging List", exportOnly: true },
-  { path: "/perfil", label: "Perfil" },
   { path: "/admin", label: "Administração", admin: true },
 ];
 
@@ -44,6 +44,7 @@ const adminSections = [
   { path: "/admin/situacao", label: "Situação manual" },
   { path: "/admin/contas", label: "Contas e auditoria" },
   { path: "/admin/importacoes", label: "Importações XML" },
+  { path: "/admin/migracao", label: "Migração do banco" },
 ];
 
 export default function AtlasFrame({ children }: { children: ReactNode }) {
@@ -147,15 +148,34 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
         })}
       </nav>}
       <div className="conta">
-        <button type="button" className="secundario tema-toggle" onClick={toggleTheme} aria-label="Alternar tema" title="Alternar tema">
+        <details className="menu-temas" onKeyDown={event => {
+          if (event.key === "Escape") {
+            event.currentTarget.open = false;
+            event.currentTarget.querySelector("summary")?.focus();
+          }
+        }}>
+          <summary className="tema-toggle controle-icone" aria-label="Escolher tema" title="Escolher tema">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
+            </svg>
+          </summary>
+          <div className="opcoes-tema">{themes.map(([value, name]) => <button key={value} type="button" className="secundario"
+            onClick={event => {
+              setTheme(value);
+              const menu = event.currentTarget.closest("details");
+              if (menu) { menu.open = false; menu.querySelector("summary")?.focus(); }
+            }}><span className="amostra-tema" data-swatch={value} aria-hidden="true" />{name}</button>)}</div>
+        </details>
+        {session?.autenticado && <Link href="/perfil" className="controle-icone" title="Minha conta" aria-label="Minha conta"
+          aria-current={pathname === "/perfil" ? "page" : undefined}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-            <circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="8" r="3.3" /><path d="M4.5 20v-1.2a7.5 5.4 0 0 1 15 0V20" />
           </svg>
-        </button>
+        </Link>}
         {session?.autenticado && <button type="button" className="secundario" disabled={busy} onClick={() => void authenticate("logout")}>Sair</button>}
       </div>
     </header>
-    <main id="conteudo" tabIndex={-1}>
+    <main id="conteudo" className={session?.autenticado === false ? "acesso-main" : undefined} tabIndex={-1}>
       {error && <p role="alert" className="erro">{error}</p>}
       {sessionError && <section className="painel login">
         <h1>Sessão indisponível</h1>
@@ -163,7 +183,11 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
         <button onClick={() => void refreshSession()}>Tentar novamente</button>
       </section>}
       {!session && !sessionError && <p className="mensagem" role="status">Carregando sessão…</p>}
-      {session?.autenticado === false && <section className="painel login">
+      {session?.autenticado === false && <section className="painel login login-atlas">
+        <div className="login-marca">
+          <img className="tema-claro" src={atlasLight.src} alt="Atlas DFE" width={146} height={43} />
+          <img className="tema-escuro" src={atlasDark.src} alt="Atlas DFE" width={146} height={43} />
+        </div>
         <h1>Entrar no Atlas</h1>
         <form onSubmit={login}>
           <label>E-mail ou usuário<input name="email" type="text" autoComplete="username" maxLength={254} required /></label>
@@ -188,11 +212,11 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
             <Link className="acao" href="/">Voltar à Consulta</Link>
           </section>
         : <AtlasSession.Provider value={{ session, refreshSession }}>
-            {adminPage && <nav className="abas abas-admin" aria-label="Administração">
+            {adminPage ? <div className="admin-layout"><aside className="admin-sidebar">
+              <h2>Administração</h2><nav className="abas abas-admin" aria-label="Administração">
               {adminSections.map(section => <Link key={section.path} href={section.path}
                 aria-current={pathname === section.path ? "page" : undefined}>{section.label}</Link>)}
-            </nav>}
-            {children}
+            </nav></aside><div className="admin-conteudo">{children}</div></div> : children}
           </AtlasSession.Provider>)}
     </main>
   </>;

@@ -51,8 +51,8 @@ internal static class SefazStatusEndpoint
             bool waiting = snapshot.PausaAte > now;
             SefazSchedule? schedule = enabled ? SefazSchedule.Read(settings) : null;
             DateTimeOffset after = waiting ? snapshot.PausaAte!.Value : now;
-            string? problem = enabled && (settings["Sefaz:Uf"] is not { Length: 2 } uf || !uf.All(char.IsAsciiDigit))
-                ? "Configure a UF da SEFAZ no serviço." : null;
+            string? problem = enabled && !OperationalSettings.ValidUf(settings["Sefaz:Uf"])
+                ? "Selecione a UF em Administração → Controles SEFAZ e salve a agenda." : null;
             if (enabled && !values.HasCertificate)
                 problem ??= "Configure o certificado da SEFAZ.";
             if (enabled && values.Certificate is { } certificate

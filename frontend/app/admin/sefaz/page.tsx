@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useAtlasSession } from "../../atlas-frame";
 
 type Settings = {
-  agenda: { habilitada: boolean; inicio: string; fim: string; horarios: string; dias: number[] };
+  agenda: { habilitada: boolean; inicio: string; fim: string; horarios: string; dias: number[]; uf?: string };
   alertas: { habilitados: boolean; destinatarios: string };
   servidorSmtp: boolean;
   certificadoDisponivel: boolean;
@@ -13,6 +13,7 @@ type Settings = {
 };
 
 const api = "/api/admin/sefaz";
+const ufs = { "11":"RO", "12":"AC", "13":"AM", "14":"RR", "15":"PA", "16":"AP", "17":"TO", "21":"MA", "22":"PI", "23":"CE", "24":"RN", "25":"PB", "26":"PE", "27":"AL", "28":"SE", "29":"BA", "31":"MG", "32":"ES", "33":"RJ", "35":"SP", "41":"PR", "42":"SC", "43":"RS", "50":"MS", "51":"MT", "52":"GO", "53":"DF" };
 const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short" });
 
@@ -65,7 +66,7 @@ export default function SefazControls() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const data = { habilitada: form.has("habilitada"), inicio: form.get("inicio"), fim: form.get("fim"),
-      horarios: form.get("horarios"), dias: form.getAll("dias").map(Number) };
+      horarios: form.get("horarios"), uf: form.get("uf"), dias: form.getAll("dias").map(Number) };
     void action("agenda", "/agenda", "PUT", JSON.stringify(data));
   }
 
@@ -122,6 +123,13 @@ export default function SefazControls() {
         <h2>Agenda automática</h2>
         <form onSubmit={saveAgenda}>
           <label className="inline-check"><input type="checkbox" name="habilitada" defaultChecked={settings.agenda.habilitada} /> Ativar agenda</label>
+          <label>UF da SEFAZ
+            <select name="uf" defaultValue={settings.agenda.uf ?? ""}>
+              <option value="">Selecione a UF</option>
+              {Object.entries(ufs).sort((a, b) => a[1].localeCompare(b[1])).map(([value, uf]) =>
+                <option key={value} value={value}>{uf}</option>)}
+            </select>
+          </label>
           <div className="campos-fiscais campos-lote">
             <label>Início da janela<input type="time" name="inicio" defaultValue={settings.agenda.inicio} required /></label>
             <label>Fim da janela<input type="time" name="fim" defaultValue={settings.agenda.fim} required /></label>

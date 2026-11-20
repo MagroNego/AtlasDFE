@@ -265,6 +265,7 @@ app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);
 app.MapSefazStatus(connectionString, cnpj);
 app.MapOperationalControls(connectionString, cnpj);
+app.MapDatabaseMigration(connectionString, cnpj);
 
 await app.RunAsync();
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { CampoData, mesParametro, periodoParam } from "../periodo";
 import Link from "next/link";
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useAtlasSession } from "../atlas-frame";
@@ -45,7 +46,7 @@ export default function Emissao() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void read("", 1, controller.signal).catch(() => {
+    void read(mesParametro(), 1, controller.signal).catch(() => {
       if (!controller.signal.aborted) setMessage("Não foi possível carregar a Emissão.");
     }).finally(() => {
       if (!controller.signal.aborted) setBusy(false);
@@ -64,10 +65,12 @@ export default function Emissao() {
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const params = new URLSearchParams();
-    for (const [name, value] of new FormData(event.currentTarget))
-      if (typeof value === "string" && value.trim()) params.set(name, value.trim());
-    void action(() => read(params.toString(), 1));
+    try {
+      const params = periodoParam(new FormData(event.currentTarget));
+      void action(() => read(params.toString(), 1));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Confira os filtros.");
+    }
   }
 
   function upload(event: FormEvent<HTMLFormElement>) {
@@ -129,14 +132,14 @@ export default function Emissao() {
       </details>}
     </div>
     <form className="filtros-fiscais painel-fiscal" onSubmit={search}
-      onReset={() => void action(() => read("", 1))}>
+      onReset={() => void action(() => read(mesParametro(), 1))}>
       <h2>Vendas</h2>
       <div className="campos-fiscais campos-emissao">
         <label>Relatório<select name="tipo"><option value="notas">Notas emitidas</option><option value="itens">Itens e impostos</option><option value="retencoes">PIS/COFINS retidos</option></select></label>
         <label>Nota, chave, empresa ou item<input name="busca" maxLength={200} placeholder="NF, chave, destinatário ou item" /></label>
         <label>Situação<select name="situacao"><option value="">Todas</option><option value="autorizada">Autorizada</option><option value="cancelada">Cancelada</option></select></label>
-        <label>Emissão de<input type="date" name="inicio" /></label>
-        <label>Até<input type="date" name="fim" /></label>
+        <CampoData name="inicio" label="Emissão de" />
+        <CampoData name="fim" label="Até" />
         <label>Item<input name="item" type="search" maxLength={200} placeholder="Descrição, código ou NCM" /></label>
       </div>
       <div className="acoes-filtros">

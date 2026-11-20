@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Atlas DFE" };
 
 const restoreTheme = `try {
   const theme = localStorage.getItem("nfe-theme");
-  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  if (["light", "dark", "catppuccin", "tokyo"].includes(theme)) document.documentElement.dataset.theme = theme;
 } catch {}`;
 
 export default function Layout({ children }: Readonly<{ children: React.ReactNode }>) {

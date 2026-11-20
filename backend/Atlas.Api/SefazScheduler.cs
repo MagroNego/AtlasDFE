@@ -16,7 +16,8 @@ internal sealed class SefazScheduler(
                 var settings = values.Configuration;
                 if (!settings.GetValue<bool>("Sefaz:ScheduleEnabled"))
                     continue;
-                if (settings["Sefaz:Uf"] is not { Length: 2 } uf || !uf.All(char.IsAsciiDigit))
+                string? uf = settings["Sefaz:Uf"];
+                if (!OperationalSettings.ValidUf(uf))
                     continue;
 
                 var schedule = SefazSchedule.Read(settings);
@@ -28,7 +29,7 @@ internal sealed class SefazScheduler(
                 using var certificate = await operations.CertificateAsync(stoppingToken);
                 using var client = SefazSync.Client(certificate);
                 var result = await new SefazSync(connection, client).RunAsync(
-                    cnpj, uf, null, null, now, schedule.Start, schedule.End, stoppingToken, scheduledSlot: slot);
+                    cnpj, uf!, null, null, now, schedule.Start, schedule.End, stoppingToken, scheduledSlot: slot);
                 if (result is not null)
                 {
                     attemptedSlot = slot;

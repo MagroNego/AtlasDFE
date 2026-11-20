@@ -1,5 +1,6 @@
 "use client";
 
+import { CampoData, periodoParam } from "./periodo";
 import Link from "next/link";
 import { ExportarArquivo } from "./exportar-arquivo";
 import { Fragment, useState, type FormEvent } from "react";
@@ -54,17 +55,13 @@ export default function Consulta() {
 
   function buscar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
-    const campos = new FormData(evento.currentTarget);
-    const filtros = new URLSearchParams();
-    for (const [nome, campo] of campos) {
-      if (typeof campo !== "string" || !campo.trim()) continue;
-      filtros.set(nome, nome === "chave" ? campo.replace(/[\s.-]/g, "") : campo.trim());
+    try {
+      const filtros = periodoParam(new FormData(evento.currentTarget));
+      if (!filtros.size) { setErro("Informe pelo menos um filtro."); return; }
+      void consultar(filtros.toString(), 1);
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Confira os filtros.");
     }
-    if (!filtros.size) {
-      setErro("Informe pelo menos um filtro.");
-      return;
-    }
-    void consultar(filtros.toString(), 1);
   }
 
   async function exportarLote(evento: FormEvent<HTMLFormElement>) {
@@ -142,8 +139,8 @@ export default function Consulta() {
     <form className="filtros-fiscais painel-fiscal" onSubmit={buscar} onReset={limpar}>
       <h2>Filtros</h2>
       <div className="campos-fiscais campos-consulta">
-        <label>Data inicial do evento<input type="date" name="inicio" /></label>
-        <label>Data final do evento<input type="date" name="fim" /></label>
+        <CampoData name="inicio" label="Data inicial do evento" />
+        <CampoData name="fim" label="Data final do evento" />
         <label>Número da NF
           <input name="numero" inputMode="numeric" autoComplete="off" placeholder="Ex.: 96203" />
         </label>
