@@ -14,8 +14,7 @@ internal static class SefazCommand
         try
         {
             string uf = settings["Sefaz:Uf"] ?? throw new ArgumentException("Configure Sefaz__Uf.");
-            var start = TimeOnly.ParseExact(settings["Sefaz:WindowStart"] ?? "22:00", "HH:mm", CultureInfo.InvariantCulture);
-            var end = TimeOnly.ParseExact(settings["Sefaz:WindowEnd"] ?? "04:00", "HH:mm", CultureInfo.InvariantCulture);
+            var (start, end) = SefazSchedule.ReadWindow(settings);
             long? initial = ParseNsu(settings["Sefaz:InitialNsu"]);
             long? recovery = args.Length == 2 ? ParseNsu(args[1]) : null;
             using var certificate = Certificate(settings);

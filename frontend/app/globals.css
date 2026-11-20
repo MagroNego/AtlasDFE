@@ -282,3 +282,21 @@ button.acao-nota[aria-expanded="true"] { background: var(--painel); border-color
   .logo-empresa { width: 54px; }
   .campos-emissao { grid-template-columns: minmax(0, 1fr); }
 }
+
+.sefaz-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.sefaz-dados {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px 24px;
+  margin: 12px 0 0;
+}
+.sefaz-dados dt { color: var(--muted); font-size: .8rem; }
+.sefaz-dados dd { margin: 2px 0 0; }
+.sefaz-atividade { margin-top: 12px; }
+.sefaz-atividade :is(th, td) { white-space: nowrap; }

@@ -120,7 +120,7 @@ public sealed class SefazInbox(string connectionString)
         }
 
         await using (var finish = new NpgsqlCommand("""
-            UPDATE sefaz_respostas SET cstat=$5, cursor_final=$6, documentos=$7
+            UPDATE sefaz_respostas SET cstat=$5, cursor_final=$6, documentos=$7, processado_em=clock_timestamp()
             WHERE cnpj=$1 AND nsu_enviado=$2 AND recuperacao=$3 AND hash=$4
             """, db, transaction))
         {

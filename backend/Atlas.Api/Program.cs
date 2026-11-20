@@ -71,7 +71,7 @@ if (configuration["DataProtection:Path"] is { Length: > 0 } keyPath)
 var serviceMode = !args.Any(arg => arg is
     "--migrate" or "--bootstrap-admin" or "--promover-admin" or "--importar-historico" or "--reprocessar-sefaz" or "--sincronizar-sefaz"
     or "--recuperar-nsu" or "--fila-nsu" or "--enfileirar-nsu" or "--cancelar-nsu");
-if (serviceMode && configuration.GetValue<bool>("Sefaz:ScheduleEnabled"))
+if (serviceMode && bool.TryParse(configuration["Sefaz:ScheduleEnabled"], out bool scheduleEnabled) && scheduleEnabled)
 {
     var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
     builder.Services.AddHostedService(provider => new SefazScheduler(
@@ -241,6 +241,7 @@ app.MapPost("/api/logout", async (HttpContext http, IAntiforgery csrf, SignInMan
 
 app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);
+app.MapSefazStatus(connectionString, cnpj);
 
 await app.RunAsync();
 

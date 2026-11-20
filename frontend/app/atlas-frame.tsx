@@ -30,6 +30,7 @@ function toggleTheme() {
 const sections = [
   { path: "/", label: "Consulta" },
   { path: "/emissao", label: "Emissão" },
+  { path: "/status", label: "Status SEFAZ" },
   { path: "/aging", label: "Aging List" },
   { path: "/admin", label: "Administração", admin: true },
 ];

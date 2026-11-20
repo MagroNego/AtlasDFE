@@ -121,6 +121,8 @@ A fila aceita prioridade `alta` ou `normal`, com limite de 100 pendências. Cada
 
 Para ativar, inicie a API com `Sefaz__ScheduleEnabled=true`, as variáveis do certificado e da UF e o mesmo PostgreSQL. `Sefaz__ScheduleTimes` permite alterar a lista de horários, e `Sefaz__ScheduleDays` usa 0 para domingo até 6 para sábado. Por padrão a agenda fica desabilitada. Se usar Compose, configure essas variáveis e monte o certificado no serviço da API. Um certificado que depende do repositório do Windows exige execução no Windows.
 
+Em **Status SEFAZ**, a sessão autenticada acompanha o cursor, a janela, a pausa registrada, a fila e as últimas 25 entradas de atividade. O próximo horário elegível é uma estimativa baseada na agenda, na pausa e na última reserva. A última gravação mostra a hora de processamento registrada a partir da migração de Status. O histórico anterior permanece visível pela hora de recebimento.
+
 A fila pode ser preenchida pelos comandos ou pela importação descrita abaixo. A Consulta exibe também os vínculos CT-e reconhecidos nos lotes recebidos e mantém o cancelamento de uma chave de CT-e já identificada.
 
 ### Transferir o estado da sincronização

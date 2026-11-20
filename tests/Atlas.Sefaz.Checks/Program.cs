@@ -132,7 +132,20 @@ if (Environment.GetEnvironmentVariable("ATLAS_TEST_DATABASE") is { } connection)
     Check(await rows.ReadAsync());
     Check(rows.GetInt64(0) == 42 && rows.GetInt64(1) == 43 && rows.GetBoolean(2)
         && rows.GetInt64(3) == 1 && rows.GetInt64(4) == 2);
-    Console.WriteLine("PostgreSQL: reprocessamento sem duplicação, resposta inválida preservada e cursor íntegro.");
+    var statusStore = new SefazStatusStore(connection);
+    var status = await statusStore.ReadAsync(cnpj, default);
+    Check(status.UltNsu == 42 && status.MaxNsu == 43 && status.PausaAte.HasValue);
+    Check(status.UltimaGravacao.HasValue && status.RespostasPendentes == 1 && status.PendenteDesde.HasValue);
+    Check(status.Atividade.Any(entry => entry.Cstat == 656)
+        && status.Atividade.Any(entry => entry.Tipo == "resposta" && entry.Cstat is null));
+    var scheduledStatus = await statusStore.ReadAsync(liveCnpj, default);
+    Check(scheduledStatus.UltNsu == 94 && scheduledStatus.UltimaReserva == nextSlot
+        && scheduledStatus.FilaPendente == 0 && scheduledStatus.RespostasPendentes == 0);
+    Check(scheduledStatus.Atividade.Any(entry => entry.Tipo == "envio" && entry.Recuperacao && entry.Nsu == 12));
+    var emptyStatus = await statusStore.ReadAsync("00000000000002", default);
+    Check(emptyStatus.UltNsu is null && emptyStatus.UltimaGravacao is null && emptyStatus.Atividade.Count == 0);
+
+    Console.WriteLine("PostgreSQL: reprocessamento, cursor e Status SEFAZ conferidos.");
 
     Task<SefazReplayResult> Replay(long sent, bool recovery, string xml) =>
         inbox.ReplayAsync(cnpj, sent, recovery, Encoding.UTF8.GetBytes(xml), CancellationToken.None);
