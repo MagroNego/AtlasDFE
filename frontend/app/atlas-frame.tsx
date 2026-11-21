@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { MinhaConta } from "./minha-conta";
 import { DownloadsBadge } from "./downloads-badge";
-import atlasLight from "./identidade/atlasdfe-light.webp";
-import atlasDark from "./identidade/atlasdfe-dark.webp";
 import yorozuLight from "./identidade/yorozu-light.webp";
 import yorozuDark from "./identidade/yorozu-dark.webp";
 
@@ -28,6 +26,15 @@ const themes = [
 function setTheme(theme: string) {
   document.documentElement.dataset.theme = theme;
   try { localStorage.setItem(themeKey, theme); } catch { /* The theme still applies to this page. */ }
+}
+
+const marcas = [["light", "claro"], ["dark", "escuro"], ["catppuccin", "catppuccin"], ["tokyo", "tokyo-night"]] as const;
+
+function MarcaAtlas() {
+  return <span className="simbolo-atlas" aria-hidden="true">
+    {marcas.map(([tema, variante]) => <img key={tema} data-marca-tema={tema}
+      src={`/marca-atlas/${variante}.svg`} alt="" width={38} height={38} />)}
+  </span>;
 }
 
 const sections = [
@@ -57,6 +64,10 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [requested, setRequested] = useState(false);
   const [contaAberta, setContaAberta] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const conteudo = useRef<HTMLDivElement>(null);
+  const telaAnterior = useRef(pathname);
   const exportPage = pathname === "/downloads" || pathname === "/aging";
   const adminPage = pathname === "/admin" || pathname.startsWith("/admin/");
 
@@ -73,6 +84,23 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { void refreshSession(); }, [refreshSession]);
+
+  useLayoutEffect(() => {
+    if (telaAnterior.current === pathname) return;
+    telaAnterior.current = pathname;
+    setMenuAberto(false);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animation = conteudo.current?.animate?.(
+      [{ opacity: 0.72, translate: "0 3px" }, { opacity: 1, translate: "none" }],
+      { duration: 160, easing: "ease-out" },
+    );
+    return () => animation?.cancel();
+  }, [pathname]);
+
+  function fecharMenu() {
+    setMenuAberto(false);
+    menuButton.current?.focus();
+  }
 
   async function authenticate(action: "login" | "logout", form?: FormData) {
     if (!session || busy) return;
@@ -95,6 +123,7 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
       }
       if (action === "logout") {
         setSession(undefined);
+        setMenuAberto(false);
         router.replace("/");
       }
       await refreshSession();
@@ -134,21 +163,14 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
 
   return <>
     <a href="#conteudo" className="pular">Ir para o conteúdo</a>
-    <header className="topbar">
+    <header className="topbar" data-autenticado={session?.autenticado === true}>
       <Link href="/" className="marca" aria-label="Atlas DFE · Consulta">
-        <img className="logo-atlas tema-claro" src={atlasLight.src} alt="Atlas DFE" width={106} height={31} />
-        <img className="logo-atlas tema-escuro" src={atlasDark.src} alt="Atlas DFE" width={106} height={31} />
+        <span className="marca-atlas"><MarcaAtlas /><strong>Atlas DFE</strong></span>
         <span className="marca-divisor">
           <img className="logo-empresa tema-claro" src={yorozuLight.src} alt="Yorozu" width={67} height={18} />
           <img className="logo-empresa tema-escuro" src={yorozuDark.src} alt="Yorozu" width={67} height={18} />
         </span>
       </Link>
-      {session?.autenticado && <nav className="abas" aria-label="Navegação principal">
-        {sections.filter(section => (!section.admin || session.administrador) && (!section.exportOnly || session.podeExportar !== false)).map(section => {
-          const active = section.path === "/admin" ? adminPage : pathname === section.path;
-          return <Link key={section.path} href={section.path} aria-current={active ? "page" : undefined}>{section.label}{section.path === "/downloads" && <DownloadsBadge key={session.token} />}</Link>;
-        })}
-      </nav>}
       <div className="conta">
         <details className="menu-temas" onKeyDown={event => {
           if (event.key === "Escape") {
@@ -175,55 +197,76 @@ export default function AtlasFrame({ children }: { children: ReactNode }) {
           </svg>
         </button>}
         {session?.autenticado && <button type="button" className="secundario" disabled={busy} onClick={() => void authenticate("logout")}>Sair</button>}
+        {session?.autenticado && <button ref={menuButton} type="button" className="secundario controle-icone menu-app-toggle"
+          aria-label={menuAberto ? "Fechar navegação" : "Abrir navegação"} aria-expanded={menuAberto} aria-controls="navegacao-atlas"
+          onClick={() => setMenuAberto(open => !open)}
+          onKeyDown={event => { if (event.key === "Escape" && menuAberto) fecharMenu(); }}>
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.7" aria-hidden="true">
+            <path d={menuAberto ? "m6 6 12 12M18 6 6 18" : "M4 6h16M4 12h16M4 18h16"} />
+          </svg>
+        </button>}
       </div>
     </header>
-    <main id="conteudo" className={session?.autenticado === false ? "acesso-main" : undefined} tabIndex={-1}>
-      {error && <p role="alert" className="erro">{error}</p>}
-      {sessionError && <section className="painel login">
-        <h1>Sessão indisponível</h1>
-        <p role="alert">Não foi possível carregar a sessão do Atlas.</p>
-        <button onClick={() => void refreshSession()}>Tentar novamente</button>
-      </section>}
-      {!session && !sessionError && <p className="mensagem" role="status">Carregando sessão…</p>}
-      {session?.autenticado === false && <section className="painel login login-atlas">
-        <div className="login-marca" aria-hidden="true">
-          <span><img src={atlasDark.src} alt="" /></span>
-        </div>
-        <h1>Entrar no Atlas</h1>
-        <form onSubmit={login}>
-          <label>E-mail ou usuário<input name="email" type="text" autoComplete="username" maxLength={254} required /></label>
-          <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
-          <button disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button>
-        </form>
-        {session.cadastroHabilitado && <details className="resultado">
-          <summary>Solicitar conta</summary>
-          <form onSubmit={register}>
-            <label>E-mail para cadastro<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
-            <label>Usuário (opcional)<input name="usuario" maxLength={60} /></label>
-            <label>Senha para cadastro<input name="senha" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /></label>
-            <button disabled={busy}>Enviar pedido</button>
+    <div className={session?.autenticado ? "app-layout" : undefined}>
+      {session?.autenticado && <aside className="app-sidebar" id="navegacao-atlas" data-aberto={menuAberto}
+        onKeyDown={event => {
+          if (event.key === "Escape" && menuAberto) { event.stopPropagation(); fecharMenu(); }
+        }}>
+        <nav aria-label="Navegação principal">
+          {sections.filter(section => (!section.admin || session.administrador) && (!section.exportOnly || session.podeExportar !== false)).map(section => (
+            <Link key={section.path} href={section.path} aria-current={section.admin && adminPage ? "location" : pathname === section.path ? "page" : undefined}
+              onClick={() => setMenuAberto(false)}>
+              {section.label}{section.path === "/downloads" && <DownloadsBadge key={session.token} />}
+            </Link>
+          ))}
+        </nav>
+        {session.administrador && adminPage && <nav className="app-sidebar-admin" aria-label="Administração">
+          {adminSections.map(section => <Link key={section.path} href={section.path}
+            aria-current={pathname === section.path ? "page" : undefined} onClick={() => setMenuAberto(false)}>{section.label}</Link>)}
+        </nav>}
+      </aside>}
+      <main id="conteudo" className={session?.autenticado === false ? "acesso-main" : undefined} tabIndex={-1}>
+        {error && <p role="alert" className="erro">{error}</p>}
+        {sessionError && <section className="painel login">
+          <h1>Sessão indisponível</h1>
+          <p role="alert">Não foi possível carregar a sessão do Atlas.</p>
+          <button onClick={() => void refreshSession()}>Tentar novamente</button>
+        </section>}
+        {!session && !sessionError && <p className="mensagem" role="status">Carregando sessão…</p>}
+        {session?.autenticado === false && <section className="painel login login-atlas">
+          <div className="login-marca"><MarcaAtlas /></div>
+          <h1>Entrar no Atlas</h1>
+          <form onSubmit={login}>
+            <label>E-mail ou usuário<input name="email" type="text" autoComplete="username" maxLength={254} required /></label>
+            <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
+            <button disabled={busy}>{busy ? "Entrando…" : "Entrar"}</button>
           </form>
-          {requested && <p role="status">Conta solicitada. Aguarde liberação do administrador.</p>}
-        </details>}
-      </section>}
-      {session?.autenticado && ((adminPage && !session.administrador || exportPage && session.podeExportar === false)
-        ? <section className="painel">
-            <h1>Acesso restrito</h1>
-            <p>Seu perfil não tem acesso a esta área.</p>
-            <Link className="acao" href="/">Voltar à Consulta</Link>
-          </section>
-        : <AtlasSession.Provider value={{ session, refreshSession }}>
-            {adminPage ? <div className="admin-layout"><aside className="admin-sidebar">
-              <h2>Administração</h2><nav className="abas abas-admin" aria-label="Administração">
-              {adminSections.map(section => <Link key={section.path} href={section.path}
-                aria-current={pathname === section.path ? "page" : undefined}>{section.label}</Link>)}
-            </nav></aside><div className="admin-conteudo">{children}</div></div> : children}
-          </AtlasSession.Provider>)}
-      {session?.autenticado && (contaAberta || pathname === "/perfil") &&
-        <MinhaConta token={session.token} refreshSession={refreshSession} onClose={() => {
-          setContaAberta(false);
-          if (pathname === "/perfil") router.replace("/");
-        }} />}
-    </main>
+          {session.cadastroHabilitado && <details className="resultado">
+            <summary>Solicitar conta</summary>
+            <form onSubmit={register}>
+              <label>E-mail para cadastro<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
+              <label>Usuário (opcional)<input name="usuario" maxLength={60} /></label>
+              <label>Senha para cadastro<input name="senha" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /></label>
+              <button disabled={busy}>Enviar pedido</button>
+            </form>
+            {requested && <p role="status">Conta solicitada. Aguarde liberação do administrador.</p>}
+          </details>}
+        </section>}
+        {session?.autenticado && <div className="conteudo-tela" ref={conteudo}>
+          {(adminPage && !session.administrador || exportPage && session.podeExportar === false)
+            ? <section className="painel">
+                <h1>Acesso restrito</h1>
+                <p>Seu perfil não tem acesso a esta área.</p>
+                <Link className="acao" href="/">Voltar à Consulta</Link>
+              </section>
+            : <AtlasSession.Provider value={{ session, refreshSession }}>{children}</AtlasSession.Provider>}
+        </div>}
+        {session?.autenticado && (contaAberta || pathname === "/perfil") &&
+          <MinhaConta token={session.token} refreshSession={refreshSession} onClose={() => {
+            setContaAberta(false);
+            if (pathname === "/perfil") router.replace("/");
+          }} />}
+      </main>
+    </div>
   </>;
 }
