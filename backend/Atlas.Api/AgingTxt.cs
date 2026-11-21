@@ -89,7 +89,6 @@ internal static partial class AgingTxt
         var checks = Sheet(book, "Conferência", ["PN", "Títulos", "Fatura dos títulos", "Fatura no LN", "Dif. fatura",
             "Recebido dos títulos", "Recebido no LN", "Dif. recebido", "Saldo dos títulos", "Saldo no LN", "Dif. saldo", "Observação"]);
         var originals = Sheet(book, "Linhas originais", ["Linha", "Página", "Texto do LN"]);
-        originals.Column(3).Width = 100;
         int checkedColumns = pdf ? 9 : 3;
         var entries = new Dictionary<string, (int Count, decimal[] Sums)>();
         var totals = new Dictionary<string, decimal?[]>();
@@ -174,9 +173,6 @@ internal static partial class AgingTxt
     {
         var sheet = book.AddWorksheet(name);
         Row(sheet, 1, fields);
-        sheet.Row(1).Style.Font.Bold = true;
-        sheet.Columns().Width = 20;
-        sheet.SheetView.FreezeRows(1);
         return sheet;
     }
 

@@ -3,7 +3,7 @@ using MailKit.Security;
 using MimeKit;
 using Npgsql;
 
-internal sealed class SmtpAlerts(string connection, string cnpj, IConfiguration configuration, ILogger<SmtpAlerts> log) : BackgroundService
+internal sealed class SmtpAlerts(string connection, string cnpj, OperationalSettings operations, ILogger<SmtpAlerts> log) : BackgroundService
 {
     internal static bool Enabled(IConfiguration settings) => settings.GetValue<bool>("Smtp:Enabled");
 
@@ -12,14 +12,19 @@ internal sealed class SmtpAlerts(string connection, string cnpj, IConfiguration 
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
         do
         {
-            try { await DeliverAsync(stoppingToken); }
+            try
+            {
+                using var values = await operations.ReadAsync(stoppingToken);
+                if (Enabled(values.Configuration))
+                    await DeliverAsync(values.Configuration, stoppingToken);
+            }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception error) { log.LogWarning("Não foi possível processar alertas SMTP ({Type}).", error.GetType().Name); }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private async Task DeliverAsync(CancellationToken token)
+    private async Task DeliverAsync(IConfiguration configuration, CancellationToken token)
     {
         var recipients = (configuration["Smtp:Recipients"] ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Select(value => MailboxAddress.Parse(value).Address.ToLowerInvariant()).Distinct().Take(30).ToArray();
@@ -86,7 +91,7 @@ internal sealed class SmtpAlerts(string connection, string cnpj, IConfiguration 
         await tx.CommitAsync(token);
     }
 
-    private static async Task SendAsync(IConfiguration settings, string key, string recipient, CancellationToken token)
+    internal static async Task SendAsync(IConfiguration settings, string? key, string recipient, CancellationToken token)
     {
         string host = settings["Smtp:Host"] ?? throw new InvalidOperationException("Configure Smtp__Host.");
         var security = settings["Smtp:Security"] switch
@@ -98,8 +103,12 @@ internal sealed class SmtpAlerts(string connection, string cnpj, IConfiguration 
         var mail = new MimeMessage();
         mail.From.Add(MailboxAddress.Parse(settings["Smtp:From"] ?? ""));
         mail.To.Add(MailboxAddress.Parse(recipient));
-        mail.Subject = "Atlas DFE | Operação não realizada";
-        mail.Body = new TextPart("plain") { Text = $"A SEFAZ registrou Operação não Realizada para a NF-e {key}." };
+        mail.Subject = key is null ? "Atlas DFE | Teste de alertas" : "Atlas DFE | Operação não realizada";
+        mail.Body = new TextPart("plain")
+        {
+            Text = key is null ? "O Atlas DFE enviou este e-mail para testar os alertas." :
+                $"A SEFAZ registrou Operação não Realizada para a NF-e {key}.",
+        };
         using var client = new SmtpClient();
         await client.ConnectAsync(host, settings.GetValue<int?>("Smtp:Port") ?? (security == SecureSocketOptions.SslOnConnect ? 465 : 587), security, token);
         if (settings["Smtp:User"] is { Length: > 0 } user)

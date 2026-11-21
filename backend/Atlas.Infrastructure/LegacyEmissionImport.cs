@@ -7,13 +7,15 @@ namespace Atlas.Infrastructure;
 
 internal static class LegacyEmissionImport
 {
-    public static async Task RunAsync(SqliteTransaction source, NpgsqlTransaction target, string cnpj, CancellationToken token)
+    public static async Task<(long Notes, long Items, string Keys)?> RunAsync(SqliteTransaction source, NpgsqlTransaction target, string cnpj, CancellationToken token)
     {
         using var notes = source.Connection!.CreateCommand();
         notes.Transaction = source;
         notes.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('xml_documentos','xml_relatorio')";
-        if ((long)notes.ExecuteScalar()! != 2)
-            return;
+        long tables = (long)notes.ExecuteScalar()!;
+        if (tables == 0) return null;
+        if (tables != 2)
+            throw new InvalidDataException("O SQLite contém um esquema incompleto de Emissão.");
 
         await using (var clear = new NpgsqlCommand("DELETE FROM emissao_notas WHERE cnpj=$1", target.Connection, target))
         {
@@ -22,7 +24,7 @@ internal static class LegacyEmissionImport
         }
 
         notes.CommandText = """
-            SELECT chave,numero,serie,emissao,emitente,destinatario,valor,sha256 FROM xml_documentos WHERE cnpj=$cnpj
+            SELECT chave,numero,serie,emissao,emitente,destinatario,valor,sha256 FROM xml_documentos WHERE cnpj=$cnpj ORDER BY chave COLLATE BINARY
             """;
         notes.Parameters.AddWithValue("$cnpj", cnpj);
         using var rows = notes.ExecuteReader();
@@ -33,6 +35,8 @@ internal static class LegacyEmissionImport
             """;
         items.Parameters.AddWithValue("$cnpj", cnpj);
         var key = items.Parameters.Add("$chave", SqliteType.Text);
+        long noteCount = 0, itemCount = 0;
+        using var hash = MigrationIntegrity.CreateHash();
         while (rows.Read())
         {
             key.Value = rows.GetString(0);
@@ -55,8 +59,12 @@ internal static class LegacyEmissionImport
                 DateOnly.ParseExact(rows.GetString(3), "yyyy-MM-dd", CultureInfo.InvariantCulture),
                 rows.GetString(4), rows.GetString(5), EmissionStore.Amount(rows.GetString(6)),
                 JsonSerializer.SerializeToElement(details), rows.GetString(7), pis, cofins);
+            noteCount++;
+            itemCount += details.Count;
+            MigrationIntegrity.AppendKey(hash, note.Chave);
             await EmissionStore.InsertAsync(target, cnpj, note, token);
         }
+        return (noteCount, itemCount, MigrationIntegrity.Digest(hash));
     }
 
     private static decimal Retained(JsonElement row, string label)

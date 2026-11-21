@@ -12,5 +12,6 @@ WORKDIR /app
 ENV NODE_ENV=production HOSTNAME=0.0.0.0
 COPY --from=build --chown=node:node /src/.next/standalone/ ./
 COPY --from=build --chown=node:node /src/.next/static/ ./.next/static/
+COPY --from=build --chown=node:node /src/public/ ./public/
 USER node
 CMD ["node", "server.js"]

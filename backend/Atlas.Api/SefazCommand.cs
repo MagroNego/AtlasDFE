@@ -6,19 +6,20 @@ using Npgsql;
 
 internal static class SefazCommand
 {
-    public static async Task<int> RunAsync(string[] args, IConfiguration settings, string connection, string cnpj)
+    public static async Task<int> RunAsync(string[] args, OperationalSettings operations, string connection, string cnpj)
     {
         using var cancellation = new CancellationTokenSource();
         ConsoleCancelEventHandler stop = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
         Console.CancelKeyPress += stop;
         try
         {
+            using var values = await operations.ReadAsync(cancellation.Token);
+            var settings = values.Configuration;
             string uf = settings["Sefaz:Uf"] ?? throw new ArgumentException("Configure Sefaz__Uf.");
-            var start = TimeOnly.ParseExact(settings["Sefaz:WindowStart"] ?? "22:00", "HH:mm", CultureInfo.InvariantCulture);
-            var end = TimeOnly.ParseExact(settings["Sefaz:WindowEnd"] ?? "04:00", "HH:mm", CultureInfo.InvariantCulture);
+            var (start, end) = SefazSchedule.ReadWindow(settings);
             long? initial = ParseNsu(settings["Sefaz:InitialNsu"]);
             long? recovery = args.Length == 2 ? ParseNsu(args[1]) : null;
-            using var certificate = Certificate(settings);
+            using var certificate = await operations.CertificateAsync(cancellation.Token);
             using var client = SefazSync.Client(certificate);
             var result = await new SefazSync(connection, client).RunAsync(
                 cnpj, uf, initial, recovery, DateTimeOffset.UtcNow, start, end, cancellation.Token);

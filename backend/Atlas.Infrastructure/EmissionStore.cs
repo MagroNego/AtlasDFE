@@ -9,12 +9,17 @@ using NpgsqlTypes;
 
 namespace Atlas.Infrastructure;
 
+public sealed record XmlImportEntry(string Arquivo, string Estado, string Mensagem);
+public sealed record XmlImportResult(long Id, int Notas, int Cancelamentos, int Cce, int Duplicatas, int Erros,
+    List<XmlImportEntry> Registros);
+
 public sealed record EmissionNote(string Chave, int Numero, int Serie, DateOnly Emissao,
     string Emitente, string Destinatario, decimal Valor, JsonElement Itens, string Hash,
     decimal PisRetido = 0, decimal CofinsRetido = 0);
 
 public sealed record EmissionRow(string Chave, int Numero, int Serie, DateOnly Emissao,
-    string Emitente, string Destinatario, decimal Valor, int Itens, bool Cancelada, decimal PisRetido, decimal CofinsRetido);
+    string Emitente, string Destinatario, decimal Valor, int Itens, bool Cancelada, decimal PisRetido, decimal CofinsRetido,
+    bool TemCce, bool TemCte);
 
 public sealed class EmissionStore(string connection)
 {
@@ -25,65 +30,137 @@ public sealed class EmissionStore(string connection)
     public async Task<(int Imported, int Existing)> ImportAsync(
         string cnpj, IEnumerable<(string Name, Stream Stream)> files, CancellationToken token)
     {
+        var result = await ImportLoggedAsync(cnpj, files, "", token);
+        if (result.Erros > 0)
+            throw new InvalidDataException(result.Registros.First(row => row.Estado == "erro").Mensagem);
+        return (result.Notas + result.Cancelamentos + result.Cce, result.Duplicatas);
+    }
+
+    public async Task<XmlImportResult> ImportLoggedAsync(string cnpj,
+        IEnumerable<(string Name, Stream Stream)> files, string user, CancellationToken token)
+    {
         await using var db = new NpgsqlConnection(connection);
         await db.OpenAsync(token);
         await using var tx = await db.BeginTransactionAsync(token);
-        await using (var guard = new NpgsqlCommand("SELECT pg_advisory_xact_lock(718320, hashtext($1))", db, tx))
+        // A publicação de eventos usa a mesma trava do lote recebido pela SEFAZ.
+        await using (var guard = new NpgsqlCommand("""
+            SELECT pg_advisory_xact_lock(718320, hashtext(@cnpj));
+            SELECT pg_advisory_xact_lock(718321, hashtext(@cnpj));
+            """, db, tx))
         {
-            guard.Parameters.AddWithValue(cnpj);
+            guard.Parameters.AddWithValue("cnpj", cnpj);
             await guard.ExecuteNonQueryAsync(token);
         }
-        int imported = 0, existing = 0, expanded = 0, documents = 0;
-        foreach (var (name, stream) in files)
+
+        await tx.SaveAsync("xml_lote", token);
+        var records = new List<XmlImportEntry>();
+        int expanded = 0, documents = 0;
+        string current = "";
+        try
         {
-            if (Path.GetExtension(name).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+            foreach (var (name, stream) in files)
             {
-                using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
-                foreach (var entry in zip.Entries)
+                current = SafeName(name);
+                if (Path.GetExtension(name).Equals(".zip", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!Path.GetExtension(entry.Name).Equals(".xml", StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    await using var input = entry.Open();
-                    await Save(input);
+                    string zipName = current;
+                    try
+                    {
+                        using var zip = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+                        foreach (var entry in zip.Entries)
+                        {
+                            if (!Path.GetExtension(entry.Name).Equals(".xml", StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            current = zipName + " / " + SafeName(entry.Name);
+                            await using var input = entry.Open();
+                            await Save(input);
+                        }
+                    }
+                    catch (InvalidDataException) { records.Add(new(current, "erro", "ZIP inválido.")); }
                 }
+                else if (Path.GetExtension(name).Equals(".xml", StringComparison.OrdinalIgnoreCase))
+                    await Save(stream);
+                else
+                    records.Add(new(current, "erro", "Envie arquivos XML ou ZIP."));
             }
-            else if (Path.GetExtension(name).Equals(".xml", StringComparison.OrdinalIgnoreCase))
-                await Save(stream);
-            else
-                throw new InvalidDataException("Envie arquivos XML ou ZIP.");
         }
-        if (documents == 0)
-            throw new InvalidDataException("Nenhum XML foi encontrado.");
+        catch (BatchLimit error) { records.Add(new(current, "erro", error.Message)); }
+        if (documents == 0 && records.Count == 0)
+            records.Add(new("", "erro", "Nenhum XML foi encontrado."));
+        int errors = records.Count(row => row.Estado == "erro");
+        if (errors > 0)
+        {
+            await tx.RollbackAsync("xml_lote", token);
+            for (int i = 0; i < records.Count; i++)
+                if (records[i].Estado is "nota" or "cancelamento" or "cce")
+                    records[i] = records[i] with { Estado = "revertido", Mensagem = "Lote revertido por erro." };
+        }
+        var result = new XmlImportResult(0, records.Count(row => row.Estado == "nota"),
+            records.Count(row => row.Estado == "cancelamento"), records.Count(row => row.Estado == "cce"),
+            records.Count(row => row.Estado == "duplicata"), errors, records);
+        if (user.Length > 0)
+        {
+            await using var log = new NpgsqlCommand("""
+                INSERT INTO atlas_importacao_xml(cnpj,usuario,resultado) VALUES ($1,$2,$3) RETURNING id
+                """, db, tx);
+            log.Parameters.AddWithValue(cnpj);
+            log.Parameters.AddWithValue(user);
+            log.Parameters.AddWithValue(NpgsqlDbType.Jsonb, JsonSerializer.Serialize(result));
+            result = result with { Id = (long)(await log.ExecuteScalarAsync(token))! };
+        }
         await tx.CommitAsync(token);
-        return (imported, existing);
+        return result;
 
         async Task Save(Stream stream)
         {
             if (++documents > 5000)
-                throw new InvalidDataException("O lote contém mais de 5.000 XMLs.");
+                throw new BatchLimit("O lote contém mais de 5.000 XMLs.");
             using var buffer = new MemoryStream();
             byte[] chunk = new byte[32 * 1024];
             for (int size; (size = await stream.ReadAsync(chunk, token)) > 0;)
             {
                 if (buffer.Length + size > MaxXml || (expanded += size) > MaxBatch)
-                    throw new InvalidDataException("O tamanho do XML ou do lote excede o limite.");
+                    throw new BatchLimit("O tamanho do XML ou do lote excede o limite.");
                 buffer.Write(chunk, 0, size);
             }
-            byte[] xml = buffer.ToArray();
-            var root = SefazDistribution.ReadXml(xml, MaxXml);
-            if (root.Name == Nfe + "procEventoNFe")
+            try
             {
-                await SefazConsulta.PublishAsync(db, tx, cnpj, new SefazDocument(0, "importacao", xml), token,
-                    imported: true);
-                imported++;
-                return;
+                byte[] xml = buffer.ToArray();
+                var root = SefazDistribution.ReadXml(xml, MaxXml);
+                if (root.Name == Nfe + "procEventoNFe")
+                {
+                    var request = root.Element(Nfe + "evento")?.Element(Nfe + "infEvento");
+                    var receipt = root.Element(Nfe + "retEvento")?.Element(Nfe + "infEvento");
+                    string code = Value(request, "tpEvento");
+                    string key = Value(request, "chNFe");
+                    string protocol = First(Value(receipt, "nProt"), Value(request, "nProt"));
+                    await using var check = new NpgsqlCommand("""
+                        SELECT CASE WHEN $3='110111' THEN coalesce((n.detalhe->>'cancelada')::boolean,false)
+                            ELSE EXISTS (SELECT 1 FROM jsonb_array_elements(n.detalhe->'eventos') e
+                                WHERE e->>'codigo'=$3 AND e->>'protocolo'=$4) END
+                        FROM consulta_notas n WHERE cnpj=$1 AND chave=$2
+                        """, db, tx);
+                    foreach (string value in new[] { cnpj, key, code, protocol }) check.Parameters.AddWithValue(value);
+                    bool exists = (bool?)await check.ExecuteScalarAsync(token) == true;
+                    await SefazConsulta.PublishAsync(db, tx, cnpj, new SefazDocument(0, "importacao", xml), token,
+                        imported: true);
+                    records.Add(new(current, exists ? "duplicata" : code == "110111" ? "cancelamento" : "cce", ""));
+                }
+                else
+                {
+                    bool inserted = await InsertAsync(tx, cnpj, Parse(cnpj, xml), token);
+                    records.Add(new(current, inserted ? "nota" : "duplicata", ""));
+                }
             }
-            if (await InsertAsync(tx, cnpj, Parse(cnpj, xml), token))
-                imported++;
-            else
-                existing++;
+            catch (InvalidDataException error) { records.Add(new(current, "erro", error.Message)); }
+            catch (System.Xml.XmlException) { records.Add(new(current, "erro", "XML inválido.")); }
         }
     }
+
+    private static string SafeName(string name) => new string(Path.GetFileName(name.Replace('\\', '/'))
+        .Where(ch => !char.IsControl(ch)).Take(180).ToArray());
+
+    private sealed class BatchLimit(string message) : Exception(message);
 
     public static EmissionNote Parse(string cnpj, byte[] xml)
     {
@@ -110,11 +187,23 @@ public sealed class EmissionStore(string connection)
             CultureInfo.InvariantCulture, DateTimeStyles.None, out var emission))
             throw new InvalidDataException("Data de emissão inválida.");
         decimal amount = Amount(Value(info.Element(Nfe + "total")?.Element(Nfe + "ICMSTot"), "vNF"));
+        var dest = info.Element(Nfe + "dest");
+        string hour = date.Contains('T') ? date.Split('T')[1].Split('+', '-')[0].TrimEnd('Z') : "";
+        object Weight(string field)
+        {
+            var values = info.Element(Nfe + "transp")?.Elements(Nfe + "vol")
+                .Select(volume => Value(volume, field)).Where(value => value.Length > 0).ToArray() ?? [];
+            return values.Length == 0 ? "" : values.Sum(Amount);
+        }
+        object netWeight = Weight("pesoL"), grossWeight = Weight("pesoB");
         var items = info.Elements(Nfe + "det").Take(991).Select(item =>
         {
             var product = item.Element(Nfe + "prod") ?? throw new InvalidDataException("Item sem produto.");
             var fields = new Dictionary<string, object>
             {
+                ["Hora Emissao"] = hour, ["Peso Liquido"] = netWeight, ["Peso Bruto"] = grossWeight,
+                ["Emitente CNPJ"] = cnpj, ["Destinatario CNPJ"] = First(Value(dest, "CNPJ"), Value(dest, "CPF")),
+                ["Destinatario UF"] = Value(dest?.Element(Nfe + "enderDest"), "UF"),
                 ["Item"] = (string?)item.Attribute("nItem") ?? "",
                 ["Codigo"] = Value(product, "cProd"), ["Descricao"] = Value(product, "xProd"),
                 ["NCM"] = Value(product, "NCM"), ["CFOP"] = Value(product, "CFOP"),
@@ -133,6 +222,8 @@ public sealed class EmissionStore(string connection)
                 {
                     fields["CSOSN"] = Value(taxed, "CSOSN");
                     fields["Origem ICMS"] = Value(taxed, "orig");
+                    if (Value(taxed, "CST").Length > 0)
+                        fields["CST ICMS"] = Value(taxed, "orig") + Value(taxed, "CST").PadLeft(2, '0');
                 }
                 if (tax is "PIS" or "COFINS")
                 {
@@ -164,17 +255,34 @@ public sealed class EmissionStore(string connection)
         command.Parameters.AddWithValue(note.Hash);
         command.Parameters.AddWithValue(note.PisRetido);
         command.Parameters.AddWithValue(note.CofinsRetido);
-        return await command.ExecuteNonQueryAsync(token) == 1;
+        bool inserted = await command.ExecuteNonQueryAsync(token) == 1;
+        // Reimportar o mesmo XML recupera metadados ausentes de versões anteriores.
+        // Um XML diferente com a mesma chave continua sem substituir o documento.
+        if (!inserted)
+        {
+            await using var enrich = new NpgsqlCommand("""
+                UPDATE emissao_notas SET itens=$3 WHERE cnpj=$1 AND chave=$2 AND hash=$4
+                    AND NOT (itens->0 ? 'Peso Liquido') AND ($3::jsonb->0 ? 'Peso Liquido')
+                """, tx.Connection, tx);
+            enrich.Parameters.AddWithValue(cnpj);
+            enrich.Parameters.AddWithValue(note.Chave);
+            enrich.Parameters.AddWithValue(NpgsqlDbType.Jsonb, note.Itens.GetRawText());
+            enrich.Parameters.AddWithValue(note.Hash);
+            await enrich.ExecuteNonQueryAsync(token);
+        }
+        return inserted;
     }
 
     public async Task<List<EmissionRow>> ListAsync(string cnpj, string query, DateOnly? start, DateOnly? end,
-        string status, int skip, int limit, CancellationToken token)
+        string status, int skip, int limit, CancellationToken token, string itemQuery = "")
     {
         await using var db = new NpgsqlConnection(connection);
         await db.OpenAsync(token);
         await using var command = new NpgsqlCommand("""
             SELECT e.chave,e.numero,e.serie,e.emissao,e.emitente,e.destinatario,e.valor,jsonb_array_length(e.itens),
-                (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false)) AS cancelada,e.pis_retido,e.cofins_retido
+                (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false)) AS cancelada,e.pis_retido,e.cofins_retido,
+                coalesce(n.detalhe->'eventos' @> '[{"codigo":"110110"}]'::jsonb,false),
+                coalesce(jsonb_array_length(n.detalhe->'ctes')>0,false)
             FROM emissao_notas e LEFT JOIN consulta_notas n USING (cnpj,chave)
             LEFT JOIN atlas_situacao_atual m USING (cnpj,chave)
             WHERE e.cnpj=$1 AND ($2='' OR strpos(lower(concat_ws(' ',e.chave,e.numero,e.emitente,e.destinatario)),lower($2))>0
@@ -182,6 +290,8 @@ public sealed class EmissionStore(string connection)
                     WHERE strpos(lower(concat_ws(' ',i->>'Codigo',i->>'Descricao',i->>'NCM')),lower($2))>0))
                 AND ($3 IS NULL OR e.emissao >= $3) AND ($4 IS NULL OR e.emissao <= $4)
                 AND ($5='' OR (coalesce((n.detalhe->>'cancelada')::boolean,false) OR coalesce(m.cancelada,false))=($5='cancelada'))
+                AND ($8='' OR EXISTS (SELECT 1 FROM jsonb_array_elements(e.itens) i
+                    WHERE strpos(lower(concat_ws(' ',i->>'Codigo',i->>'Descricao',i->>'NCM')),lower($8))>0))
             ORDER BY e.emissao DESC,e.chave LIMIT $6 OFFSET $7
             """, db);
         command.Parameters.AddWithValue(cnpj);
@@ -191,11 +301,13 @@ public sealed class EmissionStore(string connection)
         command.Parameters.AddWithValue(status);
         command.Parameters.AddWithValue(limit);
         command.Parameters.AddWithValue(skip);
+        command.Parameters.AddWithValue(itemQuery);
         var result = new List<EmissionRow>();
         await using var rows = await command.ExecuteReaderAsync(token);
         while (await rows.ReadAsync(token))
             result.Add(new(rows.GetString(0), rows.GetInt32(1), rows.GetInt32(2), rows.GetFieldValue<DateOnly>(3),
-                rows.GetString(4), rows.GetString(5), rows.GetDecimal(6), rows.GetInt32(7), rows.GetBoolean(8), rows.GetDecimal(9), rows.GetDecimal(10)));
+                rows.GetString(4), rows.GetString(5), rows.GetDecimal(6), rows.GetInt32(7), rows.GetBoolean(8), rows.GetDecimal(9), rows.GetDecimal(10),
+                rows.GetBoolean(11), rows.GetBoolean(12)));
         return result;
     }
 

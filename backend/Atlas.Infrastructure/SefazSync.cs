@@ -6,7 +6,7 @@ namespace Atlas.Infrastructure;
 public sealed class SefazSync(string connectionString, HttpClient client)
 {
     public async Task<SefazReplayResult?> RunAsync(string cnpj, string uf, long? initialCursor,
-        long? recoveryNsu, DateTimeOffset now, TimeOnly start, TimeOnly end, CancellationToken token, DateTimeOffset? scheduledSlot = null)
+        long? recoveryNsu, DateTimeOffset now, TimeOnly start, TimeOnly end, CancellationToken token, DateTimeOffset? scheduledSlot = null, bool manual = false)
     {
         // Validate identifiers before acquiring locks or preparing a network request.
         SefazDistribution.Request(cnpj, uf, recoveryNsu ?? initialCursor ?? 0, recoveryNsu.HasValue);
@@ -58,6 +58,17 @@ public sealed class SefazSync(string connectionString, HttpClient client)
 
         if (!SefazDistribution.InWindow(now, start, end) || retry > now)
             return null;
+        if (manual)
+        {
+            await using var recent = new NpgsqlCommand("""
+                SELECT EXISTS (SELECT 1 FROM sefaz_tentativas WHERE cnpj=$1
+                    AND tentado_em > $2 - interval '1 minute')
+                """, db, run);
+            recent.Parameters.AddWithValue(cnpj);
+            recent.Parameters.AddWithValue(now);
+            if ((bool?)await recent.ExecuteScalarAsync(token) == true)
+                return null;
+        }
         if (scheduledSlot.HasValue)
         {
             await using var next = new NpgsqlCommand("""

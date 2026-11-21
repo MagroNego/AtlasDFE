@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.AspNetCore.RateLimiting;
 using Atlas.Domain;
 using Atlas.Infrastructure;
@@ -35,8 +34,11 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
     options.Password.RequiredLength = 12;
     options.User.RequireUniqueEmail = true;
 })
-.AddEntityFrameworkStores<AtlasDbContext>();
-builder.Services.AddAuthorization();
+.AddEntityFrameworkStores<AtlasDbContext>()
+.AddDefaultTokenProviders();
+builder.Services.AddAuthorization(options => options.AddPolicy(Administration.Export, policy =>
+    policy.RequireAuthenticatedUser().RequireAssertion(context => context.User.IsInRole(Administration.Role)
+        || !context.User.IsInRole(Administration.Consulta))));
 builder.Services.Configure<SecurityStampValidatorOptions>(options => options.ValidationInterval = TimeSpan.Zero);
 builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 builder.Services.ConfigureApplicationCookie(options =>
@@ -59,6 +61,16 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("sincronizar-web", limit =>
+    {
+        limit.PermitLimit = 3;
+        limit.Window = TimeSpan.FromMinutes(1);
+    });
+    options.AddFixedWindowLimiter("teste-smtp", limit =>
+    {
+        limit.PermitLimit = 3;
+        limit.Window = TimeSpan.FromMinutes(1);
+    });
     options.AddFixedWindowLimiter("login", limit =>
     {
         limit.PermitLimit = 20;
@@ -72,18 +84,19 @@ if (configuration["DataProtection:Path"] is { Length: > 0 } keyPath)
 var serviceMode = !args.Any(arg => arg is
     "--migrate" or "--bootstrap-admin" or "--promover-admin" or "--importar-historico" or "--reprocessar-sefaz" or "--sincronizar-sefaz"
     or "--recuperar-nsu" or "--fila-nsu" or "--enfileirar-nsu" or "--cancelar-nsu");
-if (serviceMode && configuration.GetValue<bool>("Sefaz:ScheduleEnabled"))
+var company = configuration["Atlas:Cnpj"] ?? "";
+builder.Services.AddSingleton(provider => new OperationalSettings(connectionString, company, configuration,
+    provider.GetRequiredService<IDataProtectionProvider>()));
+builder.Services.AddSingleton(new DownloadQueue(connectionString, company));
+if (serviceMode)
 {
-    var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
+    builder.Services.AddHostedService(provider => new DownloadWorker(provider.GetRequiredService<DownloadQueue>(),
+        connectionString, company, provider.GetRequiredService<ILogger<DownloadWorker>>()));
     builder.Services.AddHostedService(provider => new SefazScheduler(
-        configuration, connectionString, company, provider.GetRequiredService<ILogger<SefazScheduler>>()));
-}
-
-if (serviceMode && SmtpAlerts.Enabled(configuration))
-{
-    var company = configuration["Atlas:Cnpj"] ?? throw new InvalidOperationException("Configure Atlas__Cnpj.");
+        provider.GetRequiredService<OperationalSettings>(), connectionString, company,
+        provider.GetRequiredService<ILogger<SefazScheduler>>()));
     builder.Services.AddHostedService(provider => new SmtpAlerts(
-        connectionString, company, configuration, provider.GetRequiredService<ILogger<SmtpAlerts>>()));
+        connectionString, company, provider.GetRequiredService<OperationalSettings>(), provider.GetRequiredService<ILogger<SmtpAlerts>>()));
 }
 
 var app = builder.Build();
@@ -166,7 +179,7 @@ if (queueSefaz)
 
 if (syncSefaz)
 {
-    Environment.ExitCode = await SefazCommand.RunAsync(args, configuration, connectionString, cnpj);
+    Environment.ExitCode = await SefazCommand.RunAsync(args, app.Services.GetRequiredService<OperationalSettings>(), connectionString, cnpj);
     return;
 }
 
@@ -218,17 +231,24 @@ app.UseRateLimiter();
 
 app.Map("/erro", () => Results.Problem());
 app.MapGet("/health", () => Results.Ok()).AllowAnonymous();
-app.MapGet("/api/sessao", (HttpContext http, IAntiforgery csrf) =>
+app.MapGet("/api/sessao", (HttpContext http, IAntiforgery csrf, IConfiguration settings) =>
     Results.Ok(new { autenticado = http.User.Identity?.IsAuthenticated == true, administrador = http.User.IsInRole(Administration.Role),
+        podeExportar = http.User.Identity?.IsAuthenticated == true &&
+            (!http.User.IsInRole(Administration.Consulta) || http.User.IsInRole(Administration.Role)),
+        cadastroHabilitado = ProfileEndpoints.SelfRegistration(settings),
         token = csrf.GetAndStoreTokens(http).RequestToken })).AllowAnonymous();
 app.MapPost("/api/login", async (
-    Credenciais input, HttpContext http, IAntiforgery csrf, SignInManager<IdentityUser> login) =>
+    Credenciais input, HttpContext http, IAntiforgery csrf, SignInManager<IdentityUser> login, UserManager<IdentityUser> users) =>
 {
     if (!await csrf.IsRequestValidAsync(http))
         return Results.BadRequest();
     if (string.IsNullOrWhiteSpace(input.Email) || string.IsNullOrEmpty(input.Senha))
         return Results.BadRequest();
-    var resultado = await login.PasswordSignInAsync(input.Email.Trim(), input.Senha, false, true);
+    var handle = input.Email.Trim();
+    if (handle.Length > 254) return Results.Unauthorized();
+    var account = handle.Contains('@') ? await users.FindByEmailAsync(handle) : await users.FindByNameAsync(handle);
+    if (account is null) return Results.Unauthorized();
+    var resultado = await login.PasswordSignInAsync(account, input.Senha, false, true);
     return resultado.Succeeded ? Results.NoContent() : Results.Unauthorized();
 }).AllowAnonymous().RequireRateLimiting("login");
 
@@ -240,32 +260,13 @@ app.MapPost("/api/logout", async (HttpContext http, IAntiforgery csrf, SignInMan
     return Results.NoContent();
 }).RequireAuthorization();
 
-app.MapGet("/api/consulta", async (
-    string? busca, int? pagina, AtlasDbContext banco, CancellationToken cancelamento) =>
-{
-    var nota = IdentificadorNota.Parse(busca);
-    if (nota is null || pagina is < 1 or > 10000)
-        return Results.BadRequest(new { erro = "Informe uma chave de NF-e ou um número de nota válido." });
-
-    await using var leitura = await banco.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancelamento);
-    var importacao = await banco.Importacoes.AsNoTracking()
-        .SingleOrDefaultAsync(i => i.Cnpj == cnpj, cancelamento);
-
-    const int tamanho = 25;
-    var consulta = banco.Notas.AsNoTracking().Where(n => n.Cnpj == cnpj);
-    consulta = nota.Chave is not null
-        ? consulta.Where(n => n.Chave == nota.Chave)
-        : consulta.Where(n => n.Numero == nota.Numero);
-    var linhas = await consulta.OrderBy(n => n.Chave)
-        .Skip(((pagina ?? 1) - 1) * tamanho).Take(tamanho + 1)
-        .Select(n => new { n.Chave, n.Numero, n.Serie, n.Detalhe, Manual = banco.Situacoes.Any(s => s.Cnpj == n.Cnpj && s.Chave == n.Chave && s.Cancelada) })
-        .ToListAsync(cancelamento);
-
-    return Results.Ok(new { importadoEm = importacao?.ImportadoEm, notas = linhas.Take(tamanho).Select(n => new { n.Chave, n.Numero, n.Serie,
-        Detalhe = FiscalEndpoints.MergeStatus(n.Detalhe, n.Manual) }), mais = linhas.Count > tamanho });
-}).RequireAuthorization();
-
+app.MapProfile(cnpj);
+app.MapDownloads();
+app.MapConsulta(connectionString, cnpj);
 app.MapFiscal(connectionString, cnpj);
+app.MapSefazStatus(connectionString, cnpj);
+app.MapOperationalControls(connectionString, cnpj);
+app.MapDatabaseMigration(connectionString, cnpj);
 
 await app.RunAsync();
 

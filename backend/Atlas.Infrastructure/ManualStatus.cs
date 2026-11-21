@@ -11,9 +11,15 @@ public sealed class ManualStatus(string connection)
 {
     public async Task ApplyAsync(string cnpj, string identifier, bool canceled, string user, string reason, CancellationToken token)
     {
-        var note = IdentificadorNota.Parse(identifier);
+        await ApplyBatchAsync(cnpj, [identifier], canceled, user, reason, token);
+    }
+
+    public async Task<int> ApplyBatchAsync(string cnpj, string[] identifiers, bool canceled, string user, string reason, CancellationToken token)
+    {
+        if (identifiers.Length is < 1 or > 100)
+            throw new InvalidDataException("Informe de 1 a 100 notas por vez.");
         reason = reason.Trim();
-        if (note is null || reason.Length is < 1 or > 500)
+        if (reason.Length is < 1 or > 500)
             throw new InvalidDataException("Informe a nota e um motivo de até 500 caracteres.");
         await using var db = new NpgsqlConnection(connection);
         await db.OpenAsync(token);
@@ -23,34 +29,46 @@ public sealed class ManualStatus(string connection)
             guard.Parameters.AddWithValue(cnpj);
             await guard.ExecuteNonQueryAsync(token);
         }
-        await using var lookup = new NpgsqlCommand("""
-            SELECT chave FROM (
-                SELECT chave,numero FROM consulta_notas WHERE cnpj=$1
-                UNION SELECT chave,numero FROM emissao_notas WHERE cnpj=$1
-            ) AS notes WHERE ($2::text IS NOT NULL AND chave=$2) OR numero=$3::integer LIMIT 2
-            """, db, tx);
-        lookup.Parameters.AddWithValue(cnpj);
-        lookup.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)note.Chave ?? DBNull.Value);
-        lookup.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Integer, (object?)note.Numero ?? DBNull.Value);
-        string key;
-        await using (var rows = await lookup.ExecuteReaderAsync(token))
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var identifier in identifiers.Distinct(StringComparer.Ordinal))
         {
-            if (!await rows.ReadAsync(token))
-                throw new InvalidDataException("NF-e não localizada.");
-            key = rows.GetString(0);
-            if (await rows.ReadAsync(token))
-                throw new InvalidDataException("Número ambíguo. Informe a chave de acesso.");
+            var note = IdentificadorNota.Parse(identifier);
+            if (note is null)
+                throw new InvalidDataException("A lista contém número ou chave inválida.");
+            await using var lookup = new NpgsqlCommand("""
+                SELECT chave FROM (
+                    SELECT chave,numero FROM consulta_notas WHERE cnpj=$1
+                    UNION SELECT chave,numero FROM emissao_notas WHERE cnpj=$1
+                ) AS notes WHERE ($2::text IS NOT NULL AND chave=$2) OR numero=$3::integer LIMIT 2
+                """, db, tx);
+            lookup.Parameters.AddWithValue(cnpj);
+            lookup.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Text, (object?)note.Chave ?? DBNull.Value);
+            lookup.Parameters.AddWithValue(NpgsqlTypes.NpgsqlDbType.Integer, (object?)note.Numero ?? DBNull.Value);
+            string key;
+            await using (var rows = await lookup.ExecuteReaderAsync(token))
+            {
+                if (!await rows.ReadAsync(token))
+                    throw new InvalidDataException($"NF-e não localizada: {identifier}. Nenhuma nota foi alterada.");
+                key = rows.GetString(0);
+                if (await rows.ReadAsync(token))
+                    throw new InvalidDataException($"Número ambíguo: {identifier}. Informe a chave de acesso.");
+            }
+            keys.Add(key);
         }
-        await using var save = new NpgsqlCommand("""
-            INSERT INTO atlas_situacao_manual(cnpj,chave,usuario,motivo,cancelada) VALUES ($1,$2,$3,$4,$5)
-            """, db, tx);
-        foreach (var value in new object[] { cnpj, key, user, reason, canceled })
-            save.Parameters.AddWithValue(value);
-        await save.ExecuteNonQueryAsync(token);
+        foreach (string key in keys)
+        {
+            await using var save = new NpgsqlCommand("""
+                INSERT INTO atlas_situacao_manual(cnpj,chave,usuario,motivo,cancelada) VALUES ($1,$2,$3,$4,$5)
+                """, db, tx);
+            foreach (var value in new object[] { cnpj, key, user, reason, canceled })
+                save.Parameters.AddWithValue(value);
+            await save.ExecuteNonQueryAsync(token);
+        }
         await tx.CommitAsync(token);
+        return keys.Count;
     }
 
-    internal static async Task ImportAsync(SqliteTransaction source, NpgsqlTransaction destination, string cnpj, CancellationToken token)
+    internal static async Task<long> ImportAsync(SqliteTransaction source, NpgsqlTransaction destination, string cnpj, CancellationToken token)
     {
         using var read = source.Connection!.CreateCommand();
         read.Transaction = source;
@@ -62,6 +80,7 @@ public sealed class ManualStatus(string connection)
         clear.Parameters.AddWithValue(cnpj);
         await clear.ExecuteNonQueryAsync(token);
         read.Parameters.AddWithValue("$cnpj", cnpj);
+        long count = 0;
         if (tables.Contains("historico_cancelamentos_manuais"))
             await Copy("""
                 SELECT chave,usuario,motivo,acao='cancelar',alterado_em
@@ -77,6 +96,8 @@ public sealed class ManualStatus(string connection)
                 FROM cancelamentos_manuais m WHERE cnpj=$cnpj {filter}
                 """);
         }
+
+        return count;
 
         async Task Copy(string sql)
         {
@@ -95,6 +116,7 @@ public sealed class ManualStatus(string connection)
                     rows.GetBoolean(3), time.UtcDateTime })
                     insert.Parameters.AddWithValue(value);
                 await insert.ExecuteNonQueryAsync(token);
+                count++;
             }
         }
     }

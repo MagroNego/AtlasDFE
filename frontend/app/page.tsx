@@ -1,77 +1,46 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-
-type Sessao = { autenticado: boolean; administrador: boolean; token: string };
-type Evento = { codigo: string; descricao: string; data: string; protocolo: string; nsu: string; correcao: string };
-type Cte = { chave: string; status: string; transportadora: string; data: string };
-type Nota = { chave: string; numero: number; serie: number; detalhe: { cancelada: boolean; eventos: Evento[]; ctes: Cte[] } };
-type Resultado = { importadoEm: string | null; notas: Nota[]; mais: boolean };
-
-async function lerSessao(): Promise<Sessao> {
-  const resposta = await fetch("/api/sessao");
-  if (!resposta.ok) throw new Error("A sessão do Atlas está indisponível.");
-  return resposta.json();
-}
-
-const dataBR = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
-});
+import { SeletorArquivo } from "./seletor-arquivo";
+import { CampoData, periodoParam } from "./periodo";
+import Link from "next/link";
+import { ExportarArquivo } from "./exportar-arquivo";
+import { Fragment, useState, type FormEvent } from "react";
+import { useAtlasSession } from "./atlas-frame";
+import { EventosNota, rotulosAcoes, type AcaoNota, type ResultadoConsulta } from "./eventos-nota";
+import { ItensNota, type ItemNota } from "./itens-nota";
 
 export default function Consulta() {
-  const [sessao, setSessao] = useState<Sessao>();
-  const [busca, setBusca] = useState("");
+  const { session, refreshSession } = useAtlasSession();
+  const [detalhe, setDetalhe] = useState<{ chave: string; tipo: AcaoNota; itens?: ItemNota[] }>();
   const [termo, setTermo] = useState("");
   const [pagina, setPagina] = useState(1);
-  const [resultado, setResultado] = useState<Resultado>();
+  const [resultado, setResultado] = useState<ResultadoConsulta>();
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
-
-  useEffect(() => {
-    lerSessao().then(setSessao).catch(() => setErro("A sessão do Atlas está indisponível."));
-  }, []);
-
-  async function autenticar(acao: "login" | "logout", dados?: FormData) {
-    if (!sessao) return;
-    setOcupado(true);
-    setErro("");
-    try {
-      const resposta = await fetch(`/api/${acao}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": sessao.token },
-        body: dados && JSON.stringify({ email: dados.get("email"), senha: dados.get("senha") }),
-      });
-      if (!resposta.ok) {
-        setErro(resposta.status === 429 ? "Aguarde um minuto para tentar de novo." :
-          resposta.status === 401 ? "E-mail ou senha inválidos." : "Não foi possível atualizar a sessão.");
-        return;
-      }
-      setResultado(undefined);
-      setBusca("");
-      setTermo("");
-      setSessao(undefined);
-      setSessao(await lerSessao());
-    } catch {
-      setErro("A sessão do Atlas está indisponível.");
-    } finally {
-      setOcupado(false);
-    }
-  }
+  const [exportando, setExportando] = useState(false);
+  const [loteNaFila, setLoteNaFila] = useState(false);
+  const [erroLote, setErroLote] = useState("");
+  const [copia, setCopia] = useState<{ chave: string; sucesso: boolean }>();
 
   async function consultar(valor: string, paginaAlvo: number) {
+    if (ocupado) return;
     setOcupado(true);
+    setDetalhe(undefined);
+    setCopia(undefined);
     setErro("");
     if (paginaAlvo === 1) setResultado(undefined);
     try {
-      const parametros = new URLSearchParams({ busca: valor, pagina: String(paginaAlvo) });
+      const parametros = new URLSearchParams(valor);
+      parametros.set("pagina", String(paginaAlvo));
       const resposta = await fetch(`/api/consulta?${parametros}`);
       if (resposta.status === 401) {
         setResultado(undefined);
-        setSessao(await lerSessao());
+        await refreshSession();
         return;
       }
       if (resposta.status === 400) {
-        setErro("Informe o número da NF-e ou a chave de acesso de 44 dígitos.");
+        const falha = await resposta.json().catch(() => null);
+        setErro(falha?.erro ?? "Confira os filtros informados.");
         return;
       }
       if (!resposta.ok) throw new Error();
@@ -87,71 +56,209 @@ export default function Consulta() {
 
   function buscar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
-    void consultar(busca.trim(), 1);
+    try {
+      const filtros = periodoParam(new FormData(evento.currentTarget));
+      if (!filtros.size) { setErro("Informe pelo menos um filtro."); return; }
+      void consultar(filtros.toString(), 1);
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Confira os filtros.");
+    }
   }
 
-  return <main>
-    <header>
-      <a href="/" className="marca">Atlas <span>DFE</span></a>
-      {sessao?.autenticado && <nav><a href="/emissao">Emissão</a><a href="/aging">Aging</a>{sessao.administrador && <a href="/admin">Administração</a>}<button className="secundario" disabled={ocupado} onClick={() => void autenticar("logout")}>Sair</button></nav>}
-    </header>
+  async function exportarLote(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    if (exportando) return;
+    setExportando(true);
+    setErroLote("");
+    setLoteNaFila(false);
+    try {
+      const resposta = await fetch("/api/consulta/lote/gerar", {
+        method: "POST", headers: { "X-CSRF-TOKEN": session.token }, body: new FormData(evento.currentTarget),
+      });
+      if (resposta.status === 401) {
+        await refreshSession();
+        return;
+      }
+      if (!resposta.ok) {
+        const falha = await resposta.json().catch(() => null);
+        throw new Error(falha?.erro ?? "Não foi possível exportar o TXT.");
+      }
+      setLoteNaFila(true);
+    } catch (erro) {
+      setErroLote(erro instanceof Error ? erro.message : "Não foi possível exportar o TXT.");
+    } finally {
+      setExportando(false);
+    }
+  }
+
+  function limpar() {
+    setResultado(undefined);
+    setDetalhe(undefined);
+    setCopia(undefined);
+    setErro("");
+  }
+
+  async function abrirDetalhe(chave: string, tipo: AcaoNota) {
+    if (ocupado) return;
+    if (detalhe?.chave === chave && detalhe.tipo === tipo) {
+      setDetalhe(undefined);
+      return;
+    }
+    setErro("");
+    if (tipo !== "itens") {
+      setDetalhe({ chave, tipo });
+      return;
+    }
+    setOcupado(true);
+    try {
+      const resposta = await fetch(`/api/emissao/${encodeURIComponent(chave)}/itens`);
+      if (resposta.status === 401) {
+        setResultado(undefined);
+        await refreshSession();
+        return;
+      }
+      if (!resposta.ok) throw new Error();
+      setDetalhe({ chave, tipo, itens: await resposta.json() });
+    } catch {
+      setErro("Não foi possível abrir os itens.");
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function copiarChave(chave: string) {
+    try {
+      await navigator.clipboard.writeText(chave);
+      setCopia({ chave, sucesso: true });
+    } catch {
+      setCopia({ chave, sucesso: false });
+    }
+  }
+
+  return <section className="tela-fiscal tela-consulta">
+    <div className="titulo-fiscal"><h1>Consulta</h1></div>
+    <form className="filtros-fiscais painel-fiscal" onSubmit={buscar} onReset={limpar}>
+      <h2>Filtros</h2>
+      <div className="campos-fiscais campos-consulta">
+        <CampoData name="inicio" label="Data inicial do evento" />
+        <CampoData name="fim" label="Data final do evento" />
+        <label>Número da NF
+          <input name="numero" inputMode="numeric" autoComplete="off" placeholder="Ex.: 96203" />
+        </label>
+        <label>Chave NF-e
+          <input name="chave" inputMode="numeric" autoComplete="off" placeholder="44 dígitos" />
+        </label>
+        <label>Manifestação
+          <select name="codigo">
+            <option value="">Todas</option>
+            <option value="210200">Confirmação da Operação</option>
+            <option value="210210">Ciência da Operação</option>
+            <option value="210220">Desconhecimento da Operação</option>
+            <option value="210240">Operação não Realizada</option>
+            <option value="110110">Carta de Correção</option>
+          </select>
+        </label>
+        <label>Situação
+          <select name="situacao">
+            <option value="">Todas</option>
+            <option value="autorizada">Autorizada</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </label>
+      </div>
+      <div className="acoes-filtros">
+        <button type="reset" className="secundario" disabled={ocupado}>Limpar</button>
+        <button disabled={ocupado}>{ocupado ? "Consultando…" : "Consultar"}</button>
+      </div>
+    </form>
     {erro && <p role="alert" className="erro">{erro}</p>}
-    {!sessao && !erro && <p role="status">Carregando…</p>}
-    {sessao?.autenticado === false && <section className="painel login">
-      <h1>Entrar no Atlas</h1>
-      <form onSubmit={e => { e.preventDefault(); void autenticar("login", new FormData(e.currentTarget)); }}>
-        <label>E-mail<input name="email" type="email" autoComplete="username" required /></label>
-        <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
-        <button disabled={ocupado}>Entrar</button>
-      </form>
-    </section>}
-    {sessao?.autenticado && <section className="painel">
-      <h1>Consulta de NF-e</h1>
-      <form className="busca" onSubmit={buscar}>
-        <label htmlFor="busca">Número da nota ou chave de acesso</label>
-        <div>
-          <input id="busca" value={busca} inputMode="numeric" maxLength={44} required
-            onChange={e => setBusca(e.target.value)} placeholder="Ex. 96203" />
-          <button disabled={ocupado}>{ocupado ? "Consultando…" : "Consultar"}</button>
-        </div>
-      </form>
-      {resultado && <div className="resultado">
-        {resultado.notas.length > 0 && <a href={`/api/consulta/excel?busca=${encodeURIComponent(termo)}`}>Excel</a>}
-        <p role="status">{resultado.importadoEm
-          ? `Histórico importado em ${dataBR.format(new Date(resultado.importadoEm))}`
-          : "Consulta de documentos recebidos pela SEFAZ."}</p>
-        {!resultado.notas.length && <p>Nenhuma NF-e localizada nesta cópia.</p>}
-        {resultado.notas.map(nota => <article key={nota.chave} className="nota">
-          <h2>NF-e {nota.numero} <small>Série {nota.serie}</small></h2>
-          <code>{nota.chave}</code>
-          {nota.detalhe.cancelada && <p className="aviso">Cancelada no histórico local</p>}
-          <details>
-            <summary>Eventos ({nota.detalhe.eventos.length})</summary>
-            {nota.detalhe.eventos.length === 0 && <p>Sem eventos registrados.</p>}
-            <ul>{nota.detalhe.eventos.map((evento, i) => <li key={i}>
-              <strong>{evento.descricao || evento.codigo}</strong> · {evento.data}<br />
-              {evento.protocolo && <>Protocolo {evento.protocolo} </>}
-              {evento.nsu && <>· NSU {evento.nsu}</>}
-              {evento.correcao && <p>{evento.correcao}</p>}
-            </li>)}</ul>
-          </details>
-          <details>
-            <summary>CT-e vinculados ({nota.detalhe.ctes.length})</summary>
-            {nota.detalhe.ctes.length === 0 && <p>Sem vínculos no histórico local.</p>}
-            <ul>{nota.detalhe.ctes.map((cte, i) => <li key={i}>
-              <strong>{cte.status}</strong> {cte.transportadora && `· ${cte.transportadora}`}
-              {cte.chave && <><br /><code>{cte.chave}</code></>}
-            </li>)}</ul>
-          </details>
-        </article>)}
-        {(pagina > 1 || resultado.mais) && <nav aria-label="Páginas de resultados">
-          <button className="secundario" disabled={ocupado || pagina === 1}
-            onClick={() => void consultar(termo, pagina - 1)}>Anterior</button>
-          <span>Página {pagina}</span>
-          <button className="secundario" disabled={ocupado || !resultado.mais}
-            onClick={() => void consultar(termo, pagina + 1)}>Próxima</button>
-        </nav>}
+    {ocupado && <p className="sr-only" role="status">Consultando documentos…</p>}
+    {resultado && <div className="resultado painel-fiscal" aria-busy={ocupado}>
+      {resultado.notas.length > 0 && <div className="resultado-barra">
+        <ExportarArquivo key={termo} href={`/api/consulta/excel?${termo}`}>Exportar Excel</ExportarArquivo>
       </div>}
-    </section>}
-  </main>;
+      {!resultado.notas.length ? <p className="mensagem" role="status">Nenhuma NF-e localizada nesta cópia.</p>
+        : <div key={pagina} className="tabela-rolagem" tabIndex={0} role="region" aria-label="Resultados da consulta">
+          <table className="tabela tabela-consulta" role="table">
+            <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Ações</th><th scope="col" role="columnheader">NF-e</th><th scope="col" role="columnheader">Chave de acesso</th><th scope="col" role="columnheader">Situação</th></tr></thead>
+            <tbody role="rowgroup">
+              {resultado.notas.map(nota => {
+                const detalheAberto = detalhe?.chave === nota.chave ? detalhe : undefined;
+                const estadoCopia = copia?.chave === nota.chave ? copia : undefined;
+                const { eventos, ctes, cancelada } = nota.detalhe;
+                const visiveis = nota.eventosFiltrados ?? eventos;
+                const totalEventos = `${visiveis.length} ${visiveis.length === 1 ? "evento" : "eventos"}`;
+                const temCarta = eventos.some(evento => evento.codigo === "110110");
+                const acoes: AcaoNota[] = ["eventos"];
+                if (nota.temItens) acoes.unshift("itens");
+                if (temCarta) acoes.push("cce");
+                if (ctes.length > 0) acoes.push("cte");
+                return <Fragment key={nota.chave}>
+                  <tr role="row" className={detalheAberto ? "consulta-nota aberta" : "consulta-nota"}>
+                    <td role="cell">
+                      <div className="acoes-nota">
+                        {acoes.map(tipo => <button key={tipo} type="button" className="secundario compacto acao-nota"
+                          disabled={ocupado} aria-expanded={detalheAberto?.tipo === tipo}
+                          aria-controls={detalheAberto?.tipo === tipo ? `detalhe-${nota.chave}` : undefined}
+                          aria-label={`${rotulosAcoes[tipo]} da NF-e ${nota.numero}, série ${nota.serie}${tipo === "eventos" ? ` · ${totalEventos}` : ""}`}
+                          onClick={() => void abrirDetalhe(nota.chave, tipo)}>{rotulosAcoes[tipo]}</button>)}
+                      </div>
+                    </td>
+                    <th scope="row" role="rowheader">{nota.numero}</th>
+                    <td role="cell">
+                      <div className="consulta-chave">
+                        <code>{nota.chave}</code>
+                        <button type="button" className="secundario copiar-chave" title="Copiar chave"
+                          aria-label={`Copiar chave da NF-e ${nota.numero}, série ${nota.serie}`}
+                          onClick={() => void copiarChave(nota.chave)}>
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {estadoCopia?.sucesso
+                              ? <path d="m5 12 4 4L19 6" />
+                              : <><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 4H6a2 2 0 0 0-2 2v10" /></>}
+                          </svg>
+                        </button>
+                      </div>
+                      {estadoCopia && <p role={estadoCopia.sucesso ? "status" : "alert"} className={estadoCopia.sucesso ? "sr-only" : "consulta-copia-erro"}>
+                        {estadoCopia.sucesso ? "Chave de acesso copiada." : "Selecione a chave para copiá-la manualmente."}
+                      </p>}
+                    </td>
+                    <td role="cell">{cancelada ? <span className="selo selo-cancelado">Cancelada no histórico local</span> : <span className="sem-marcacao">—</span>}</td>
+                  </tr>
+                  {detalheAberto && <tr key={detalheAberto.tipo} role="row" className="linha-detalhe" id={`detalhe-${nota.chave}`}>
+                    <td role="cell" colSpan={4}>
+                      {detalheAberto.tipo === "itens"
+                        ? <ItensNota chave={nota.chave} items={detalheAberto.itens ?? []} />
+                        : <EventosNota detalhe={detalheAberto.tipo === "eventos"
+                            ? { ...nota.detalhe, eventos: visiveis } : nota.detalhe} tipo={detalheAberto.tipo} />}
+                    </td>
+                  </tr>}
+                </Fragment>;
+              })}
+            </tbody>
+          </table>
+        </div>}
+      {(pagina > 1 || resultado.mais) && <nav className="paginacao" aria-label="Páginas de resultados">
+        <button className="secundario" disabled={ocupado || pagina === 1}
+          onClick={() => void consultar(termo, pagina - 1)}>Anterior</button>
+        <span>Página {pagina}</span>
+        <button className="secundario" disabled={ocupado || !resultado.mais}
+          onClick={() => void consultar(termo, pagina + 1)}>Próxima</button>
+      </nav>}
+    </div>}
+    {session.podeExportar !== false && <form className="filtros-fiscais painel-fiscal consulta-lote" onSubmit={exportarLote}>
+      <h2>Consulta por arquivo</h2>
+      <div className="campos-fiscais campos-lote">
+        <label>Conteúdo do TXT
+          <select name="tipo"><option value="chaves">Chaves de NF-e</option><option value="numeros">Números de NF-e</option></select>
+        </label>
+        <SeletorArquivo name="arquivo" accept=".txt,text/plain" titulo="Selecionar arquivo TXT"
+          ajuda="Uma chave ou número por linha. Até 10.000 entradas e 2 MiB." disabled={exportando}
+          onSelect={() => { setLoteNaFila(false); setErroLote(""); }} />
+        <button className="secundario" disabled={exportando}>{exportando ? "Enviando pedido…" : "Gerar Excel"}</button>
+      </div>
+      {loteNaFila && <p role="status">Pedido na fila. <Link href="/downloads">Ver Downloads</Link></p>}
+      {erroLote && <p role="alert" className="erro">{erroLote}</p>}
+    </form>}
+  </section>;
 }

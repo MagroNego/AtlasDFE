@@ -29,6 +29,8 @@ Abra [localhost:3001](http://localhost:3001). O administrador inicial é criado 
 
 ## Importar uma cópia do histórico
 
+No Atlas, abra **Administração → Migração do banco**. Selecione uma cópia independente do SQLite ou SQLCipher de até 60 MiB, informe a senha se for criptografada e confirme com `MIGRAR`. Confira o resultado em **Status SEFAZ → Integridade da migração**. Para arquivos maiores, use o comando abaixo.
+
 O importador usa o SDK .NET 10 definido em `global.json`. Execute na raiz do repositório, com o PostgreSQL do Compose em execução. Use o mesmo `ATLAS_CNPJ` da configuração do Compose.
 
 ```powershell
@@ -95,7 +97,7 @@ O teste de protocolo roda com `dotnet run --project tests/Atlas.Sefaz.Checks`. P
 
 O comando processa um lote por execução. Ele retoma primeiro uma resposta pendente, respeita a janela configurada em horário de Brasília e consulta o PostgreSQL para verificar a pausa e o limite de recuperação. Novas NF-e, manifestações, CC-e e cancelamentos reconhecidos aparecem na Consulta. Os documentos completos ficam gravados no PostgreSQL.
 
-Para a primeira execução, pare a coleta Python do CNPJ e importe a cópia final do banco. Se o banco legado não tiver estado gravado, informe o cursor em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
+Para a primeira execução, pare a coleta Python do CNPJ e importe a cópia final do banco. Se o banco legado não tiver estado gravado, informe o cursor em `Sefaz__InitialNsu`. Depois, use o cursor persistido removendo essa variável. Selecione a UF em **Administração → Controles SEFAZ → Agenda automática** ou configure `Sefaz__Uf` com o código da UF, como `33` para o RJ. O padrão da janela é 22:00 a 04:00. Ajuste com `Sefaz__WindowStart` e `Sefaz__WindowEnd`.
 
 Para A1, informe `Sefaz__CertificatePath` e `Sefaz__CertificatePasswordFile`, com o caminho de um arquivo privado contendo a senha. No Windows, também é possível informar `Sefaz__CertificateThumbprint` de um certificado no repositório Pessoal do usuário que executa o comando. Valide o acesso à chave privada e o dispositivo no ambiente da TI.
 
@@ -121,6 +123,14 @@ A fila aceita prioridade `alta` ou `normal`, com limite de 100 pendências. Cada
 
 Para ativar, inicie a API com `Sefaz__ScheduleEnabled=true`, as variáveis do certificado e da UF e o mesmo PostgreSQL. `Sefaz__ScheduleTimes` permite alterar a lista de horários, e `Sefaz__ScheduleDays` usa 0 para domingo até 6 para sábado. Por padrão a agenda fica desabilitada. Se usar Compose, configure essas variáveis e monte o certificado no serviço da API. Um certificado que depende do repositório do Windows exige execução no Windows.
 
+Em **Status SEFAZ**, a sessão autenticada acompanha o cursor, a janela, a pausa registrada, a fila e as últimas 25 entradas de atividade. O próximo horário elegível é uma estimativa baseada na agenda, na pausa e na última reserva. A última gravação mostra a hora de processamento registrada a partir da migração de Status. O histórico anterior permanece visível pela hora de recebimento.
+
+Em **Administração → Controles SEFAZ**, o administrador pode iniciar uma consulta com o cursor salvo, editar a agenda, cadastrar ou remover o certificado A1 e gerenciar alertas. A sincronização usa a mesma trava do agendador e do comando local e respeita a janela e a pausa. O próximo ciclo do agendador aplica os horários salvos na tela.
+
+O Atlas protege o PFX e a senha com as chaves de Data Protection. Preserve `DataProtection__Path` ao trocar de servidor ou recriar o serviço e compartilhe o mesmo conjunto de chaves entre instâncias que usem o mesmo banco. O cadastro pela web tem precedência sobre o certificado da instalação. Ao remover o cadastro, o Atlas volta a usar a configuração da instalação. Use HTTPS para cadastrar o certificado pela rede.
+
+A tela permite ativar alertas, editar destinatários, testar o envio e antecipar a próxima tentativa das entregas pendentes. Configure o host, a porta, o modo TLS, o remetente e as credenciais SMTP na instalação. O teste envia apenas para um destinatário da lista salva.
+
 A fila pode ser preenchida pelos comandos ou pela importação descrita abaixo. A Consulta exibe também os vínculos CT-e reconhecidos nos lotes recebidos e mantém o cancelamento de uma chave de CT-e já identificada.
 
 ### Transferir o estado da sincronização
@@ -129,19 +139,27 @@ Antes de ativar o C#, pare a coleta legada e execute novamente `--importar-histo
 
 A agenda tenta primeiro os NSUs de prioridade alta, depois os primeiros NSUs faltantes dos intervalos conhecidos e por fim a fila normal. Os documentos já registrados e as consultas concluídas ficam fora da recuperação. A rejeição 656 com `ultNSU` superior registra um intervalo e preserva o cursor confirmado. A recuperação mantém o cursor de distribuição.
 
+### Conferir a migração
+
+O comando `--importar-historico` abre o SQLite em leitura, executa `PRAGMA quick_check` e compara os dados normalizados com a cópia provisória no PostgreSQL. São conferidos os totais de notas, eventos, vínculos, itens e marcações, o conjunto de chaves da Consulta e da Emissão e os NSUs da origem quando disponíveis. A cópia só é publicada com a comparação aprovada. Se os valores divergem, a transação é revertida e a divergência fica registrada.
+
+Em **Status SEFAZ → Integridade da migração**, o gráfico mostra o resultado da última comparação concluída, com data e valores por base. É um retrato da cópia ensaiada. Valide também relatórios e documentos representativos antes de virar a produção.
+
 ## Emissão, XML e Excel
 
 Entre no Atlas e abra **Emissão**. A tela importa XMLs ou ZIPs de NF-e do CNPJ configurado e mostra notas e itens. Os filtros aceitam período, situação, número, chave, empresas e código, descrição ou NCM do item. O botão **Excel** gera a planilha de Emissão com os filtros aplicados, incluindo retenções de PIS e COFINS registradas no XML. A Consulta gera a planilha de Manifestação para o número ou a chave pesquisada.
 
-O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
+As exportações de Consulta, TXT, Emissão e itens feitas na interface entram na **Central de Downloads**. A conta acompanha a geração por etapas, cancela pedidos ativos e pode baixar novamente os arquivos. O menu sinaliza arquivos prontos ou erros ainda não vistos. A fila e os arquivos ficam no PostgreSQL por CNPJ e conta. O serviço retoma pedidos interrompidos em caso de reinício e exclui os arquivos do histórico após sete dias ou quando excedem os 20 pedidos concluídos mais recentes da conta. Cada arquivo tem limite de 32 MiB.
+
+O importador de histórico leva as notas e os itens de Emissão já salvos no SQLite/SQLCipher. O histórico de lotes em **Administração → Importações XML** detalha notas, cancelamentos, CC-e, duplicatas e erros. O CSV vai para a Central de Downloads. O upload em C# tem limite de 8 MiB por XML, 64 MiB de conteúdo expandido e 5.000 XMLs por lote. Se um arquivo for inválido, o lote é revertido. Um ZIP é lido em memória ou pelo fluxo temporário do upload, sem extrair entradas para diretórios da aplicação.
 
 A nova versão tem telas para a fila de NSU e para registrar ou remover marcação local de cancelamento. O histórico registra usuário, motivo e data. A remoção de marcação local preserva cancelamentos reconhecidos pela SEFAZ.
 
-Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.
+Na tela **Aging**, envie o TXT delimitado, o XLSX de uma aba ou o PDF do Infor LN. Use **Ver prévia** para conferir as primeiras dez linhas dos lançamentos. Se houver erro, baixe o diagnóstico TXT. O Excel preserva a linha de origem e confere o saldo das faixas por título, por parceiro e no resultado cumulativo.
 
 ## Contas e auditoria
 
-A conta criada por `--bootstrap-admin` recebe o perfil Administrador. Se a conta já foi criada em uma revisão anterior do Atlas C#, aplique as migrações e execute `dotnet run --project backend/Atlas.Api -- --promover-admin email@empresa.com` para o e-mail escolhido. Use o painel **Administração → Contas e auditoria** para cadastrar usuários, trocar senhas e bloquear ou liberar acessos. As contas antigas do Python precisam ser cadastradas novamente.
+A conta criada por `--bootstrap-admin` recebe o perfil Administrador. Se a conta já foi criada em uma revisão anterior do Atlas C#, aplique as migrações e execute `dotnet run --project backend/Atlas.Api -- --promover-admin email@empresa.com` para o e-mail escolhido. Use o painel **Administração → Contas e auditoria** para cadastrar, editar, excluir, trocar senhas e bloquear ou liberar acessos. O perfil Consulta pode ler dados fiscais. Fiscal e Administrador também podem exportar. Usuários .NET existentes sem perfil explícito mantêm acesso de Fiscal. Em **Perfil**, o usuário pode editar seus dados mediante confirmação da senha. Para habilitar solicitação de conta, configure `Atlas__SelfRegistration=true`. Cada conta solicitada começa bloqueada como Consulta e exige liberação administrativa. As contas antigas do Python precisam ser cadastradas novamente.
 
 ## Alertas por e-mail
 
